@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Umgebung
+.env
+
+# Datenbank
+*.db
+
+# Uploads (Bilder werden lokal gespeichert)
+static/uploads/*
+!static/uploads/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+._*
