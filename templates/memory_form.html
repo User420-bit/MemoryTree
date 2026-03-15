@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block title %}{{ "Erinnerung bearbeiten" if memory else "Neue Erinnerung" }}{% endblock %}
+{% block d3 %}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .emoji-btn { cursor: pointer; opacity: 0.5; transition: all 0.15s; font-size: 1.75rem; }
+  .emoji-btn:hover, .emoji-btn.selected { opacity: 1; transform: scale(1.25); }
+  #map-picker { height: 300px; border-radius: 0.75rem; z-index: 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+
+  {# ── Überschrift ───────────────────────────────────────────────────────── #}
+  <h1 class="text-3xl font-bold text-stone-800 mb-8">
+    {{ "✏️ Erinnerung bearbeiten" if memory else "🌱 Neue Erinnerung" }}
+  </h1>
+
+  {# ── Fehlermeldung ─────────────────────────────────────────────────────── #}
+  {% if error %}
+  <div class="bg-red-50 border border-red-300 text-red-800 rounded-xl p-4 mb-6 flex items-center gap-3">
+    <span class="text-xl">❌</span>
+    <span>{{ error }}</span>
+  </div>
+  {% endif %}
+
+  <form method="post"
+        action="{{ '/memories/' ~ memory.id ~ '/edit' if memory else '/memories/new' }}"
+        enctype="multipart/form-data"
+        class="space-y-8">
+
+    {# ── Abschnitt: Grunddaten ───────────────────────────────────────────── #}
+    <section class="bg-white rounded-2xl shadow-md p-6 space-y-6">
+
+      {# Titel #}
+      <div>
+        <label for="title" class="block text-sm font-medium text-stone-600 mb-1">
+          Titel <span class="text-red-500">*</span>
+        </label>
+        <input type="text" id="title" name="title" required
+               value="{{ memory.title if memory else '' }}"
+               placeholder="z. B. Urlaub in Italien 🇮🇹"
+               class="w-full px-4 py-2.5 rounded-lg border border-stone-300
+                      focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
+      </div>
+
+      {# Datum + Kategorie #}
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <label for="date" class="block text-sm font-medium text-stone-600 mb-1">
+            Datum <span class="text-red-500">*</span>
+          </label>
+          <input type="date" id="date" name="date" required
+                 value="{{ memory.date.isoformat() if memory else '' }}"
+                 class="w-full px-4 py-2.5 rounded-lg border border-stone-300
+                        focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
+        </div>
+
+        <div>
+          <label for="category" class="block text-sm font-medium text-stone-600 mb-1">
+            Kategorie
+          </label>
+          <select id="category" name="category"
+                  class="w-full px-4 py-2.5 rounded-lg border border-stone-300
+                         focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
+            {% set categories = [
+              ("Urlaub",      "🏖️ Urlaub"),
+              ("Meilenstein", "🌟 Meilenstein"),
+              ("Feier",       "🎉 Feier"),
+              ("Alltag",      "📸 Alltag"),
+              ("Abenteuer",   "🌯 Abenteuer"),
+              ("Besonderes",  "❤️ Besonderes")
+            ] %}
+            {% for value, label in categories %}
+            <option value="{{ value }}"
+              {{ 'selected' if memory and memory.category == value else '' }}>
+              {{ label }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      {# Stimmung (Emoji-Auswahl) #}
+      <div>
+        <label for="mood" class="block text-sm font-medium text-stone-600 mb-2">Stimmung</label>
+        <input type="hidden" id="mood" name="mood"
+               value="{{ memory.mood if memory and memory.mood else '' }}">
+        <div class="flex gap-3 flex-wrap" id="mood-picker">
+          {% set moods = ["😊", "😍", "🥳", "😢", "😌", "🤩"] %}
+          {% for emoji in moods %}
+          <button type="button"
+                  class="emoji-btn {{ 'selected' if memory and memory.mood == emoji else '' }}"
+                  data-mood="{{ emoji }}">{{ emoji }}</button>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    {# ── Abschnitt: Ort & Karte ─────────────────────────────────────────── #}
+    <section class="bg-white rounded-2xl shadow-md p-6 space-y-4">
+      <h2 class="text-lg font-semibold text-stone-700">📍 Ort</h2>
+
+      <div>
+        <label for="location" class="block text-sm font-medium text-stone-600 mb-1">
+          Ortsname
+        </label>
+        <input type="text" id="location" name="location"
+               value="{{ memory.location if memory and memory.location else '' }}"
+               placeholder="z. B. Rom, Italien"
+               class="w-full px-4 py-2.5 rounded-lg border border-stone-300
+                      focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label for="lat" class="block text-sm font-medium text-stone-600 mb-1">Breitengrad</label>
+          <input type="number" step="any" id="lat" name="lat"
+                 value="{{ memory.lat if memory and memory.lat else '' }}"
+                 placeholder="51.1657"
+                 class="w-full px-4 py-2.5 rounded-lg border border-stone-300
+                        focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition text-sm">
+        </div>
+        <div>
+          <label for="lng" class="block text-sm font-medium text-stone-600 mb-1">Längengrad</label>
+          <input type="number" step="any" id="lng" name="lng"
+                 value="{{ memory.lng if memory and memory.lng else '' }}"
+                 placeholder="10.4515"
+                 class="w-full px-4 py-2.5 rounded-lg border border-stone-300
+                        focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition text-sm">
+        </div>
+      </div>
+
+      <p class="text-xs text-stone-400">Klicke auf die Karte, um die Koordinaten zu setzen.</p>
+      <div id="map-picker"></div>
+    </section>
+
+    {# ── Abschnitt: Beschreibung ─────────────────────────────────────────── #}
+    <section class="bg-white rounded-2xl shadow-md p-6">
+      <label for="description" class="block text-sm font-medium text-stone-600 mb-1">
+        📝 Beschreibung
+      </label>
+      <textarea id="description" name="description" rows="5"
+                placeholder="Was habt ihr erlebt? Was macht diese Erinnerung besonders?"
+                class="w-full px-4 py-2.5 rounded-lg border border-stone-300
+                       focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition resize-y">{{ memory.description if memory and memory.description else '' }}</textarea>
+    </section>
+
+    {# ── Abschnitt: Fotos ────────────────────────────────────────────────── #}
+    <section class="bg-white rounded-2xl shadow-md p-6">
+      <h2 class="text-lg font-semibold text-stone-700 mb-3">📸 Fotos</h2>
+
+      {# Vorhandene Fotos (nur im Bearbeitungsmodus) #}
+      {% if memory and memory.photos %}
+      <div class="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-4">
+        {% for photo in memory.photos %}
+        <div class="relative group">
+          <img src="/{{ photo.filepath }}" alt="{{ photo.caption or 'Vorschau der Erinnerung' }}"
+               class="w-full h-24 object-cover rounded-lg">
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <div>
+        <input type="file" id="photos" name="photos" multiple
+               accept="image/jpeg,image/png,image/webp"
+               class="block w-full text-sm text-stone-500
+                      file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0
+                      file:text-sm file:font-medium
+                      file:bg-emerald-50 file:text-emerald-700
+                      hover:file:bg-emerald-100 file:cursor-pointer file:transition">
+        <p class="text-xs text-stone-400 mt-1">JPEG, PNG oder WEBP · max. 10 MB pro Bild · mehrere Dateien möglich</p>
+      </div>
+
+      {# Vorschau #}
+      <div id="photo-preview" class="grid grid-cols-3 sm:grid-cols-4 gap-3 mt-4"></div>
+    </section>
+
+    {# ── Buttons ─────────────────────────────────────────────────────────── #}
+    <div class="flex justify-between items-center">
+      <a href="/"
+         class="text-stone-500 hover:text-stone-700 transition font-medium">
+        ← Abbrechen
+      </a>
+      <button type="submit"
+              class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold
+                     py-3 px-8 rounded-xl shadow-md hover:shadow-lg transition-all
+                     duration-200 flex items-center gap-2">
+        💾 Speichern
+      </button>
+    </div>
+
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+  // ── Emoji-Picker ──────────────────────────────────────────────────────
+  var moodInput = document.getElementById("mood");
+  document.querySelectorAll(".emoji-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll(".emoji-btn").forEach(function (b) { b.classList.remove("selected"); });
+      if (moodInput.value === btn.dataset.mood) {
+        moodInput.value = "";
+      } else {
+        btn.classList.add("selected");
+        moodInput.value = btn.dataset.mood;
+      }
+    });
+  });
+
+  // ── Leaflet Karten-Picker ─────────────────────────────────────────────
+  var latInput = document.getElementById("lat");
+  var lngInput = document.getElementById("lng");
+  var initLat = parseFloat(latInput.value) || 51.1657;
+  var initLng = parseFloat(lngInput.value) || 10.4515;
+  var initZoom = (latInput.value && lngInput.value) ? 12 : 4;
+
+  var map = L.map("map-picker").setView([initLat, initLng], initZoom);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap"
+  }).addTo(map);
+
+  var marker = null;
+  if (latInput.value && lngInput.value) {
+    marker = L.marker([initLat, initLng]).addTo(map);
+  }
+
+  map.on("click", function (e) {
+    latInput.value = e.latlng.lat.toFixed(6);
+    lngInput.value = e.latlng.lng.toFixed(6);
+    if (marker) { marker.setLatLng(e.latlng); }
+    else { marker = L.marker(e.latlng).addTo(map); }
+  });
+
+  // ── Foto-Vorschau ─────────────────────────────────────────────────────
+  var photosInput = document.getElementById("photos");
+  var preview = document.getElementById("photo-preview");
+  photosInput.addEventListener("change", function () {
+    preview.innerHTML = "";
+    Array.from(photosInput.files).forEach(function (file) {
+      if (!file.type.startsWith("image/")) return;
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        var img = document.createElement("img");
+        img.src = e.target.result;
+        img.className = "w-full h-24 object-cover rounded-lg";
+        preview.appendChild(img);
+      };
+      reader.readAsDataURL(file);
+    });
+  });
+
+});
+</script>
+{% endblock %}

@@ -136,3 +136,20 @@ class DashboardStats(BaseModel):
     fotos_count: int
     laender_count: int
     naechstes_jubilaeum: str | None = None
+
+
+# ── CoupleSettings ──────────────────────────────────────────────────────────
+
+class CoupleSettingsRead(BaseModel):
+    id: int
+    partner_since: datetime.date | None = None
+    partner_a_name: str = "Partner A"
+    partner_b_name: str = "Partner B"
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CoupleSettingsUpdate(BaseModel):
+    partner_since: datetime.date | None = None
+    partner_a_name: str | None = None
+    partner_b_name: str | None = None

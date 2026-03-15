@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Einstellungen{% endblock %}
+{% block d3 %}{% endblock %}
+{% block leaflet %}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+
+  <h1 class="text-3xl font-bold text-stone-800 mb-8">⚙️ Einstellungen</h1>
+
+  {# ── Erfolgsmeldung ────────────────────────────────────────────────────── #}
+  {% if success %}
+  <div class="bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl p-4 mb-6 flex items-center gap-3">
+    <span class="text-xl">✅</span>
+    <span class="font-medium">Einstellungen erfolgreich gespeichert!</span>
+  </div>
+  {% endif %}
+
+  <form method="post" action="/settings" enctype="multipart/form-data" class="space-y-8">
+
+    {# ── Abschnitt: Unser Profil ─────────────────────────────────────────── #}
+    <section class="bg-white rounded-2xl shadow-md p-6">
+      <h2 class="text-xl font-semibold text-stone-700 mb-6 flex items-center gap-2">
+        💑 Unser Profil
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {# Name Partner A #}
+        <div>
+          <label for="partner_a_name" class="block text-sm font-medium text-stone-600 mb-1">
+            Name Partner A
+          </label>
+          <input type="text" id="partner_a_name" name="partner_a_name"
+                 value="{{ couple.partner_a_name }}"
+                 required
+                 class="w-full px-4 py-2.5 rounded-lg border border-stone-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
+        </div>
+
+        {# Name Partner B #}
+        <div>
+          <label for="partner_b_name" class="block text-sm font-medium text-stone-600 mb-1">
+            Name Partner B
+          </label>
+          <input type="text" id="partner_b_name" name="partner_b_name"
+                 value="{{ couple.partner_b_name }}"
+                 required
+                 class="w-full px-4 py-2.5 rounded-lg border border-stone-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
+        </div>
+      </div>
+
+      {# Zusammen-seit-Datum #}
+      <div class="mt-6">
+        <label for="partner_since" class="block text-sm font-medium text-stone-600 mb-1">
+          ❤️ Zusammen seit
+        </label>
+        <input type="date" id="partner_since" name="partner_since"
+               value="{{ couple.partner_since.isoformat() if couple.partner_since else '' }}"
+               class="w-full md:w-1/2 px-4 py-2.5 rounded-lg border border-stone-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
+        <p class="text-xs text-stone-400 mt-1">Das gemeinsame Startdatum eurer Beziehung</p>
+      </div>
+
+      {# Profilbild #}
+      <div class="mt-6">
+        <label for="avatar" class="block text-sm font-medium text-stone-600 mb-2">
+          📸 Dein Profilbild
+          <span class="text-stone-400 font-normal">({{ user.name }})</span>
+        </label>
+
+        <div class="flex items-center gap-4">
+          {# Aktuelles Profilbild #}
+          {% if user.avatar_path %}
+          <img src="/{{ user.avatar_path }}" alt="Profilbild"
+               class="w-16 h-16 rounded-full object-cover border-2 border-emerald-300">
+          {% else %}
+          <div class="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center text-2xl border-2 border-emerald-300">
+            👤
+          </div>
+          {% endif %}
+
+          <div class="flex-1">
+            <input type="file" id="avatar" name="avatar"
+                   accept="image/jpeg,image/png,image/webp"
+                   class="block w-full text-sm text-stone-500
+                          file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0
+                          file:text-sm file:font-medium
+                          file:bg-emerald-50 file:text-emerald-700
+                          hover:file:bg-emerald-100 file:cursor-pointer file:transition">
+            <p class="text-xs text-stone-400 mt-1">JPEG, PNG oder WEBP · max. 10 MB</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {# ── Abschnitt: App-Einstellungen ────────────────────────────────────── #}
+    <section class="bg-white rounded-2xl shadow-md p-6">
+      <h2 class="text-xl font-semibold text-stone-700 mb-6 flex items-center gap-2">
+        🔧 App-Einstellungen
+      </h2>
+
+      <div>
+        <label for="language" class="block text-sm font-medium text-stone-600 mb-1">
+          🌐 Sprache
+        </label>
+        <select id="language" disabled
+                class="w-full md:w-1/2 px-4 py-2.5 rounded-lg border border-stone-300 bg-stone-50 text-stone-500 cursor-not-allowed">
+          <option selected>Deutsch</option>
+        </select>
+        <p class="text-xs text-stone-400 mt-1">Weitere Sprachen in Zukunft verfügbar</p>
+      </div>
+    </section>
+
+    {# ── Speichern-Button ────────────────────────────────────────────────── #}
+    <div class="flex justify-end">
+      <button type="submit"
+              class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-8 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2">
+        💾 Speichern
+      </button>
+    </div>
+
+  </form>
+</div>
+{% endblock %}

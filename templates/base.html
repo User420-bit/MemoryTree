@@ -48,10 +48,11 @@
           <a href="/milestones" class="hover:text-emerald-200 transition">Meilensteine</a>
         </div>
 
-        {# Right side: user & logout #}
+        {# Right side: settings, user & logout #}
         <div class="hidden md:flex items-center space-x-4">
           {% if user %}
           <span class="text-emerald-200 text-sm">{{ user.name }}</span>
+          <a href="/settings" class="hover:text-emerald-200 transition" title="Einstellungen">⚙️</a>
           {% endif %}
           <a href="/auth/logout"
              class="bg-emerald-700 hover:bg-emerald-600 px-3 py-1.5 rounded text-sm transition">
@@ -82,6 +83,7 @@
         {% if user %}
         <span class="block px-3 py-1 text-emerald-200 text-sm">{{ user.name }}</span>
         {% endif %}
+        <a href="/settings" class="block px-3 py-2 rounded hover:bg-emerald-700 transition">⚙️ Einstellungen</a>
         <a href="/auth/logout" class="block px-3 py-2 rounded hover:bg-emerald-700 transition">Abmelden</a>
       </div>
     </div>

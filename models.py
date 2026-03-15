@@ -116,3 +116,14 @@ class Place(Base):
     lng: float = Column(Float, nullable=False)
 
     memory: Mapped["Memory"] = relationship("Memory", back_populates="places")
+
+
+class CoupleSettings(Base):
+    """Gemeinsame Paar-Einstellungen (genau ein Datensatz)."""
+
+    __tablename__ = "couple_settings"
+
+    id: int = Column(Integer, primary_key=True, index=True)
+    partner_since: Optional[date] = Column(Date, nullable=True)
+    partner_a_name: str = Column(String(100), nullable=False, default="Partner A")
+    partner_b_name: str = Column(String(100), nullable=False, default="Partner B")

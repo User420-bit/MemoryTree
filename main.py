@@ -15,12 +15,13 @@ from sqlalchemy.orm import Session
 
 from auth import get_current_user, hash_password
 from database import Base, SessionLocal, engine, get_db
-from models import Memory, Photo, Place, User
+from models import CoupleSettings, Memory, Photo, Place, User
 
 from routers.auth import router as auth_router
 from routers.memories import router as memories_router
 from routers.photos import router as photos_router
 from routers.milestones import router as milestones_router
+from routers.settings import router as settings_router
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -55,6 +56,7 @@ app.include_router(auth_router)
 app.include_router(memories_router)
 app.include_router(photos_router)
 app.include_router(milestones_router)
+app.include_router(settings_router)
 
 
 # ── Exception-Handler: 401 → Login-Redirect ─────────────────────────────────
@@ -102,6 +104,18 @@ def on_startup() -> None:
         if not existing_a or not existing_b:
             db.commit()
             logger.info("Test-Benutzer erstellt")
+
+        # Paar-Einstellungen anlegen (Singleton)
+        cs: CoupleSettings | None = db.query(CoupleSettings).first()
+        if cs is None:
+            cs = CoupleSettings(
+                partner_a_name="Partner A",
+                partner_b_name="Partner B",
+                partner_since=date(2024, 1, 1),
+            )
+            db.add(cs)
+            db.commit()
+            logger.info("Paar-Einstellungen erstellt")
     finally:
         db.close()
 
@@ -137,10 +151,14 @@ def dashboard(
         or 0
     )
 
+    # Paar-Einstellungen laden
+    cs: CoupleSettings | None = db.query(CoupleSettings).first()
+    partner_since: date | None = cs.partner_since if cs else current_user.partner_since
+
     # Tage zusammen berechnen
     tage_zusammen: int = 0
-    if current_user.partner_since:
-        tage_zusammen = (today - current_user.partner_since).days
+    if partner_since:
+        tage_zusammen = (today - partner_since).days
 
     # Letzte 5 Erinnerungen
     letzte_erinnerungen: List[Memory] = (
@@ -149,8 +167,8 @@ def dashboard(
 
     # Nächstes Jubiläum berechnen
     naechstes_jubilaeum: str | None = None
-    if current_user.partner_since:
-        ps: date = current_user.partner_since
+    if partner_since:
+        ps: date = partner_since
         try:
             anniversary_this_year = date(today.year, ps.month, ps.day)
         except ValueError:
