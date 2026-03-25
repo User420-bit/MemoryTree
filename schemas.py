@@ -73,6 +73,7 @@ class MemoryBase(BaseModel):
     lng: float | None = None
     mood: str | None = None
     category: str = "Alltag"
+    is_favorite: bool = False
 
 
 class MemoryCreate(MemoryBase):
@@ -88,6 +89,7 @@ class MemoryUpdate(BaseModel):
     lng: float | None = None
     mood: str | None = None
     category: str | None = None
+    is_favorite: bool | None = None
 
 
 class MemoryRead(MemoryBase):

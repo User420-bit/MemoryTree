@@ -7,7 +7,7 @@ from datetime import date
 from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from PIL import Image
 from sqlalchemy.orm import Session
@@ -218,7 +218,31 @@ def memory_form_update(
 
     db.commit()
     logger.info("Erinnerung #%d aktualisiert von User #%d", memory.id, current_user.id)
-    return RedirectResponse(url="/?success=updated", status_code=303)
+    return RedirectResponse(url=f"/memories/{memory.id}?success=updated", status_code=303)
+
+
+@router.post(
+    "/{memory_id}/toggle-favorite",
+    response_model=None,
+    responses={404: {"description": _NOT_FOUND}},
+)
+def toggle_favorite(
+    memory_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> JSONResponse:
+    """Favoriten-Status einer Erinnerung umschalten."""
+    memory: Memory | None = db.query(Memory).filter(Memory.id == memory_id).first()
+    if memory is None:
+        raise HTTPException(status_code=404, detail=_NOT_FOUND)
+
+    memory.is_favorite = not memory.is_favorite
+    db.commit()
+    logger.info(
+        "Erinnerung #%d Favorit=%s von User #%d",
+        memory.id, memory.is_favorite, current_user.id,
+    )
+    return JSONResponse({"is_favorite": memory.is_favorite})
 
 
 
@@ -228,8 +252,9 @@ def list_memories(
     db: Annotated[Session, Depends(get_db)],
     category: str | None = None,
     year: int | None = None,
+    favorites_only: bool = False,
 ) -> list[Memory]:
-    """Alle Erinnerungen abfragen, optional nach Kategorie und Jahr gefiltert."""
+    """Alle Erinnerungen abfragen, optional nach Kategorie, Jahr und Favoriten gefiltert."""
     query = db.query(Memory)
 
     if category is not None:
@@ -238,6 +263,9 @@ def list_memories(
     if year is not None:
         from sqlalchemy import extract
         query = query.filter(extract("year", Memory.date) == year)
+
+    if favorites_only:
+        query = query.filter(Memory.is_favorite == True)
 
     return query.order_by(Memory.date.desc()).all()
 
@@ -277,17 +305,28 @@ def create_memory(
     return memory
 
 
-@router.get("/{memory_id}", response_model=MemoryRead, responses={404: {"description": _NOT_FOUND}})
-def get_memory(
+@router.get(
+    "/{memory_id}",
+    response_class=HTMLResponse,
+    responses={404: {"description": _NOT_FOUND}},
+)
+def memory_detail(
     memory_id: int,
+    request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
-) -> Memory:
-    """Einzelne Erinnerung nach ID abrufen."""
+) -> HTMLResponse:
+    """Detailseite einer Erinnerung anzeigen."""
     memory: Memory | None = db.query(Memory).filter(Memory.id == memory_id).first()
     if memory is None:
         raise HTTPException(status_code=404, detail=_NOT_FOUND)
-    return memory
+
+    creator: User | None = db.query(User).filter(User.id == memory.created_by).first()
+
+    return templates.TemplateResponse(
+        "memory_detail.html",
+        {"request": request, "user": current_user, "memory": memory, "creator": creator},
+    )
 
 
 @router.put("/{memory_id}", response_model=MemoryRead, responses={404: {"description": _NOT_FOUND}})
@@ -311,16 +350,47 @@ def update_memory(
     return memory
 
 
+@router.post(
+    "/{memory_id}/delete",
+    response_class=HTMLResponse,
+    response_model=None,
+    responses={404: {"description": _NOT_FOUND}},
+)
+def delete_memory_form(
+    memory_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> RedirectResponse:
+    """Erinnerung über HTML-Formular löschen und zum Dashboard weiterleiten."""
+    memory: Memory | None = db.query(Memory).filter(Memory.id == memory_id).first()
+    if memory is None:
+        raise HTTPException(status_code=404, detail=_NOT_FOUND)
+
+    # Zugehörige Foto-Dateien vom Dateisystem entfernen
+    for photo in memory.photos:
+        if os.path.exists(photo.filepath):
+            os.remove(photo.filepath)
+
+    db.delete(memory)
+    db.commit()
+    logger.info("Erinnerung #%d gelöscht von User #%d", memory_id, current_user.id)
+    return RedirectResponse(url="/?success=deleted", status_code=303)
+
+
 @router.delete("/{memory_id}", responses={404: {"description": _NOT_FOUND}})
 def delete_memory(
     memory_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> dict[str, str]:
-    """Erinnerung löschen."""
+    """Erinnerung löschen (JSON-API)."""
     memory: Memory | None = db.query(Memory).filter(Memory.id == memory_id).first()
     if memory is None:
         raise HTTPException(status_code=404, detail=_NOT_FOUND)
+
+    for photo in memory.photos:
+        if os.path.exists(photo.filepath):
+            os.remove(photo.filepath)
 
     db.delete(memory)
     db.commit()

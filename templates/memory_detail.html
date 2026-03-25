@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block title %}{{ memory.title }}{% endblock %}
+{% block d3 %}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .lightbox-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+    z-index: 100; display: none; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .lightbox-overlay.active { display: flex; }
+  .lightbox-overlay img { max-width: 90vw; max-height: 90vh; border-radius: 0.5rem; }
+  #detail-map { height: 250px; border-radius: 0.75rem; z-index: 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+
+  {# ── Zurück-Link ───────────────────────────────────────────────────────── #}
+  <a href="/" class="inline-flex items-center text-stone-500 hover:text-stone-700 transition mb-6">
+    ← Zurück zum Dashboard
+  </a>
+
+  {# ── Erfolgsmeldung ────────────────────────────────────────────────────── #}
+  {% set success = request.query_params.get("success") %}
+  {% if success == "updated" %}
+  <div class="bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl p-4 mb-6 flex items-center gap-3">
+    <span class="text-xl">✅</span>
+    <span>Erinnerung wurde erfolgreich aktualisiert!</span>
+  </div>
+  {% endif %}
+
+  {# ── Kopfbereich: Titel, Kategorie, Datum ──────────────────────────────── #}
+  <section class="bg-white rounded-2xl shadow-md p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+      <span class="text-xs font-medium bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full">
+        {{ memory.category }}
+      </span>
+      <span class="text-sm text-stone-400">{{ memory.date.strftime('%d.%m.%Y') }}</span>
+    </div>
+
+    <h1 class="text-3xl font-bold text-stone-800 mb-2">
+      {% if memory.mood %}{{ memory.mood }} {% endif %}{{ memory.title }}
+    </h1>
+
+    {# Favorit-Button #}
+    <button type="button" id="fav-detail-btn"
+            class="mt-2 text-2xl transition-transform hover:scale-125"
+            data-id="{{ memory.id }}"
+            data-fav="{{ 'true' if memory.is_favorite else 'false' }}"
+            title="{{ 'Favorit entfernen' if memory.is_favorite else 'Als Favorit markieren' }}">
+      <span class="{{ 'text-rose-500' if memory.is_favorite else 'text-stone-300 hover:text-rose-400' }}">
+        {{ '♥' if memory.is_favorite else '♡' }}
+      </span>
+      <span class="text-sm text-stone-400 ml-1">Favorit</span>
+    </button>
+
+    {% if memory.location %}
+    <p class="text-stone-500 mt-1">📍 {{ memory.location }}</p>
+    {% endif %}
+
+    {# Erstellt von #}
+    {% if creator %}
+    <p class="text-xs text-stone-400 mt-3">
+      Erstellt von {{ creator.name }}
+      {% if memory.created_at %}
+       · {{ memory.created_at.strftime('%d.%m.%Y %H:%M') }}
+      {% endif %}
+    </p>
+    {% endif %}
+  </section>
+
+  {# ── Beschreibung ──────────────────────────────────────────────────────── #}
+  {% if memory.description %}
+  <section class="bg-white rounded-2xl shadow-md p-6 mb-6">
+    <h2 class="text-lg font-semibold text-stone-700 mb-3">📝 Beschreibung</h2>
+    <div class="text-stone-600 leading-relaxed whitespace-pre-line">{{ memory.description }}</div>
+  </section>
+  {% endif %}
+
+  {# ── Fotos ─────────────────────────────────────────────────────────────── #}
+  {% if memory.photos %}
+  <section class="bg-white rounded-2xl shadow-md p-6 mb-6">
+    <h2 class="text-lg font-semibold text-stone-700 mb-3">📸 Fotos</h2>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      {% for photo in memory.photos %}
+      <img src="/{{ photo.filepath }}" alt="{{ photo.caption or memory.title }}"
+           class="w-full h-40 object-cover rounded-lg cursor-pointer hover:opacity-90 transition photo-thumb"
+           data-full="/{{ photo.filepath }}">
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {# ── Karte ─────────────────────────────────────────────────────────────── #}
+  {% if memory.lat and memory.lng %}
+  <section class="bg-white rounded-2xl shadow-md p-6 mb-6">
+    <h2 class="text-lg font-semibold text-stone-700 mb-3">🗺️ Ort auf der Karte</h2>
+    <div id="detail-map"></div>
+  </section>
+  {% endif %}
+
+  {# ── Aktionen ──────────────────────────────────────────────────────────── #}
+  <section class="flex flex-wrap gap-3 mb-12">
+    <a href="/memories/{{ memory.id }}/edit"
+       class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold
+              py-2.5 px-6 rounded-xl shadow-md hover:shadow-lg transition flex items-center gap-2">
+      ✏️ Bearbeiten
+    </a>
+
+    <button type="button" id="delete-btn"
+            class="bg-red-500 hover:bg-red-600 text-white font-semibold
+                   py-2.5 px-6 rounded-xl shadow-md hover:shadow-lg transition flex items-center gap-2">
+      🗑️ Löschen
+    </button>
+  </section>
+
+  {# ── Lösch-Bestätigungsdialog ──────────────────────────────────────────── #}
+  <div id="delete-dialog" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div class="bg-white rounded-2xl shadow-xl p-6 max-w-sm mx-4">
+      <h3 class="text-lg font-bold text-stone-800 mb-2">Erinnerung löschen?</h3>
+      <p class="text-stone-600 mb-6">
+        Möchtest du <strong>„{{ memory.title }}"</strong> wirklich unwiderruflich löschen?
+      </p>
+      <div class="flex gap-3 justify-end">
+        <button type="button" id="delete-cancel"
+                class="px-4 py-2 rounded-lg text-stone-600 hover:bg-stone-100 transition">
+          Abbrechen
+        </button>
+        <form method="post" action="/memories/{{ memory.id }}/delete">
+          <button type="submit"
+                  class="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded-lg transition">
+            Endgültig löschen
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{# ── Lightbox ────────────────────────────────────────────────────────────── #}
+<div class="lightbox-overlay" id="lightbox">
+  <img src="" alt="Vollbild">
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+  // ── Favorit-Toggle ─────────────────────────────────────────────────────
+  var favBtn = document.getElementById("fav-detail-btn");
+  if (favBtn) {
+    favBtn.addEventListener("click", function () {
+      var id = favBtn.dataset.id;
+      var span = favBtn.querySelector("span");
+      var wasFav = favBtn.dataset.fav === "true";
+      favBtn.dataset.fav = wasFav ? "false" : "true";
+      span.textContent = wasFav ? "♡" : "♥";
+      span.className = wasFav ? "text-stone-300 hover:text-rose-400" : "text-rose-500";
+
+      fetch("/memories/" + id + "/toggle-favorite", { method: "POST", credentials: "same-origin" })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          favBtn.dataset.fav = data.is_favorite ? "true" : "false";
+          span.textContent = data.is_favorite ? "♥" : "♡";
+          span.className = data.is_favorite ? "text-rose-500" : "text-stone-300 hover:text-rose-400";
+        })
+        .catch(function () {
+          favBtn.dataset.fav = wasFav ? "true" : "false";
+          span.textContent = wasFav ? "♥" : "♡";
+          span.className = wasFav ? "text-rose-500" : "text-stone-300 hover:text-rose-400";
+        });
+    });
+  }
+
+  // ── Lösch-Dialog ──────────────────────────────────────────────────────
+  var deleteBtn = document.getElementById("delete-btn");
+  var deleteDialog = document.getElementById("delete-dialog");
+  var deleteCancel = document.getElementById("delete-cancel");
+
+  if (deleteBtn && deleteDialog) {
+    deleteBtn.addEventListener("click", function () {
+      deleteDialog.classList.remove("hidden");
+    });
+    deleteCancel.addEventListener("click", function () {
+      deleteDialog.classList.add("hidden");
+    });
+    deleteDialog.addEventListener("click", function (e) {
+      if (e.target === deleteDialog) deleteDialog.classList.add("hidden");
+    });
+  }
+
+  // ── Lightbox ──────────────────────────────────────────────────────────
+  var lightbox = document.getElementById("lightbox");
+  var lightboxImg = lightbox ? lightbox.querySelector("img") : null;
+
+  document.querySelectorAll(".photo-thumb").forEach(function (thumb) {
+    thumb.addEventListener("click", function () {
+      if (lightboxImg) {
+        lightboxImg.src = thumb.dataset.full;
+        lightbox.classList.add("active");
+      }
+    });
+  });
+
+  if (lightbox) {
+    lightbox.addEventListener("click", function () {
+      lightbox.classList.remove("active");
+      if (lightboxImg) lightboxImg.src = "";
+    });
+  }
+
+  // ── Karte ─────────────────────────────────────────────────────────────
+  var mapEl = document.getElementById("detail-map");
+  if (mapEl && typeof L !== "undefined") {
+    var lat = {{ memory.lat if memory.lat else 0 }};
+    var lng = {{ memory.lng if memory.lng else 0 }};
+    var map = L.map("detail-map").setView([lat, lng], 13);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19, attribution: "&copy; OpenStreetMap"
+    }).addTo(map);
+    L.marker([lat, lng]).addTo(map)
+      .bindPopup("{{ memory.location|e }}")
+      .openPopup();
+  }
+
+});
+</script>
+{% endblock %}

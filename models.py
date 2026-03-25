@@ -64,6 +64,7 @@ class Memory(Base):
     lng: Optional[float] = Column(Float, nullable=True)
     mood: Optional[str] = Column(String(50), nullable=True)
     category: str = Column(String(50), nullable=False, default=CategoryEnum.alltag.value)
+    is_favorite: bool = Column(Boolean, default=False, nullable=False)
     created_by: int = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at: datetime = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 

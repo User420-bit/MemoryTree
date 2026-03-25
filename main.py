@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import extract, func
+from sqlalchemy import extract, func, inspect as sa_inspect, text
 from sqlalchemy.orm import Session
 
 from auth import get_current_user, hash_password
@@ -77,6 +77,14 @@ def on_startup() -> None:
     """Datenbank-Tabellen erstellen und Test-Benutzer anlegen."""
     Base.metadata.create_all(bind=engine)
     logger.info("Datenbank initialisiert")
+
+    # Pragmatische SQLite-Migration: is_favorite Spalte nachrüsten
+    inspector = sa_inspect(engine)
+    columns = [c["name"] for c in inspector.get_columns("memories")]
+    if "is_favorite" not in columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE memories ADD COLUMN is_favorite BOOLEAN DEFAULT 0 NOT NULL"))
+        logger.info("Spalte 'is_favorite' zu memories hinzugefügt")
 
     db: Session = SessionLocal()
     try:
@@ -160,7 +168,21 @@ def dashboard(
     if partner_since:
         tage_zusammen = (today - partner_since).days
 
-    # Letzte 5 Erinnerungen
+    # Letzte 6 Favoriten-Erinnerungen
+    favoriten: List[Memory] = (
+        db.query(Memory)
+        .filter(Memory.is_favorite == True)
+        .order_by(Memory.date.desc())
+        .limit(6)
+        .all()
+    )
+    favoriten_count: int = (
+        db.query(func.count(Memory.id))
+        .filter(Memory.is_favorite == True)
+        .scalar() or 0
+    )
+
+    # Letzte 5 Erinnerungen (alle)
     letzte_erinnerungen: List[Memory] = (
         db.query(Memory).order_by(Memory.date.desc()).limit(5).all()
     )
@@ -205,8 +227,29 @@ def dashboard(
             "laender_count": laender_count,
             "tage_zusammen": tage_zusammen,
             "letzte_erinnerungen": letzte_erinnerungen,
+            "favoriten": favoriten,
+            "favoriten_count": favoriten_count,
             "naechstes_jubilaeum": naechstes_jubilaeum,
             "an_diesem_tag": an_diesem_tag,
+        },
+    )
+
+
+@app.get("/tree", response_class=HTMLResponse)
+def tree_page(
+    request: Request,
+    current_user: Annotated[User, Depends(_get_current_user_or_redirect)],
+    db: Annotated[Session, Depends(get_db)],
+) -> Response:
+    """Memory-Tree-Seite anzeigen."""
+    cs: CoupleSettings | None = db.query(CoupleSettings).first()
+    partner_since: date | None = cs.partner_since if cs else current_user.partner_since
+    return templates.TemplateResponse(
+        "tree.html",
+        {
+            "request": request,
+            "user": current_user,
+            "partner_since": partner_since.isoformat() if partner_since else "",
         },
     )
 

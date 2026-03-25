@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Memory Tree{% endblock %}
+{% block leaflet %}{% endblock %}
+
+{% block extra_head %}
+<style>
+  #memory-tree-container {
+    position: relative;
+    width: 100%;
+    min-height: 75vh;
+    overflow: hidden;
+    border-radius: 1rem;
+    background: linear-gradient(180deg, #e0f2e9 0%, #d4edda 40%, #c9dfc0 70%, #8B7355 85%, #6B5340 100%);
+  }
+  /* Tooltip */
+  #tree-tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    padding: 0.75rem 1rem;
+    z-index: 30;
+    max-width: 220px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  #tree-tooltip.visible { opacity: 1; }
+  /* Leaf nodes */
+  .leaf-node { cursor: pointer; transition: transform 0.2s; }
+  .leaf-node:hover { transform: scale(1.2); }
+  .leaf-glow { filter: drop-shadow(0 0 6px rgba(244,63,94,0.5)); }
+  /* Branches */
+  .branch-path {
+    fill: none;
+    stroke-linecap: round;
+  }
+  /* Sway animation */
+  @keyframes sway {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(1.5deg); }
+  }
+  .leaf-group { animation: sway 4s ease-in-out infinite; transform-origin: bottom center; }
+  .leaf-group:nth-child(even) { animation-delay: -2s; animation-duration: 5s; }
+  /* Filter btn */
+  .filter-btn { transition: all 0.15s; }
+  .filter-btn.active { ring: 2px; transform: scale(1.05); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="relative w-full">
+
+  {# ── Header mit Filter und Erstellen-Button ──────────────────────────── #}
+  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+    <div>
+      <h1 class="text-2xl font-bold text-stone-800">🌳 Euer Memory Tree</h1>
+      <p class="text-sm text-stone-500 mt-1">Klicke auf ein Blatt, um die Erinnerung zu öffnen</p>
+    </div>
+    <a href="/memories/new"
+       class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold
+              py-2.5 px-5 rounded-xl shadow-md hover:shadow-lg transition flex items-center gap-2 text-sm">
+      🌱 Neue Erinnerung
+    </a>
+  </div>
+
+  {# ── Filter-Leiste ──────────────────────────────────────────────────── #}
+  <div class="flex flex-wrap items-center gap-2 mb-4" id="tree-filters">
+    <button class="filter-btn bg-white border border-stone-200 text-stone-600 px-3 py-1.5 rounded-full text-sm font-medium hover:bg-stone-50 active"
+            data-category="all">Alle</button>
+    <button class="filter-btn bg-white border border-teal-200 text-teal-700 px-3 py-1.5 rounded-full text-sm font-medium hover:bg-teal-50"
+            data-category="Urlaub">🏖️ Urlaub</button>
+    <button class="filter-btn bg-white border border-amber-200 text-amber-700 px-3 py-1.5 rounded-full text-sm font-medium hover:bg-amber-50"
+            data-category="Meilenstein">🌟 Meilenstein</button>
+    <button class="filter-btn bg-white border border-violet-200 text-violet-700 px-3 py-1.5 rounded-full text-sm font-medium hover:bg-violet-50"
+            data-category="Feier">🎉 Feier</button>
+    <button class="filter-btn bg-white border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-full text-sm font-medium hover:bg-emerald-50"
+            data-category="Alltag">📸 Alltag</button>
+    <button class="filter-btn bg-white border border-orange-200 text-orange-700 px-3 py-1.5 rounded-full text-sm font-medium hover:bg-orange-50"
+            data-category="Abenteuer">🌯 Abenteuer</button>
+    <button class="filter-btn bg-white border border-rose-200 text-rose-700 px-3 py-1.5 rounded-full text-sm font-medium hover:bg-rose-50"
+            data-category="Besonderes">❤️ Besonderes</button>
+
+    <span class="mx-2 text-stone-300">|</span>
+
+    <select id="year-filter"
+            class="bg-white border border-stone-200 text-stone-600 px-3 py-1.5 rounded-full text-sm font-medium">
+      <option value="all">Alle Jahre</option>
+    </select>
+
+    <button class="filter-btn bg-white border border-rose-200 text-rose-600 px-3 py-1.5 rounded-full text-sm font-medium hover:bg-rose-50"
+            id="fav-filter" data-active="false">♥ Favoriten</button>
+  </div>
+
+  {# ── Der Baum ────────────────────────────────────────────────────────── #}
+  <div id="memory-tree-container">
+    <svg id="memory-tree" width="100%" height="100%"></svg>
+  </div>
+
+  {# ── Tooltip ─────────────────────────────────────────────────────────── #}
+  <div id="tree-tooltip">
+    <div id="tt-category" class="text-xs font-medium mb-1"></div>
+    <div id="tt-title" class="font-semibold text-stone-800 text-sm"></div>
+    <div id="tt-date" class="text-xs text-stone-400 mt-0.5"></div>
+    <div id="tt-location" class="text-xs text-stone-500 mt-0.5"></div>
+    <img id="tt-photo" class="hidden w-full h-20 object-cover rounded-lg mt-2" alt="Vorschau">
+  </div>
+
+</div>
+
+{# Beziehungsdatum an JS übergeben #}
+<script>
+  window.__PARTNER_SINCE__ = "{{ partner_since }}";
+</script>
+<script src="/static/js/tree.js"></script>
+{% endblock %}
