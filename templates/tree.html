@@ -1,117 +1,591 @@
 {% extends "base.html" %}
 
 {% block title %}Memory Tree{% endblock %}
+{% block d3 %}{% endblock %}
 {% block leaflet %}{% endblock %}
 
 {% block extra_head %}
 <style>
-  #memory-tree-container {
-    position: relative;
-    width: 100%;
-    min-height: 75vh;
-    overflow: hidden;
-    border-radius: 1rem;
-    background: linear-gradient(180deg, #e0f2e9 0%, #d4edda 40%, #c9dfc0 70%, #8B7355 85%, #6B5340 100%);
-  }
-  /* Tooltip */
-  #tree-tooltip {
-    position: absolute;
-    pointer-events: none;
-    background: white;
-    border-radius: 0.75rem;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-    padding: 0.75rem 1rem;
-    z-index: 30;
-    max-width: 220px;
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-  #tree-tooltip.visible { opacity: 1; }
-  /* Leaf nodes */
-  .leaf-node { cursor: pointer; transition: transform 0.2s; }
-  .leaf-node:hover { transform: scale(1.2); }
-  .leaf-glow { filter: drop-shadow(0 0 6px rgba(244,63,94,0.5)); }
-  /* Branches */
-  .branch-path {
-    fill: none;
-    stroke-linecap: round;
-  }
-  /* Sway animation */
-  @keyframes sway {
-    0%, 100% { transform: rotate(0deg); }
+  /* Pendulum animation for hanging memories */
+  @keyframes pendulum {
+    0%, 100% { transform: rotate(-1.5deg); }
     50% { transform: rotate(1.5deg); }
   }
-  .leaf-group { animation: sway 4s ease-in-out infinite; transform-origin: bottom center; }
-  .leaf-group:nth-child(even) { animation-delay: -2s; animation-duration: 5s; }
-  /* Filter btn */
-  .filter-btn { transition: all 0.15s; }
-  .filter-btn.active { ring: 2px; transform: scale(1.05); }
+  .hanging-memory {
+    transform-origin: top center;
+    animation: pendulum 4s ease-in-out infinite;
+  }
+  .hanging-memory:nth-child(2n) { animation-delay: -1.2s; animation-duration: 3.6s; }
+  .hanging-memory:nth-child(3n) { animation-delay: -2.4s; animation-duration: 4.4s; }
+  .hanging-memory:nth-child(4n) { animation-delay: -0.8s; animation-duration: 3.8s; }
+
+  /* Drag-Unterstützung: kein Scroll/Select während Drag */
+  .hanging-memory {
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .hanging-memory:active { cursor: grabbing; }
+
+  /* Hover pausiert Pendeln damit man klicken kann */
+  .hanging-memory:hover { animation-play-state: paused; }
+
+  /* ✕-Button smooth einblenden */
+  .unpin-btn {
+    opacity: 0;
+    transform: scale(0.7);
+    transition: opacity 0.2s ease, transform 0.2s ease, background-color 0.15s ease;
+  }
+  .hanging-memory:hover .unpin-btn {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  /* Full-width breakout from container */
+  .full-bleed {
+    width: 100vw;
+    position: relative;
+    left: 50%;
+    right: 50%;
+    margin-left: -50vw;
+    margin-right: -50vw;
+  }
+
+  /* Override beige body/main background on tree page */
+  body, main { background-color: #4a8c54 !important; }
 </style>
 {% endblock %}
 
+{% block footer %}{% endblock %}
+
 {% block content %}
-<div class="relative w-full">
+{# ═══════════════════════════════════════════════════════════════════════════
+   Baumansicht (Hero View) mit gepinnten Favoriten
+   Baum steht auf dem Boden, Boden = unterer Viewport-Rand
+   ═══════════════════════════════════════════════════════════════════════════ #}
+<section id="tree-hero" class="full-bleed relative -mt-8 min-h-screen flex flex-col justify-end items-center overflow-hidden bg-[#4a8c54]">
 
-  {# ── Header mit Filter und Erstellen-Button ──────────────────────────── #}
-  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-    <div>
-      <h1 class="text-2xl font-bold text-stone-800">🌳 Euer Memory Tree</h1>
-      <p class="text-sm text-stone-500 mt-1">Klicke auf ein Blatt, um die Erinnerung zu öffnen</p>
-    </div>
-    <a href="/memories/new"
-       class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold
-              py-2.5 px-5 rounded-xl shadow-md hover:shadow-lg transition flex items-center gap-2 text-sm">
-      🌱 Neue Erinnerung
-    </a>
-  </div>
+  {# ── Hintergrund: Himmel ──────────────────────────────────────────── #}
+  <div class="absolute inset-0 bg-gradient-to-b from-sky-200 via-sky-100 to-transparent"></div>
 
-  {# ── Filter-Leiste ──────────────────────────────────────────────────── #}
-  <div class="flex flex-wrap items-center gap-2 mb-4" id="tree-filters">
-    <button class="filter-btn bg-white border border-stone-200 text-stone-600 px-3 py-1.5 rounded-full text-sm font-medium hover:bg-stone-50 active"
-            data-category="all">Alle</button>
-    <button class="filter-btn bg-white border border-teal-200 text-teal-700 px-3 py-1.5 rounded-full text-sm font-medium hover:bg-teal-50"
-            data-category="Urlaub">🏖️ Urlaub</button>
-    <button class="filter-btn bg-white border border-amber-200 text-amber-700 px-3 py-1.5 rounded-full text-sm font-medium hover:bg-amber-50"
-            data-category="Meilenstein">🌟 Meilenstein</button>
-    <button class="filter-btn bg-white border border-violet-200 text-violet-700 px-3 py-1.5 rounded-full text-sm font-medium hover:bg-violet-50"
-            data-category="Feier">🎉 Feier</button>
-    <button class="filter-btn bg-white border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-full text-sm font-medium hover:bg-emerald-50"
-            data-category="Alltag">📸 Alltag</button>
-    <button class="filter-btn bg-white border border-orange-200 text-orange-700 px-3 py-1.5 rounded-full text-sm font-medium hover:bg-orange-50"
-            data-category="Abenteuer">🌯 Abenteuer</button>
-    <button class="filter-btn bg-white border border-rose-200 text-rose-700 px-3 py-1.5 rounded-full text-sm font-medium hover:bg-rose-50"
-            data-category="Besonderes">❤️ Besonderes</button>
+  {# ── Baum + Favoriten ────────────────────────────────────────────── #}
+  <div class="relative z-10 w-full flex flex-col items-center">
 
-    <span class="mx-2 text-stone-300">|</span>
+    {# ── Der Baum (SVG-Illustration) — responsiv skalierend ──────────── #}
+    <div class="relative w-full max-w-2xl px-4" id="tree-container">
 
-    <select id="year-filter"
-            class="bg-white border border-stone-200 text-stone-600 px-3 py-1.5 rounded-full text-sm font-medium">
-      <option value="all">Alle Jahre</option>
-    </select>
+      <svg viewBox="-20 -10 580 500" class="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="trunk-gradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#795548"/>
+            <stop offset="40%" stop-color="#5D4037"/>
+            <stop offset="100%" stop-color="#4E342E"/>
+          </linearGradient>
+          {# Horizontaler Gradient für 3D-Rundung des Stamms #}
+          <linearGradient id="trunk-depth" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="rgba(0,0,0,0.15)"/>
+            <stop offset="25%" stop-color="rgba(0,0,0,0)"/>
+            <stop offset="75%" stop-color="rgba(0,0,0,0)"/>
+            <stop offset="100%" stop-color="rgba(0,0,0,0.10)"/>
+          </linearGradient>
+          {# Licht-Highlight Mitte des Stamms #}
+          <linearGradient id="trunk-highlight" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="rgba(255,255,255,0)"/>
+            <stop offset="40%" stop-color="rgba(255,255,255,0.07)"/>
+            <stop offset="60%" stop-color="rgba(255,255,255,0.07)"/>
+            <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+          </linearGradient>
+        </defs>
 
-    <button class="filter-btn bg-white border border-rose-200 text-rose-600 px-3 py-1.5 rounded-full text-sm font-medium hover:bg-rose-50"
-            id="fav-filter" data-active="false">♥ Favoriten</button>
-  </div>
+        {# ═══ ÄSTE — hinter der Krone (Übergang Stamm → Krone) ═══ #}
+        <path d="M 242 260 C 230 230, 180 185, 110 150"
+              stroke="#6D4C41" stroke-width="20" fill="none" stroke-linecap="round"/>
+        <path d="M 258 260 C 270 228, 320 180, 395 145"
+              stroke="#6D4C41" stroke-width="18" fill="none" stroke-linecap="round"/>
+        <path d="M 250 250 C 250 215, 248 165, 250 110"
+              stroke="#6D4C41" stroke-width="14" fill="none" stroke-linecap="round"/>
+        <path d="M 246 255 C 228 218, 195 175, 138 130"
+              stroke="#6D4C41" stroke-width="11" fill="none" stroke-linecap="round"/>
+        <path d="M 254 255 C 272 216, 308 172, 368 130"
+              stroke="#6D4C41" stroke-width="10" fill="none" stroke-linecap="round"/>
+        <path d="M 235 270 C 215 255, 180 244, 128 238"
+              stroke="#6D4C41" stroke-width="7" fill="none" stroke-linecap="round" opacity="0.7"/>
+        <path d="M 265 268 C 285 253, 322 242, 378 236"
+              stroke="#6D4C41" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.7"/>
 
-  {# ── Der Baum ────────────────────────────────────────────────────────── #}
-  <div id="memory-tree-container">
-    <svg id="memory-tree" width="100%" height="100%"></svg>
-  </div>
+        {# ═══ BAUMKRONE — breiter ausgebreitet ═══ #}
+        <ellipse cx="250" cy="135" rx="253" ry="145" fill="#2d7a3f" opacity="0.7"/>
+        <ellipse cx="190" cy="115" rx="201" ry="125" fill="#3a8f4f" opacity="0.6"/>
+        <ellipse cx="320" cy="125" rx="190" ry="120" fill="#348a47" opacity="0.6"/>
+        <ellipse cx="250" cy="95" rx="178" ry="105" fill="#45a05a" opacity="0.5"/>
+        <ellipse cx="165" cy="148" rx="150" ry="92" fill="#3d9652" opacity="0.5"/>
+        <ellipse cx="335" cy="142" rx="144" ry="95" fill="#3b9150" opacity="0.5"/>
+        <ellipse cx="250" cy="72" rx="132" ry="78" fill="#52ab65" opacity="0.45"/>
+        <ellipse cx="215" cy="105" rx="121" ry="75" fill="#4da860" opacity="0.4"/>
+        <ellipse cx="285" cy="100" rx="115" ry="70" fill="#50aa63" opacity="0.4"/>
+        {# Sonnenlicht-Reflexe #}
+        <ellipse cx="190" cy="85" rx="52" ry="35" fill="rgba(255,255,255,0.12)"/>
+        <ellipse cx="315" cy="115" rx="46" ry="28" fill="rgba(255,255,255,0.1)"/>
 
-  {# ── Tooltip ─────────────────────────────────────────────────────────── #}
-  <div id="tree-tooltip">
-    <div id="tt-category" class="text-xs font-medium mb-1"></div>
-    <div id="tt-title" class="font-semibold text-stone-800 text-sm"></div>
-    <div id="tt-date" class="text-xs text-stone-400 mt-0.5"></div>
-    <div id="tt-location" class="text-xs text-stone-500 mt-0.5"></div>
-    <img id="tt-photo" class="hidden w-full h-20 object-cover rounded-lg mt-2" alt="Vorschau">
-  </div>
+        {# ═══ STAMM — organisch, breitere Basis ═══ #}
+        <path d="M 230 250
+                 C 227 280, 224 310, 222 340
+                 C 219 370, 216 400, 213 430
+                 C 211 450, 208 465, 205 480
+                 L 295 480
+                 C 292 465, 289 450, 287 430
+                 C 284 400, 281 370, 278 340
+                 C 276 310, 273 280, 270 250 Z"
+              fill="url(#trunk-gradient)"/>
+        {# 3D-Tiefe: Kanten abdunkeln #}
+        <path d="M 230 250
+                 C 227 280, 224 310, 222 340
+                 C 219 370, 216 400, 213 430
+                 C 211 450, 208 465, 205 480
+                 L 295 480
+                 C 292 465, 289 450, 287 430
+                 C 284 400, 281 370, 278 340
+                 C 276 310, 273 280, 270 250 Z"
+              fill="url(#trunk-depth)"/>
+        {# Licht-Highlight mittig #}
+        <path d="M 240 255
+                 C 238 290, 236 330, 234 370
+                 C 232 410, 228 450, 225 480
+                 L 275 480
+                 C 272 450, 268 410, 266 370
+                 C 264 330, 262 290, 260 255 Z"
+              fill="url(#trunk-highlight)"/>
 
-</div>
+        {# ── Rinde: vertikale Rillen ── #}
+        <path d="M 240 260 C 239 310, 237 370, 234 450" stroke="rgba(0,0,0,0.07)" stroke-width="1" fill="none"/>
+        <path d="M 250 255 C 250 305, 249 365, 248 455" stroke="rgba(0,0,0,0.05)" stroke-width="0.8" fill="none"/>
+        <path d="M 260 258 C 261 308, 263 368, 266 450" stroke="rgba(0,0,0,0.07)" stroke-width="1" fill="none"/>
+        <path d="M 235 265 C 233 315, 230 375, 226 455" stroke="rgba(0,0,0,0.04)" stroke-width="0.7" fill="none"/>
+        <path d="M 265 262 C 267 312, 270 372, 274 455" stroke="rgba(0,0,0,0.04)" stroke-width="0.7" fill="none"/>
 
-{# Beziehungsdatum an JS übergeben #}
+        {# ── Rinde: horizontale Markierungen ── #}
+        <path d="M 228 290 Q 250 296, 272 289" stroke="rgba(0,0,0,0.08)" stroke-width="1" fill="none"/>
+        <path d="M 225 335 Q 250 342, 276 334" stroke="rgba(0,0,0,0.06)" stroke-width="0.9" fill="none"/>
+        <path d="M 222 375 Q 250 382, 278 374" stroke="rgba(0,0,0,0.07)" stroke-width="1" fill="none"/>
+        <path d="M 218 415 Q 250 422, 282 414" stroke="rgba(0,0,0,0.06)" stroke-width="0.8" fill="none"/>
+        <path d="M 214 455 Q 250 462, 286 454" stroke="rgba(0,0,0,0.05)" stroke-width="0.8" fill="none"/>
+
+        {# ── Astknoten (ovale Narben) ── #}
+        <ellipse cx="236" cy="310" rx="5" ry="8" fill="rgba(0,0,0,0.08)" transform="rotate(-5, 236, 310)"/>
+        <ellipse cx="265" cy="385" rx="4" ry="7" fill="rgba(0,0,0,0.06)" transform="rotate(5, 265, 385)"/>
+        <ellipse cx="240" cy="435" rx="3.5" ry="5.5" fill="rgba(0,0,0,0.05)" transform="rotate(-3, 240, 435)"/>
+
+        {# ═══ WURZELN — breiter, 6 Stück ═══ #}
+        <path d="M 215 460 Q 185 478, 145 490" stroke="#5D4037" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.5"/>
+        <path d="M 220 468 Q 198 492, 170 508" stroke="#5D4037" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.4"/>
+        <path d="M 210 472 Q 175 485, 130 492" stroke="#5D4037" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.3"/>
+        <path d="M 285 460 Q 315 478, 355 490" stroke="#5D4037" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.5"/>
+        <path d="M 280 468 Q 302 492, 330 508" stroke="#5D4037" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.4"/>
+        <path d="M 290 472 Q 325 485, 370 492" stroke="#5D4037" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.3"/>
+      </svg>
+
+      {# ── Hängende Favoriten (absolut positioniert über dem Baum) ────── #}
+      <div id="pinned-memories" class="absolute inset-0 pointer-events-none">
+        {% if pinned_memories %}
+          {% for memory, pos in pinned_memories %}
+          <div class="hanging-memory group pointer-events-auto absolute flex flex-col items-center cursor-grab"
+               data-memory-id="{{ memory.id }}"
+               data-pos-top="{{ pos.top }}" data-pos-left="{{ pos.left }}"
+               id="pinned-{{ memory.id }}"
+               draggable="false">
+            <div class="relative">
+              {# ✕ Entpinnen-Button (nur bei Hover sichtbar) #}
+              <button type="button"
+                      onclick="event.stopPropagation(); event.preventDefault(); unpinFromTree({{ memory.id }}, this)"
+                      class="unpin-btn absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500/80 text-white
+                             text-[10px] leading-none flex items-center justify-center
+                             hover:bg-red-600 z-20 cursor-pointer shadow-sm"
+                      title="Vom Baum entfernen">
+                ✕
+              </button>
+              <a href="/memories/{{ memory.id }}" class="block">
+                <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden shadow-lg bg-white
+                            group-hover:scale-110 group-hover:shadow-xl transition-all duration-200 flex-shrink-0">
+                  {% if memory.photos and memory.photos|length > 0 %}
+                  <img src="/{{ memory.photos[0].filepath }}" alt="{{ memory.title }}"
+                       class="w-full h-full object-cover">
+                  {% else %}
+                  {% set cat = memory.category or 'Alltag' %}
+                  {% set conf = category_config.get(cat, category_config['Alltag']) %}
+                  <div class="w-full h-full flex items-center justify-center text-2xl sm:text-3xl"
+                       data-bg-color="{{ conf.color }}">
+                    {{ conf.emoji }}
+                  </div>
+                  {% endif %}
+                </div>
+              </a>
+            </div>
+            <span class="mt-1 text-xs text-center text-green-900 font-medium bg-white/70 backdrop-blur-sm
+                         px-2 py-0.5 rounded-full max-w-[5rem] sm:max-w-[6rem] line-clamp-2 leading-tight shadow-sm">
+              {{ memory.title }}
+            </span>
+          </div>
+          {% endfor %}
+        {% else %}
+          {# ── Leerer Zustand: dezenter Hinweis ── #}
+          <div id="empty-tree-hint" class="absolute top-1/3 left-1/2 -translate-x-1/2 pointer-events-none text-center">
+            <p class="text-sm text-green-700/60">
+              Pinne Erinnerungen im Zeitstrahl um sie hier zu sehen 🌿
+            </p>
+          </div>
+        {% endif %}
+      </div>
+
+    </div>{# /tree-container #}
+
+    {# ── Boden: volle Breite, unterer Abschluss ────────────────────── #}
+    <div id="ground" class="relative w-full -mt-20 z-10">
+      <svg viewBox="0 0 1440 72" class="w-full block" preserveAspectRatio="none" style="height: 55px;">
+        <defs>
+          {# Erd-Gradient für Wurzelbereich #}
+          <radialGradient id="root-earth" cx="50%" cy="0%" r="30%">
+            <stop offset="0%" stop-color="#3d7a42" stop-opacity="0.3"/>
+            <stop offset="100%" stop-color="#4a8c54" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+
+        {# ── Schicht 3 (hinterste): Dunkelste, gesamte Breite ── #}
+        <path d="M 0 45 C 200 40, 400 50, 720 42 C 1040 35, 1240 48, 1440 43 L 1440 72 L 0 72 Z"
+              fill="#4a8c54"/>
+
+        {# ── Schicht 2 (Mitte): etwas heller ── #}
+        <path d="M 0 50 C 180 46, 420 55, 720 48 C 1020 42, 1260 52, 1440 48 L 1440 72 L 0 72 Z"
+              fill="#4a8c54"/>
+
+        {# ── Schicht 1 (vorderste): Hellste Graskante ── #}
+        <path d="M 0 55 C 160 52, 440 58, 720 53 C 1000 48, 1280 56, 1440 54 L 1440 72 L 0 72 Z"
+              fill="#52a060"/>
+
+        {# ── Erd-Patch um Stammbasis (Wurzelübergang) ── #}
+        <ellipse cx="720" cy="50" rx="130" ry="18" fill="url(#root-earth)"/>
+
+        {# ══════════════════════════════════════════════════════════════
+           VEGETATION — Grasbüschel, Blumen, Steine
+           ══════════════════════════════════════════════════════════════ #}
+
+        {# ── Grasbüschel (18 Stück, gleichmäßig über die Breite) ──── #}
+        <g class="grass-tuft" transform="translate(80, 54)">
+          <path d="M 0 0 Q -3 -16, -7 -22" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.4"/>
+          <path d="M 0 0 Q 1 -18, 2 -25" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.35"/>
+          <path d="M 0 0 Q 4 -14, 8 -20" stroke="#3d8b47" stroke-width="1.2" fill="none" opacity="0.3"/>
+        </g>
+        <g class="grass-tuft" transform="translate(160, 52)">
+          <path d="M 0 0 Q -4 -20, -9 -28" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.35"/>
+          <path d="M 0 0 Q 0 -22, 1 -30" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.4"/>
+          <path d="M 0 0 Q 5 -17, 10 -24" stroke="#4a9c55" stroke-width="1.2" fill="none" opacity="0.3"/>
+        </g>
+        <g class="grass-tuft" transform="translate(250, 56)">
+          <path d="M 0 0 Q -3 -12, -5 -17" stroke="#3d8b47" stroke-width="1.3" fill="none" opacity="0.3"/>
+          <path d="M 0 0 Q 1 -14, 3 -20" stroke="#4a9c55" stroke-width="1.3" fill="none" opacity="0.35"/>
+        </g>
+        <g class="grass-tuft" transform="translate(340, 51)">
+          <path d="M 0 0 Q -4 -18, -8 -25" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.4"/>
+          <path d="M 0 0 Q 1 -20, 3 -28" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.35"/>
+          <path d="M 0 0 Q 5 -16, 10 -22" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.3"/>
+        </g>
+        <g class="grass-tuft" transform="translate(430, 55)">
+          <path d="M 0 0 Q -2 -15, -6 -21" stroke="#4a9c55" stroke-width="1.3" fill="none" opacity="0.35"/>
+          <path d="M 0 0 Q 2 -19, 4 -26" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.3"/>
+          <path d="M 0 0 Q 6 -13, 9 -18" stroke="#4a9c55" stroke-width="1.2" fill="none" opacity="0.25"/>
+        </g>
+        <g class="grass-tuft" transform="translate(520, 53)">
+          <path d="M 0 0 Q -3 -17, -7 -24" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.4"/>
+          <path d="M 0 0 Q 1 -21, 2 -29" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.35"/>
+        </g>
+        <g class="grass-tuft" transform="translate(610, 56)">
+          <path d="M 0 0 Q -4 -14, -6 -19" stroke="#4a9c55" stroke-width="1.3" fill="none" opacity="0.3"/>
+          <path d="M 0 0 Q 0 -16, 1 -23" stroke="#3d8b47" stroke-width="1.3" fill="none" opacity="0.35"/>
+          <path d="M 0 0 Q 5 -12, 8 -17" stroke="#4a9c55" stroke-width="1.2" fill="none" opacity="0.25"/>
+        </g>
+        <g class="grass-tuft" transform="translate(700, 52)">
+          <path d="M 0 0 Q -3 -19, -8 -26" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.35"/>
+          <path d="M 0 0 Q 1 -22, 3 -30" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.4"/>
+          <path d="M 0 0 Q 6 -16, 11 -22" stroke="#3d8b47" stroke-width="1.2" fill="none" opacity="0.3"/>
+        </g>
+        <g class="grass-tuft" transform="translate(790, 55)">
+          <path d="M 0 0 Q -2 -13, -5 -18" stroke="#4a9c55" stroke-width="1.3" fill="none" opacity="0.3"/>
+          <path d="M 0 0 Q 2 -17, 4 -24" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.35"/>
+        </g>
+        <g class="grass-tuft" transform="translate(870, 53)">
+          <path d="M 0 0 Q -4 -18, -8 -25" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.4"/>
+          <path d="M 0 0 Q 1 -20, 3 -27" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.35"/>
+          <path d="M 0 0 Q 5 -15, 9 -21" stroke="#3d8b47" stroke-width="1.2" fill="none" opacity="0.3"/>
+        </g>
+        <g class="grass-tuft" transform="translate(950, 56)">
+          <path d="M 0 0 Q -3 -15, -6 -20" stroke="#4a9c55" stroke-width="1.3" fill="none" opacity="0.35"/>
+          <path d="M 0 0 Q 0 -18, 2 -25" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.3"/>
+          <path d="M 0 0 Q 4 -12, 7 -17" stroke="#4a9c55" stroke-width="1.2" fill="none" opacity="0.25"/>
+        </g>
+        <g class="grass-tuft" transform="translate(1030, 51)">
+          <path d="M 0 0 Q -4 -20, -9 -28" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.35"/>
+          <path d="M 0 0 Q 1 -23, 2 -31" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.4"/>
+        </g>
+        <g class="grass-tuft" transform="translate(1110, 54)">
+          <path d="M 0 0 Q -3 -16, -7 -23" stroke="#4a9c55" stroke-width="1.3" fill="none" opacity="0.3"/>
+          <path d="M 0 0 Q 1 -19, 3 -26" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.35"/>
+          <path d="M 0 0 Q 5 -14, 10 -20" stroke="#4a9c55" stroke-width="1.2" fill="none" opacity="0.3"/>
+        </g>
+        <g class="grass-tuft" transform="translate(1190, 52)">
+          <path d="M 0 0 Q -4 -18, -8 -24" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.4"/>
+          <path d="M 0 0 Q 0 -21, 1 -29" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.35"/>
+        </g>
+        <g class="grass-tuft" transform="translate(1260, 56)">
+          <path d="M 0 0 Q -3 -13, -5 -18" stroke="#3d8b47" stroke-width="1.3" fill="none" opacity="0.3"/>
+          <path d="M 0 0 Q 2 -16, 4 -22" stroke="#4a9c55" stroke-width="1.3" fill="none" opacity="0.35"/>
+          <path d="M 0 0 Q 6 -11, 9 -16" stroke="#3d8b47" stroke-width="1.2" fill="none" opacity="0.25"/>
+        </g>
+        <g class="grass-tuft" transform="translate(1330, 53)">
+          <path d="M 0 0 Q -4 -17, -7 -23" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.35"/>
+          <path d="M 0 0 Q 1 -20, 3 -27" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.4"/>
+          <path d="M 0 0 Q 5 -14, 8 -19" stroke="#4a9c55" stroke-width="1.2" fill="none" opacity="0.3"/>
+        </g>
+        <g class="grass-tuft" transform="translate(1400, 55)">
+          <path d="M 0 0 Q -3 -15, -6 -21" stroke="#3d8b47" stroke-width="1.3" fill="none" opacity="0.3"/>
+          <path d="M 0 0 Q 1 -18, 2 -25" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.35"/>
+        </g>
+        <g class="grass-tuft" transform="translate(40, 56)">
+          <path d="M 0 0 Q -2 -14, -5 -19" stroke="#4a9c55" stroke-width="1.3" fill="none" opacity="0.3"/>
+          <path d="M 0 0 Q 2 -17, 5 -23" stroke="#3d8b47" stroke-width="1.3" fill="none" opacity="0.35"/>
+        </g>
+
+        {# ── Blumen (7 Stück, natürlich verteilt) ────────────────────── #}
+        {# Cluster links #}
+        <g transform="translate(180, 52)">
+          <line x1="0" y1="0" x2="-1" y2="-13" stroke="#4a8c54" stroke-width="1"/>
+          <circle cx="-1" cy="-15" r="3" fill="#fbbf24" opacity="0.7"/>
+        </g>
+        <g transform="translate(210, 54)">
+          <line x1="0" y1="0" x2="1" y2="-10" stroke="#4a8c54" stroke-width="0.8"/>
+          <circle cx="1" cy="-12" r="2" fill="#fbbf24" opacity="0.5"/>
+        </g>
+        {# Mitte-links #}
+        <g transform="translate(480, 55)">
+          <line x1="0" y1="0" x2="0" y2="-11" stroke="#4a8c54" stroke-width="1"/>
+          <circle cx="0" cy="-13" r="2.5" fill="#f472b6" opacity="0.6"/>
+        </g>
+        {# Mitte-rechts #}
+        <g transform="translate(820, 53)">
+          <line x1="0" y1="0" x2="-1" y2="-14" stroke="#4a8c54" stroke-width="1"/>
+          <circle cx="-1" cy="-16" r="3" fill="#fefce8" opacity="0.65"/>
+        </g>
+        {# Cluster rechts #}
+        <g transform="translate(1050, 54)">
+          <line x1="0" y1="0" x2="0" y2="-12" stroke="#4a8c54" stroke-width="1"/>
+          <circle cx="0" cy="-14" r="2.5" fill="#c084fc" opacity="0.55"/>
+        </g>
+        <g transform="translate(1080, 56)">
+          <line x1="0" y1="0" x2="1" y2="-10" stroke="#4a8c54" stroke-width="0.8"/>
+          <circle cx="1" cy="-12" r="2" fill="#f472b6" opacity="0.45"/>
+        </g>
+        {# Rechts außen #}
+        <g transform="translate(1300, 53)">
+          <line x1="0" y1="0" x2="0" y2="-13" stroke="#4a8c54" stroke-width="1"/>
+          <circle cx="0" cy="-15" r="2.5" fill="#fbbf24" opacity="0.6"/>
+        </g>
+
+        {# ── Kleine Steine (4 Stück) ────────────────────────────────── #}
+        <ellipse cx="350" cy="57" rx="6" ry="3" fill="#9ca3af" opacity="0.22"/>
+        <ellipse cx="750" cy="56" rx="5" ry="2.5" fill="#a1a1aa" opacity="0.18"/>
+        <ellipse cx="1150" cy="55" rx="4" ry="2" fill="#9ca3af" opacity="0.2"/>
+        <ellipse cx="550" cy="58" rx="5" ry="2.5" fill="#a1a1aa" opacity="0.16"/>
+      </svg>
+
+      {# Partner-Badge + Navigation — unter dem Boden-SVG #}
+      <div class="w-full bg-[#4a8c54] py-3 flex flex-col items-center gap-2">
+        {% if partner_since %}
+        <span class="text-xs text-green-100/80 font-medium">
+          Zusammen seit {{ partner_since }}
+        </span>
+        {% endif %}
+        <a href="/timeline"
+           class="group flex items-center gap-2 bg-green-900/60 hover:bg-green-900/80
+                  backdrop-blur-sm text-green-50 px-6 py-2.5 rounded-full text-sm font-medium
+                  shadow-md transition-all hover:shadow-lg hover:scale-105 border border-green-400/20">
+          🌿 Zum Zeitstrahl
+        </a>
+      </div>
+    </div>{# /ground #}
+
+  </div>{# /flex col #}
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/pin-animation.js"></script>
 <script>
-  window.__PARTNER_SINCE__ = "{{ partner_since }}";
+  document.addEventListener("DOMContentLoaded", function () {
+    // ── Apply initial positions & colors ──
+    document.querySelectorAll("[data-pos-top][data-pos-left]").forEach(function (el) {
+      el.style.top = el.dataset.posTop;
+      el.style.left = el.dataset.posLeft;
+      el.style.transform = "translateX(-50%)";
+    });
+    document.querySelectorAll("[data-bg-color]").forEach(function (el) {
+      el.style.backgroundColor = el.dataset.bgColor + "20";
+    });
+
+    // ── Drag-to-Reposition for pinned memories ──
+    var container = document.getElementById("tree-container");
+    if (!container) return;
+
+    var svgEl = container.querySelector("svg");
+    var DRAG_THRESHOLD = 5;
+
+    // viewBox: -20 -10 580 500
+    var VB_X = -20, VB_Y = -10, VB_W = 580, VB_H = 500;
+
+    // All 9 crown ellipses from the SVG, inset ~25/20 so the card stays visually inside
+    var CROWN = [
+      {cx: 250, cy: 135, rx: 228, ry: 125},
+      {cx: 190, cy: 115, rx: 176, ry: 105},
+      {cx: 320, cy: 125, rx: 165, ry: 100},
+      {cx: 250, cy:  95, rx: 153, ry:  85},
+      {cx: 165, cy: 148, rx: 125, ry:  72},
+      {cx: 335, cy: 142, rx: 119, ry:  75},
+      {cx: 250, cy:  72, rx: 107, ry:  58},
+      {cx: 215, cy: 105, rx:  96, ry:  55},
+      {cx: 285, cy: 100, rx:  90, ry:  50}
+    ];
+
+    function ellipseDist2(x, y, e) {
+      var ndx = (x - e.cx) / e.rx, ndy = (y - e.cy) / e.ry;
+      return ndx * ndx + ndy * ndy;
+    }
+
+    function pctToSvg(lPct, tPct) {
+      var cr = container.getBoundingClientRect();
+      var sr = svgEl.getBoundingClientRect();
+      return {
+        x: (lPct / 100 * cr.width - (sr.left - cr.left)) / sr.width * VB_W + VB_X,
+        y: (tPct / 100 * cr.height - (sr.top - cr.top)) / sr.height * VB_H + VB_Y
+      };
+    }
+
+    function svgToPct(sx, sy) {
+      var cr = container.getBoundingClientRect();
+      var sr = svgEl.getBoundingClientRect();
+      return {
+        left: ((sx - VB_X) / VB_W * sr.width + (sr.left - cr.left)) / cr.width * 100,
+        top:  ((sy - VB_Y) / VB_H * sr.height + (sr.top - cr.top)) / cr.height * 100
+      };
+    }
+
+    function clampToCrown(lPct, tPct) {
+      var sv = pctToSvg(lPct, tPct);
+      // Inside any of the 9 ellipses? → allow
+      var best = Infinity, bi = 0;
+      for (var i = 0; i < CROWN.length; i++) {
+        var d = ellipseDist2(sv.x, sv.y, CROWN[i]);
+        if (d <= 1) return { left: lPct, top: tPct };
+        if (d < best) { best = d; bi = i; }
+      }
+      // Outside all → snap to nearest ellipse boundary
+      var e = CROWN[bi];
+      var a = Math.atan2((sv.y - e.cy) / e.ry, (sv.x - e.cx) / e.rx);
+      return svgToPct(e.cx + e.rx * Math.cos(a), e.cy + e.ry * Math.sin(a));
+    }
+
+    document.querySelectorAll(".hanging-memory[data-memory-id]").forEach(function (el) {
+      var isDragging = false;
+      var hasMoved = false;
+      var startX = 0, startY = 0, startElLeft = 0, startElTop = 0;
+      var activePointerId = null;
+
+      // Prevent native drag ghost image on images inside
+      el.querySelectorAll("img").forEach(function (img) { img.setAttribute("draggable", "false"); });
+
+      el.addEventListener("pointerdown", function (e) {
+        // Ignore clicks on the ✕ unpin button only
+        if (e.target.closest("button")) return;
+
+        isDragging = true;
+        hasMoved = false;
+        activePointerId = e.pointerId;
+        startX = e.clientX;
+        startY = e.clientY;
+
+        var rect = container.getBoundingClientRect();
+        startElLeft = parseFloat(el.style.left) / 100 * rect.width;
+        startElTop  = parseFloat(el.style.top)  / 100 * rect.height;
+
+        // Capture pointer so we get events even outside the element
+        el.setPointerCapture(e.pointerId);
+
+        e.preventDefault();
+      });
+
+      el.addEventListener("pointermove", function (e) {
+        if (!isDragging || e.pointerId !== activePointerId) return;
+
+        var dx = e.clientX - startX;
+        var dy = e.clientY - startY;
+
+        if (!hasMoved && Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return;
+
+        if (!hasMoved) {
+          hasMoved = true;
+          el.style.animation = "none";
+          el.style.zIndex = "50";
+          el.style.scale = "1.1";
+          el.style.filter = "drop-shadow(0 8px 16px rgba(0,0,0,0.25))";
+          el.style.cursor = "grabbing";
+        }
+
+        e.preventDefault();
+
+        var rect = container.getBoundingClientRect();
+        var c = clampToCrown(
+          (startElLeft + dx) / rect.width  * 100,
+          (startElTop  + dy) / rect.height * 100
+        );
+        el.style.left = c.left + "%";
+        el.style.top  = c.top  + "%";
+      });
+
+      el.addEventListener("pointerup", function (e) {
+        if (!isDragging || e.pointerId !== activePointerId) return;
+        isDragging = false;
+        activePointerId = null;
+
+        el.releasePointerCapture(e.pointerId);
+
+        if (hasMoved) {
+          // Suppress the click that follows pointerup after a drag
+          el.addEventListener("click", preventClick, { once: true, capture: true });
+
+          el.style.zIndex = ""; el.style.scale = "";
+          el.style.filter = ""; el.style.cursor = "grab";
+          el.style.animation = "";
+
+          var topVal  = parseFloat(el.style.top).toFixed(1)  + "%";
+          var leftVal = parseFloat(el.style.left).toFixed(1) + "%";
+          fetch("/memories/" + el.dataset.memoryId + "/update-tree-position", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ top: topVal, left: leftVal })
+          }).catch(function (err) {
+            console.error("Position speichern fehlgeschlagen:", err);
+          });
+        }
+      });
+
+      el.addEventListener("pointercancel", function (e) {
+        if (e.pointerId !== activePointerId) return;
+        isDragging = false;
+        activePointerId = null;
+        el.style.zIndex = ""; el.style.scale = "";
+        el.style.filter = ""; el.style.cursor = "grab";
+        el.style.animation = "";
+      });
+
+      function preventClick(e) { e.preventDefault(); e.stopPropagation(); }
+    });
+  });
 </script>
-<script src="/static/js/tree.js"></script>
 {% endblock %}

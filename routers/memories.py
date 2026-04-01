@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import uuid
 from datetime import date
 from typing import Annotated, List, Optional
@@ -231,19 +232,81 @@ def toggle_favorite(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> JSONResponse:
-    """Favoriten-Status einer Erinnerung umschalten."""
+    """Favoriten-Status einer Erinnerung umschalten (max 8 Pins am Baum)."""
+    from sqlalchemy import func
+
     memory: Memory | None = db.query(Memory).filter(Memory.id == memory_id).first()
     if memory is None:
         raise HTTPException(status_code=404, detail=_NOT_FOUND)
 
+    # Pinning: max 8 erlaubt
+    if not memory.is_favorite:
+        total_pinned: int = (
+            db.query(func.count(Memory.id))
+            .filter(Memory.is_favorite == True)
+            .scalar() or 0
+        )
+        if total_pinned >= 8:
+            return JSONResponse(
+                {"is_favorite": False, "total_pinned": total_pinned, "error": "max_reached"},
+                status_code=200,
+            )
+
     memory.is_favorite = not memory.is_favorite
     db.commit()
-    logger.info(
-        "Erinnerung #%d Favorit=%s von User #%d",
-        memory.id, memory.is_favorite, current_user.id,
-    )
-    return JSONResponse({"is_favorite": memory.is_favorite})
 
+    total_pinned_after: int = (
+        db.query(func.count(Memory.id))
+        .filter(Memory.is_favorite == True)
+        .scalar() or 0
+    )
+
+    logger.info(
+        "Erinnerung #%d Favorit=%s von User #%d (total_pinned=%d)",
+        memory.id, memory.is_favorite, current_user.id, total_pinned_after,
+    )
+    return JSONResponse({"is_favorite": memory.is_favorite, "total_pinned": total_pinned_after})
+
+
+@router.post(
+    "/{memory_id}/update-tree-position",
+    response_model=None,
+    responses={404: {"description": _NOT_FOUND}},
+)
+def update_tree_position(
+    memory_id: int,
+    request_body: dict,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> JSONResponse:
+    """Position einer Erinnerung im Baum aktualisieren (Drag & Drop)."""
+    memory: Memory | None = db.query(Memory).filter(Memory.id == memory_id).first()
+    if memory is None:
+        raise HTTPException(status_code=404, detail=_NOT_FOUND)
+
+    if not memory.is_favorite:
+        raise HTTPException(status_code=400, detail="Nur gepinnte Erinnerungen können positioniert werden")
+
+    top = request_body.get("top", "")
+    left = request_body.get("left", "")
+
+    # Validate percentage format (e.g. "22.5%" or "45%")
+    pct_pattern = re.compile(r"^\d{1,3}(\.\d{1,2})?%$")
+    if not pct_pattern.match(top) or not pct_pattern.match(left):
+        raise HTTPException(status_code=422, detail="Ungültiges Positionsformat (erwartet z.B. '22%')")
+
+    # Validate range 0-100
+    top_val = float(top.rstrip("%"))
+    left_val = float(left.rstrip("%"))
+    if not (0 <= top_val <= 100) or not (0 <= left_val <= 100):
+        raise HTTPException(status_code=422, detail="Position muss zwischen 0% und 100% liegen")
+
+    memory.tree_pos_top = top
+    memory.tree_pos_left = left
+    db.commit()
+
+    logger.info("Erinnerung #%d Position aktualisiert: top=%s left=%s", memory.id, top, left)
+    return JSONResponse({"ok": True})
 
 
 @router.get("", response_model=list[MemoryRead])
@@ -368,8 +431,11 @@ def delete_memory_form(
 
     # Zugehörige Foto-Dateien vom Dateisystem entfernen
     for photo in memory.photos:
-        if os.path.exists(photo.filepath):
-            os.remove(photo.filepath)
+        try:
+            if os.path.exists(photo.filepath):
+                os.remove(photo.filepath)
+        except OSError:
+            pass
 
     db.delete(memory)
     db.commit()
@@ -389,8 +455,11 @@ def delete_memory(
         raise HTTPException(status_code=404, detail=_NOT_FOUND)
 
     for photo in memory.photos:
-        if os.path.exists(photo.filepath):
-            os.remove(photo.filepath)
+        try:
+            if os.path.exists(photo.filepath):
+                os.remove(photo.filepath)
+        except OSError:
+            pass
 
     db.delete(memory)
     db.commit()

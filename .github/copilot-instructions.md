@@ -11,7 +11,7 @@ Memory Tree is a private, password-protected web app for two partners (a couple)
 - **Backend**: Python 3.11+ / FastAPI
 - **Templating**: Jinja2
 - **Styling**: Tailwind CSS 3.x (CDN)
-- **JS**: Vanilla JS, D3.js 7.x (CDN), Leaflet.js 1.9.x (CDN)
+- **JS**: Vanilla JS, Leaflet.js 1.9.x (CDN) — D3.js removed from tree view
 - **Database**: SQLite via SQLAlchemy 2.0+ ORM
 - **Auth**: JWT (python-jose 3.3+), bcrypt (passlib 1.7+)
 - **Image processing**: Pillow 10+
@@ -36,7 +36,8 @@ memory-tree/
 │   ├── uploads/             # Uploaded images
 │   ├── css/tailwind.css
 │   ├── js/
-│   │   ├── tree.js          # D3.js Memory Tree
+│   │   ├── tree.js          # Tree page: minimal applyDataStyles helper
+│   │   ├── timeline.js      # Timeline: category filters + pin toggle
 │   │   ├── map.js           # Leaflet.js map
 │   │   └── gallery.js       # Gallery & Lightbox
 │   └── img/                 # App assets
@@ -64,6 +65,10 @@ memory-tree/
 - **SQLite**: single file DB, no external DB server needed
 - **File uploads**: saved to `static/uploads/`, images auto-resized to max 1920px
 - **All API routes except `/auth/login` require valid JWT**
+- **Tree page = meditative display only**: SVG tree + max 8 pinned favorites, no card grid or filtering
+- **Timeline page = main memories hub**: chronological cards, category filters, pin-to-tree toggle (max 8)
+- **Pin-to-tree**: `is_favorite` field = "pinned to tree", max 8 enforced server-side
+- **Data-attribute pattern**: Use `data-bg-color`, `data-pos-top`, etc. applied via JS `applyDataStyles()` to avoid Jinja2 in inline styles
 
 ## Database Tables
 
@@ -84,4 +89,4 @@ memory-tree/
 
 ## PRD Reference
 
-The full PRD is at [docs/PRD.md](docs/PRD.md).
+The full PRD is at [docs/PRD.md](../docs/PRD.md).

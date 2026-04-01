@@ -85,6 +85,11 @@ def on_startup() -> None:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE memories ADD COLUMN is_favorite BOOLEAN DEFAULT 0 NOT NULL"))
         logger.info("Spalte 'is_favorite' zu memories hinzugefügt")
+    if "tree_pos_top" not in columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE memories ADD COLUMN tree_pos_top VARCHAR(10)"))
+            conn.execute(text("ALTER TABLE memories ADD COLUMN tree_pos_left VARCHAR(10)"))
+        logger.info("Spalten 'tree_pos_top/left' zu memories hinzugefügt")
 
     db: Session = SessionLocal()
     try:
@@ -168,14 +173,7 @@ def dashboard(
     if partner_since:
         tage_zusammen = (today - partner_since).days
 
-    # Letzte 6 Favoriten-Erinnerungen
-    favoriten: List[Memory] = (
-        db.query(Memory)
-        .filter(Memory.is_favorite == True)
-        .order_by(Memory.date.desc())
-        .limit(6)
-        .all()
-    )
+    # Anzahl gepinnter Favoriten (für "Zum Baum"-Karte)
     favoriten_count: int = (
         db.query(func.count(Memory.id))
         .filter(Memory.is_favorite == True)
@@ -227,7 +225,6 @@ def dashboard(
             "laender_count": laender_count,
             "tage_zusammen": tage_zusammen,
             "letzte_erinnerungen": letzte_erinnerungen,
-            "favoriten": favoriten,
             "favoriten_count": favoriten_count,
             "naechstes_jubilaeum": naechstes_jubilaeum,
             "an_diesem_tag": an_diesem_tag,
@@ -241,15 +238,116 @@ def tree_page(
     current_user: Annotated[User, Depends(_get_current_user_or_redirect)],
     db: Annotated[Session, Depends(get_db)],
 ) -> Response:
-    """Memory-Tree-Seite anzeigen."""
+    """Memory-Tree-Seite anzeigen (nur Baum + gepinnte Favoriten)."""
     cs: CoupleSettings | None = db.query(CoupleSettings).first()
     partner_since: date | None = cs.partner_since if cs else current_user.partner_since
+
+    favorites: list[Memory] = (
+        db.query(Memory)
+        .filter(Memory.is_favorite == True)
+        .order_by(Memory.date.desc())
+        .limit(8)
+        .all()
+    )
+
+    # Feste Ankerpunkte für bis zu 8 Favoriten am Baum
+    anchor_positions: list[dict[str, str]] = [
+        {"top": "18%", "left": "28%"},
+        {"top": "14%", "left": "48%"},
+        {"top": "20%", "left": "68%"},
+        {"top": "28%", "left": "22%"},
+        {"top": "24%", "left": "42%"},
+        {"top": "30%", "left": "62%"},
+        {"top": "35%", "left": "32%"},
+        {"top": "32%", "left": "55%"},
+    ]
+    pinned: list[tuple[Memory, dict[str, str]]] = []
+    for i, mem in enumerate(favorites[:8]):
+        if mem.tree_pos_top and mem.tree_pos_left:
+            pos = {"top": mem.tree_pos_top, "left": mem.tree_pos_left}
+        else:
+            pos = anchor_positions[i]
+        pinned.append((mem, pos))
+
+    # Kategorie-Konfig für Emoji-Fallback bei Fotos
+    category_config: dict[str, dict[str, str]] = {
+        "Urlaub": {"emoji": "\U0001f3d6\ufe0f", "color": "#0891b2"},
+        "Meilenstein": {"emoji": "\U0001f31f", "color": "#d97706"},
+        "Feier": {"emoji": "\U0001f389", "color": "#7c3aed"},
+        "Alltag": {"emoji": "\U0001f4f8", "color": "#16a34a"},
+        "Abenteuer": {"emoji": "\U0001f32f", "color": "#ea580c"},
+        "Besonderes": {"emoji": "\u2764\ufe0f", "color": "#e11d48"},
+    }
+
+    partner_since_display: str = ""
+    if partner_since:
+        partner_since_display = partner_since.strftime("%d.%m.%Y")
+
     return templates.TemplateResponse(
         "tree.html",
         {
             "request": request,
             "user": current_user,
-            "partner_since": partner_since.isoformat() if partner_since else "",
+            "partner_since": partner_since_display,
+            "pinned_memories": pinned,
+            "category_config": category_config,
+        },
+    )
+
+
+# ── Timeline-Route ───────────────────────────────────────────────────────────
+
+@app.get("/timeline", response_class=HTMLResponse)
+def timeline_page(
+    request: Request,
+    current_user: Annotated[User, Depends(_get_current_user_or_redirect)],
+    db: Annotated[Session, Depends(get_db)],
+) -> Response:
+    """Zeitstrahl-Seite: chronologische Ansicht aller Erinnerungen."""
+    today: date = date.today()
+
+    # Paar-Einstellungen laden
+    cs: CoupleSettings | None = db.query(CoupleSettings).first()
+    partner_since: date | None = cs.partner_since if cs else current_user.partner_since
+
+    tage_zusammen: int = 0
+    partner_since_display: str = ""
+    if partner_since:
+        tage_zusammen = (today - partner_since).days
+        partner_since_display = partner_since.strftime("%d.%m.%Y")
+
+    # Alle Erinnerungen chronologisch absteigend
+    all_memories: list[Memory] = (
+        db.query(Memory).order_by(Memory.date.desc()).all()
+    )
+
+    # Anzahl gepinnter Erinnerungen
+    total_pinned: int = (
+        db.query(func.count(Memory.id))
+        .filter(Memory.is_favorite == True)
+        .scalar() or 0
+    )
+
+    # Kategorie-Konfig
+    category_config: dict[str, dict[str, str]] = {
+        "Urlaub": {"emoji": "\U0001f3d6\ufe0f", "color": "#0891b2"},
+        "Meilenstein": {"emoji": "\U0001f31f", "color": "#d97706"},
+        "Feier": {"emoji": "\U0001f389", "color": "#7c3aed"},
+        "Alltag": {"emoji": "\U0001f4f8", "color": "#16a34a"},
+        "Abenteuer": {"emoji": "\U0001f32f", "color": "#ea580c"},
+        "Besonderes": {"emoji": "\u2764\ufe0f", "color": "#e11d48"},
+    }
+
+    return templates.TemplateResponse(
+        "timeline.html",
+        {
+            "request": request,
+            "user": current_user,
+            "memories": all_memories,
+            "category_config": category_config,
+            "tage_zusammen": tage_zusammen,
+            "partner_since": partner_since_display,
+            "total_pinned": total_pinned,
         },
     )
 

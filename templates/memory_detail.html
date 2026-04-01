@@ -98,7 +98,7 @@
   {% if memory.lat and memory.lng %}
   <section class="bg-white rounded-2xl shadow-md p-6 mb-6">
     <h2 class="text-lg font-semibold text-stone-700 mb-3">🗺️ Ort auf der Karte</h2>
-    <div id="detail-map"></div>
+    <div id="detail-map" data-lat="{{ memory.lat|default(0) }}" data-lng="{{ memory.lng|default(0) }}" data-location="{{ memory.location|e }}"></div>
   </section>
   {% endif %}
 
@@ -218,14 +218,14 @@ document.addEventListener("DOMContentLoaded", function () {
   // ── Karte ─────────────────────────────────────────────────────────────
   var mapEl = document.getElementById("detail-map");
   if (mapEl && typeof L !== "undefined") {
-    var lat = {{ memory.lat if memory.lat else 0 }};
-    var lng = {{ memory.lng if memory.lng else 0 }};
+    var lat = parseFloat(mapEl.dataset.lat) || 0;
+    var lng = parseFloat(mapEl.dataset.lng) || 0;
     var map = L.map("detail-map").setView([lat, lng], 13);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19, attribution: "&copy; OpenStreetMap"
     }).addTo(map);
     L.marker([lat, lng]).addTo(map)
-      .bindPopup("{{ memory.location|e }}")
+      .bindPopup(mapEl.dataset.location || "")
       .openPopup();
   }
 

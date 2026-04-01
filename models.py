@@ -65,12 +65,14 @@ class Memory(Base):
     mood: Optional[str] = Column(String(50), nullable=True)
     category: str = Column(String(50), nullable=False, default=CategoryEnum.alltag.value)
     is_favorite: bool = Column(Boolean, default=False, nullable=False)
+    tree_pos_top: Optional[str] = Column(String(10), nullable=True)
+    tree_pos_left: Optional[str] = Column(String(10), nullable=True)
     created_by: int = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at: datetime = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     creator: Mapped["User"] = relationship("User", back_populates="memories")
-    photos: Mapped[List["Photo"]] = relationship("Photo", back_populates="memory")
-    places: Mapped[List["Place"]] = relationship("Place", back_populates="memory")
+    photos: Mapped[List["Photo"]] = relationship("Photo", back_populates="memory", cascade="all, delete-orphan")
+    places: Mapped[List["Place"]] = relationship("Place", back_populates="memory", cascade="all, delete-orphan")
 
 
 class Photo(Base):
