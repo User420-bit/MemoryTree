@@ -418,174 +418,240 @@
 {% block extra_scripts %}
 <script src="/static/js/pin-animation.js"></script>
 <script>
-  document.addEventListener("DOMContentLoaded", function () {
-    // ── Apply initial positions & colors ──
-    document.querySelectorAll("[data-pos-top][data-pos-left]").forEach(function (el) {
-      el.style.top = el.dataset.posTop;
-      el.style.left = el.dataset.posLeft;
-      el.style.transform = "translateX(-50%)";
-    });
-    document.querySelectorAll("[data-bg-color]").forEach(function (el) {
-      el.style.backgroundColor = el.dataset.bgColor + "20";
-    });
+/**
+ * Memory Tree — Drag & Drop for pinned memories
+ *
+ * RULES:
+ * - Only ONE element can be dragged at a time (global state)
+ * - pointermove/pointerup are registered on DOCUMENT (not on the element)
+ *   → ensures events are caught even if the cursor leaves the element during drag
+ * - All document listeners are REMOVED on drop (not just deactivated)
+ * - Multiple initialization is prevented
+ */
+(function () {
+  'use strict';
 
-    // ── Drag-to-Reposition for pinned memories ──
-    var container = document.getElementById("tree-container");
-    if (!container) return;
+  // Guard against multiple initialization (hot-reload, double script load)
+  if (window._treeDragInitialized) return;
+  window._treeDragInitialized = true;
 
-    var svgEl = container.querySelector("svg");
-    var DRAG_THRESHOLD = 5;
+  // ── Apply initial positions & colors ──
+  document.querySelectorAll("[data-pos-top][data-pos-left]").forEach(function (el) {
+    el.style.top = el.dataset.posTop;
+    el.style.left = el.dataset.posLeft;
+    el.style.transform = "translateX(-50%)";
+  });
+  document.querySelectorAll("[data-bg-color]").forEach(function (el) {
+    el.style.backgroundColor = el.dataset.bgColor + "20";
+  });
 
-    // viewBox: -20 -10 580 500
-    var VB_X = -20, VB_Y = -10, VB_W = 580, VB_H = 500;
+  var container = document.getElementById("tree-container");
+  if (!container) return;
 
-    // All 9 crown ellipses from the SVG, inset ~25/20 so the card stays visually inside
-    var CROWN = [
-      {cx: 250, cy: 135, rx: 228, ry: 125},
-      {cx: 190, cy: 115, rx: 176, ry: 105},
-      {cx: 320, cy: 125, rx: 165, ry: 100},
-      {cx: 250, cy:  95, rx: 153, ry:  85},
-      {cx: 165, cy: 148, rx: 125, ry:  72},
-      {cx: 335, cy: 142, rx: 119, ry:  75},
-      {cx: 250, cy:  72, rx: 107, ry:  58},
-      {cx: 215, cy: 105, rx:  96, ry:  55},
-      {cx: 285, cy: 100, rx:  90, ry:  50}
-    ];
+  var svgEl = container.querySelector("svg");
+  var DRAG_THRESHOLD = 5;
 
-    function ellipseDist2(x, y, e) {
-      var ndx = (x - e.cx) / e.rx, ndy = (y - e.cy) / e.ry;
-      return ndx * ndx + ndy * ndy;
+  // viewBox: -20 -10 580 500
+  var VB_X = -20, VB_Y = -10, VB_W = 580, VB_H = 500;
+
+  // All 9 crown ellipses from the SVG, inset ~25/20 so the card stays visually inside
+  var CROWN = [
+    {cx: 250, cy: 135, rx: 228, ry: 125},
+    {cx: 190, cy: 115, rx: 176, ry: 105},
+    {cx: 320, cy: 125, rx: 165, ry: 100},
+    {cx: 250, cy:  95, rx: 153, ry:  85},
+    {cx: 165, cy: 148, rx: 125, ry:  72},
+    {cx: 335, cy: 142, rx: 119, ry:  75},
+    {cx: 250, cy:  72, rx: 107, ry:  58},
+    {cx: 215, cy: 105, rx:  96, ry:  55},
+    {cx: 285, cy: 100, rx:  90, ry:  50}
+  ];
+
+  function ellipseDist2(x, y, e) {
+    var ndx = (x - e.cx) / e.rx, ndy = (y - e.cy) / e.ry;
+    return ndx * ndx + ndy * ndy;
+  }
+
+  function pctToSvg(lPct, tPct) {
+    var cr = container.getBoundingClientRect();
+    var sr = svgEl.getBoundingClientRect();
+    return {
+      x: (lPct / 100 * cr.width - (sr.left - cr.left)) / sr.width * VB_W + VB_X,
+      y: (tPct / 100 * cr.height - (sr.top - cr.top)) / sr.height * VB_H + VB_Y
+    };
+  }
+
+  function svgToPct(sx, sy) {
+    var cr = container.getBoundingClientRect();
+    var sr = svgEl.getBoundingClientRect();
+    return {
+      left: ((sx - VB_X) / VB_W * sr.width + (sr.left - cr.left)) / cr.width * 100,
+      top:  ((sy - VB_Y) / VB_H * sr.height + (sr.top - cr.top)) / cr.height * 100
+    };
+  }
+
+  function clampToCrown(lPct, tPct) {
+    var sv = pctToSvg(lPct, tPct);
+    var best = Infinity, bi = 0;
+    for (var i = 0; i < CROWN.length; i++) {
+      var d = ellipseDist2(sv.x, sv.y, CROWN[i]);
+      if (d <= 1) return { left: lPct, top: tPct };
+      if (d < best) { best = d; bi = i; }
+    }
+    var e = CROWN[bi];
+    var a = Math.atan2((sv.y - e.cy) / e.ry, (sv.x - e.cx) / e.rx);
+    return svgToPct(e.cx + e.rx * Math.cos(a), e.cy + e.ry * Math.sin(a));
+  }
+
+  // === GLOBAL DRAG STATE ===
+  // Only ONE element can be dragged at a time — single source of truth
+  var dragState = null;
+  // dragState = { element, startX, startY, startElLeft, startElTop, pointerId, moved }
+
+  function preventClick(e) { e.preventDefault(); e.stopPropagation(); }
+
+  // === DOCUMENT-LEVEL EVENT HANDLERS ===
+  // Registered on drag start, removed on drag end
+
+  function onPointerMove(e) {
+    if (!dragState || e.pointerId !== dragState.pointerId) return;
+
+    var dx = e.clientX - dragState.startX;
+    var dy = e.clientY - dragState.startY;
+
+    if (!dragState.moved && Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return;
+
+    if (!dragState.moved) {
+      dragState.moved = true;
+      dragState.element.style.animation = "none";
+      dragState.element.style.zIndex = "50";
+      dragState.element.style.scale = "1.1";
+      dragState.element.style.filter = "drop-shadow(0 8px 16px rgba(0,0,0,0.25))";
+      dragState.element.style.cursor = "grabbing";
     }
 
-    function pctToSvg(lPct, tPct) {
-      var cr = container.getBoundingClientRect();
-      var sr = svgEl.getBoundingClientRect();
-      return {
-        x: (lPct / 100 * cr.width - (sr.left - cr.left)) / sr.width * VB_W + VB_X,
-        y: (tPct / 100 * cr.height - (sr.top - cr.top)) / sr.height * VB_H + VB_Y
+    e.preventDefault();
+
+    var rect = container.getBoundingClientRect();
+    var c = clampToCrown(
+      (dragState.startElLeft + dx) / rect.width  * 100,
+      (dragState.startElTop  + dy) / rect.height * 100
+    );
+    dragState.element.style.left = c.left + "%";
+    dragState.element.style.top  = c.top  + "%";
+  }
+
+  function onPointerUp(e) {
+    if (!dragState || e.pointerId !== dragState.pointerId) return;
+    endDrag();
+  }
+
+  function onPointerCancel(e) {
+    if (!dragState || e.pointerId !== dragState.pointerId) return;
+    endDrag();
+  }
+
+  function endDrag() {
+    if (!dragState) return;
+
+    var el = dragState.element;
+    var wasMoved = dragState.moved;
+    var pointerId = dragState.pointerId;
+
+    // Release pointer capture
+    try { el.releasePointerCapture(pointerId); } catch (err) { /* already released */ }
+
+    // Reset styling
+    el.style.zIndex = ""; el.style.scale = "";
+    el.style.filter = ""; el.style.cursor = "grab";
+    el.style.animation = "";
+
+    // Null state IMMEDIATELY — BEFORE anything else
+    dragState = null;
+
+    // Remove document-level listeners
+    document.removeEventListener("pointermove", onPointerMove);
+    document.removeEventListener("pointerup", onPointerUp);
+    document.removeEventListener("pointercancel", onPointerCancel);
+
+    if (wasMoved) {
+      // Suppress the click that follows pointerup after a drag
+      el.addEventListener("click", preventClick, { once: true, capture: true });
+
+      // Save position to server
+      var topVal  = parseFloat(el.style.top).toFixed(1)  + "%";
+      var leftVal = parseFloat(el.style.left).toFixed(1) + "%";
+      fetch("/memories/" + el.dataset.memoryId + "/update-tree-position", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ top: topVal, left: leftVal })
+      }).catch(function (err) {
+        console.error("Position speichern fehlgeschlagen:", err);
+      });
+    }
+  }
+
+  // === SAFETY NETS ===
+
+  // If dragState gets stuck, reset on next click anywhere
+  document.addEventListener("click", function () {
+    if (dragState) {
+      console.warn("[MemoryTree] Drag state was stuck, force-cleaning");
+      endDrag();
+    }
+  }, true); // capture phase: fires BEFORE normal click handlers
+
+  // Window loses focus → cancel drag
+  window.addEventListener("blur", function () {
+    if (dragState) endDrag();
+  });
+
+  // Escape key → cancel drag
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && dragState) endDrag();
+  });
+
+  // === INIT DRAGGABLE ELEMENTS ===
+
+  document.querySelectorAll(".hanging-memory[data-memory-id]").forEach(function (el) {
+    // Guard: don't double-init
+    if (el.dataset.dragInit === "true") return;
+    el.dataset.dragInit = "true";
+
+    // Prevent native drag ghost image on images inside
+    el.querySelectorAll("img").forEach(function (img) { img.setAttribute("draggable", "false"); });
+
+    el.addEventListener("pointerdown", function (e) {
+      // Ignore clicks on the unpin button
+      if (e.target.closest("button")) return;
+
+      // If a drag is already active → force-end it
+      if (dragState) endDrag();
+
+      var rect = container.getBoundingClientRect();
+
+      dragState = {
+        element: el,
+        startX: e.clientX,
+        startY: e.clientY,
+        startElLeft: parseFloat(el.style.left) / 100 * rect.width,
+        startElTop:  parseFloat(el.style.top)  / 100 * rect.height,
+        pointerId: e.pointerId,
+        moved: false
       };
-    }
 
-    function svgToPct(sx, sy) {
-      var cr = container.getBoundingClientRect();
-      var sr = svgEl.getBoundingClientRect();
-      return {
-        left: ((sx - VB_X) / VB_W * sr.width + (sr.left - cr.left)) / cr.width * 100,
-        top:  ((sy - VB_Y) / VB_H * sr.height + (sr.top - cr.top)) / cr.height * 100
-      };
-    }
+      // Capture pointer so we get events even outside the element
+      try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
 
-    function clampToCrown(lPct, tPct) {
-      var sv = pctToSvg(lPct, tPct);
-      // Inside any of the 9 ellipses? → allow
-      var best = Infinity, bi = 0;
-      for (var i = 0; i < CROWN.length; i++) {
-        var d = ellipseDist2(sv.x, sv.y, CROWN[i]);
-        if (d <= 1) return { left: lPct, top: tPct };
-        if (d < best) { best = d; bi = i; }
-      }
-      // Outside all → snap to nearest ellipse boundary
-      var e = CROWN[bi];
-      var a = Math.atan2((sv.y - e.cy) / e.ry, (sv.x - e.cx) / e.rx);
-      return svgToPct(e.cx + e.rx * Math.cos(a), e.cy + e.ry * Math.sin(a));
-    }
+      // Add document-level listeners (removed in endDrag)
+      document.addEventListener("pointermove", onPointerMove);
+      document.addEventListener("pointerup", onPointerUp);
+      document.addEventListener("pointercancel", onPointerCancel);
 
-    document.querySelectorAll(".hanging-memory[data-memory-id]").forEach(function (el) {
-      var isDragging = false;
-      var hasMoved = false;
-      var startX = 0, startY = 0, startElLeft = 0, startElTop = 0;
-      var activePointerId = null;
-
-      // Prevent native drag ghost image on images inside
-      el.querySelectorAll("img").forEach(function (img) { img.setAttribute("draggable", "false"); });
-
-      el.addEventListener("pointerdown", function (e) {
-        // Ignore clicks on the ✕ unpin button only
-        if (e.target.closest("button")) return;
-
-        isDragging = true;
-        hasMoved = false;
-        activePointerId = e.pointerId;
-        startX = e.clientX;
-        startY = e.clientY;
-
-        var rect = container.getBoundingClientRect();
-        startElLeft = parseFloat(el.style.left) / 100 * rect.width;
-        startElTop  = parseFloat(el.style.top)  / 100 * rect.height;
-
-        // Capture pointer so we get events even outside the element
-        el.setPointerCapture(e.pointerId);
-
-        e.preventDefault();
-      });
-
-      el.addEventListener("pointermove", function (e) {
-        if (!isDragging || e.pointerId !== activePointerId) return;
-
-        var dx = e.clientX - startX;
-        var dy = e.clientY - startY;
-
-        if (!hasMoved && Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return;
-
-        if (!hasMoved) {
-          hasMoved = true;
-          el.style.animation = "none";
-          el.style.zIndex = "50";
-          el.style.scale = "1.1";
-          el.style.filter = "drop-shadow(0 8px 16px rgba(0,0,0,0.25))";
-          el.style.cursor = "grabbing";
-        }
-
-        e.preventDefault();
-
-        var rect = container.getBoundingClientRect();
-        var c = clampToCrown(
-          (startElLeft + dx) / rect.width  * 100,
-          (startElTop  + dy) / rect.height * 100
-        );
-        el.style.left = c.left + "%";
-        el.style.top  = c.top  + "%";
-      });
-
-      el.addEventListener("pointerup", function (e) {
-        if (!isDragging || e.pointerId !== activePointerId) return;
-        isDragging = false;
-        activePointerId = null;
-
-        el.releasePointerCapture(e.pointerId);
-
-        if (hasMoved) {
-          // Suppress the click that follows pointerup after a drag
-          el.addEventListener("click", preventClick, { once: true, capture: true });
-
-          el.style.zIndex = ""; el.style.scale = "";
-          el.style.filter = ""; el.style.cursor = "grab";
-          el.style.animation = "";
-
-          var topVal  = parseFloat(el.style.top).toFixed(1)  + "%";
-          var leftVal = parseFloat(el.style.left).toFixed(1) + "%";
-          fetch("/memories/" + el.dataset.memoryId + "/update-tree-position", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "same-origin",
-            body: JSON.stringify({ top: topVal, left: leftVal })
-          }).catch(function (err) {
-            console.error("Position speichern fehlgeschlagen:", err);
-          });
-        }
-      });
-
-      el.addEventListener("pointercancel", function (e) {
-        if (e.pointerId !== activePointerId) return;
-        isDragging = false;
-        activePointerId = null;
-        el.style.zIndex = ""; el.style.scale = "";
-        el.style.filter = ""; el.style.cursor = "grab";
-        el.style.animation = "";
-      });
-
-      function preventClick(e) { e.preventDefault(); e.stopPropagation(); }
+      e.preventDefault();
     });
   });
+})();
 </script>
 {% endblock %}
