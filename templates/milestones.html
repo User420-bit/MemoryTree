@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+
+{% block title %}Meilensteine{% endblock %}
+{% block d3 %}{% endblock %}
+{% block leaflet %}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .milestone-card {
+    transition: box-shadow 0.25s ease, transform 0.25s ease;
+  }
+  .milestone-card:hover {
+    box-shadow: 0 12px 28px rgba(0,0,0,0.12);
+    transform: translateY(-2px);
+  }
+  .milestone-line {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(to bottom, #d97706, #f59e0b, #fbbf24);
+    transform: translateX(-50%);
+  }
+  @media (max-width: 767px) {
+    .milestone-line { left: 24px; }
+  }
+  .milestone-dot {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 3px solid #d97706;
+    background: white;
+    position: absolute;
+    left: 50%;
+    top: 28px;
+    transform: translateX(-50%);
+    z-index: 2;
+  }
+  .milestone-dot.anniversary {
+    border-color: #b45309;
+    background: #fbbf24;
+    box-shadow: 0 0 8px rgba(251,191,36,0.5);
+  }
+  @media (max-width: 767px) {
+    .milestone-dot { left: 24px; }
+  }
+  .emoji-pick { cursor: pointer; opacity: 0.5; transition: all 0.15s; font-size: 1.5rem; }
+  .emoji-pick:hover, .emoji-pick.selected { opacity: 1; transform: scale(1.25); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto pb-16">
+
+  {# ── Countdown Hero ──────────────────────────────────────────────────── #}
+  {% if naechstes_jubilaeum %}
+  <section class="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl shadow-md p-6 md:p-8 mb-8 text-center border border-amber-200">
+    <p class="text-amber-600 text-sm font-medium uppercase tracking-wide mb-2">Nächstes Jubiläum</p>
+    <h2 class="text-4xl md:text-5xl font-extrabold text-amber-800 mb-2">
+      {{ naechstes_jubilaeum.jahre }}. Jahrestag
+    </h2>
+    <p class="text-xl text-amber-700">
+      {% if naechstes_jubilaeum.tage_bis == 0 %}
+        🎉 Heute ist euer Jahrestag!
+      {% elif naechstes_jubilaeum.tage_bis == 1 %}
+        noch <span class="font-bold">1</span> Tag · {{ naechstes_jubilaeum.datum }}
+      {% else %}
+        noch <span class="font-bold">{{ naechstes_jubilaeum.tage_bis }}</span> Tage · {{ naechstes_jubilaeum.datum }}
+      {% endif %}
+    </p>
+  </section>
+  {% endif %}
+
+  {# ── Header + Neuer Meilenstein Button ───────────────────────────────── #}
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
+    <div>
+      <h1 class="text-2xl md:text-3xl font-bold text-stone-800">🌟 Eure Meilensteine</h1>
+      <p class="text-sm text-stone-500 mt-1">{{ milestones|length }} besondere Momente</p>
+    </div>
+    <button type="button" id="btn-new-milestone"
+            class="inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white
+                   px-5 py-2 rounded-full text-sm font-medium shadow-sm hover:shadow transition
+                   whitespace-nowrap self-start sm:self-auto cursor-pointer">
+      + Neuer Meilenstein
+    </button>
+  </div>
+
+  {# ── Formular (versteckt, wird per JS eingeblendet) ──────────────────── #}
+  <div id="milestone-form-wrapper" class="hidden mb-8">
+    <section class="bg-white rounded-2xl shadow-md p-6 border-2 border-amber-200">
+      <h3 class="text-lg font-semibold text-stone-700 mb-4" id="form-title">Neuer Meilenstein</h3>
+      <form id="milestone-form" class="space-y-4">
+        <input type="hidden" id="ms-id" value="">
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="ms-title" class="block text-sm font-medium text-stone-600 mb-1">Titel <span class="text-red-500">*</span></label>
+            <input type="text" id="ms-title" required placeholder="z. B. Erstes Date"
+                   class="w-full px-4 py-2.5 rounded-lg border border-stone-300
+                          focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition">
+          </div>
+          <div>
+            <label for="ms-date" class="block text-sm font-medium text-stone-600 mb-1">Datum <span class="text-red-500">*</span></label>
+            <input type="date" id="ms-date" required
+                   class="w-full px-4 py-2.5 rounded-lg border border-stone-300
+                          focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition">
+          </div>
+        </div>
+
+        <div>
+          <label for="ms-desc" class="block text-sm font-medium text-stone-600 mb-1">Beschreibung</label>
+          <textarea id="ms-desc" rows="2" placeholder="Was macht diesen Moment besonders?"
+                    class="w-full px-4 py-2.5 rounded-lg border border-stone-300
+                           focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition resize-y"></textarea>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-4 sm:items-end">
+          <div>
+            <label class="block text-sm font-medium text-stone-600 mb-2">Icon</label>
+            <input type="hidden" id="ms-icon" value="🌟">
+            <div class="flex gap-2 flex-wrap" id="icon-picker">
+              {% set icons = ["🌟", "❤️", "💍", "🏠", "👶", "🎓", "✈️", "🎂", "🥂", "📸", "🐾", "🎯"] %}
+              {% for emoji in icons %}
+              <button type="button" class="emoji-pick {{ 'selected' if emoji == '🌟' else '' }}" data-icon="{{ emoji }}">{{ emoji }}</button>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 sm:ml-auto">
+            <input type="checkbox" id="ms-anniversary" class="w-4 h-4 text-amber-600 rounded focus:ring-amber-500">
+            <label for="ms-anniversary" class="text-sm text-stone-600">Ist ein Jahrestag</label>
+          </div>
+        </div>
+
+        <div class="flex gap-3 pt-2">
+          <button type="submit"
+                  class="bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2.5 px-6 rounded-xl shadow-md hover:shadow-lg transition">
+            💾 Speichern
+          </button>
+          <button type="button" id="btn-cancel-form"
+                  class="text-stone-500 hover:text-stone-700 transition font-medium py-2.5 px-4">
+            Abbrechen
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  {# ── Deutsche Monatsnamen ────────────────────────────────────────── #}
+  {% set monatsnamen = {1: 'Januar', 2: 'Februar', 3: 'März', 4: 'April', 5: 'Mai', 6: 'Juni', 7: 'Juli', 8: 'August', 9: 'September', 10: 'Oktober', 11: 'November', 12: 'Dezember'} %}
+
+  {# ── Meilenstein-Timeline ────────────────────────────────────────────── #}
+  {% if milestones %}
+  <div class="relative">
+    <div class="milestone-line"></div>
+
+    {% for ms in milestones %}
+    {% set days_ago = (today - ms.date).days %}
+    {% set is_left = loop.index0 % 2 == 0 %}
+    <div class="relative mb-8 md:mb-12 flex {{ 'md:justify-start' if is_left else 'md:justify-end' }}"
+         data-milestone-id="{{ ms.id }}">
+
+      {# Dot on timeline #}
+      <div class="milestone-dot {{ 'anniversary' if ms.is_anniversary else '' }}"></div>
+
+      {# Card #}
+      <div class="milestone-card ml-14 md:ml-0 {{ 'md:mr-[54%]' if is_left else 'md:ml-[54%]' }}
+                  bg-white rounded-2xl shadow-md p-5 w-full md:max-w-md relative
+                  {{ 'border-2 border-amber-300 ring-1 ring-amber-200' if ms.is_anniversary else '' }}">
+
+        {# Bearbeiten / Löschen Buttons #}
+        <div class="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition">
+          <button type="button" class="ms-edit-btn text-xs bg-stone-100 hover:bg-amber-100 text-stone-500 hover:text-amber-700 px-2 py-1 rounded-lg transition"
+                  data-id="{{ ms.id }}" data-title="{{ ms.title }}" data-date="{{ ms.date.isoformat() }}"
+                  data-icon="{{ ms.icon }}" data-desc="{{ ms.description or '' }}"
+                  data-anniversary="{{ 'true' if ms.is_anniversary else 'false' }}"
+                  title="Bearbeiten">✏️</button>
+          <button type="button" class="ms-delete-btn text-xs bg-stone-100 hover:bg-red-100 text-stone-500 hover:text-red-600 px-2 py-1 rounded-lg transition"
+                  data-id="{{ ms.id }}" title="Löschen">🗑️</button>
+        </div>
+
+        <div class="flex items-start gap-3">
+          <span class="text-3xl flex-shrink-0">{{ ms.icon }}</span>
+          <div class="flex-1 min-w-0">
+            <h3 class="text-lg font-bold text-stone-800 leading-tight">{{ ms.title }}</h3>
+            <p class="text-sm text-stone-500 mt-0.5">
+              {{ ms.date.day }}. {{ monatsnamen[ms.date.month] }} {{ ms.date.year }}
+              {% if ms.is_anniversary %}<span class="ml-1 text-amber-600 font-medium">· Jahrestag</span>{% endif %}
+            </p>
+            {% if ms.description %}
+            <p class="text-stone-600 mt-2 text-sm leading-relaxed">{{ ms.description }}</p>
+            {% endif %}
+            <p class="text-xs text-stone-400 mt-2">
+              {% if days_ago == 0 %}
+                Heute 🎉
+              {% elif days_ago > 0 %}
+                vor {{ days_ago }} Tagen
+              {% else %}
+                in {{ -days_ago }} Tagen
+              {% endif %}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  {# ── Leerer Zustand ──────────────────────────────────────────────── #}
+  <div class="text-center py-16">
+    <div class="text-6xl mb-4">🌟</div>
+    <h2 class="text-xl font-bold text-stone-600 mb-2">Noch keine Meilensteine</h2>
+    <p class="text-stone-400 mb-6">Halte eure besonderen Momente fest!</p>
+    <button type="button" onclick="document.getElementById('btn-new-milestone').click()"
+            class="bg-amber-600 hover:bg-amber-700 text-white font-semibold py-3 px-8 rounded-xl shadow-md hover:shadow-lg transition">
+      + Ersten Meilenstein erstellen
+    </button>
+  </div>
+  {% endif %}
+
+</div>
+
+{# ── Lösch-Bestätigungsdialog ──────────────────────────────────────────── #}
+<div id="delete-dialog" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+  <div class="bg-white rounded-2xl shadow-xl p-6 max-w-sm mx-4">
+    <h3 class="text-lg font-bold text-stone-800 mb-2">Meilenstein löschen?</h3>
+    <p class="text-stone-600 mb-6">Diesen Meilenstein wirklich unwiderruflich löschen?</p>
+    <div class="flex gap-3 justify-end">
+      <button type="button" id="delete-cancel"
+              class="px-4 py-2 rounded-lg text-stone-600 hover:bg-stone-100 transition">
+        Abbrechen
+      </button>
+      <button type="button" id="delete-confirm"
+              class="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded-lg transition">
+        Endgültig löschen
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  var formWrapper = document.getElementById("milestone-form-wrapper");
+  var form = document.getElementById("milestone-form");
+  var formTitle = document.getElementById("form-title");
+  var btnNew = document.getElementById("btn-new-milestone");
+  var btnCancel = document.getElementById("btn-cancel-form");
+  var deleteDialog = document.getElementById("delete-dialog");
+  var deleteConfirm = document.getElementById("delete-confirm");
+  var deleteCancel = document.getElementById("delete-cancel");
+  var pendingDeleteId = null;
+
+  // ── Icon Picker ────────────────────────────────────────────────────
+  document.querySelectorAll(".emoji-pick").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll(".emoji-pick").forEach(function (b) { b.classList.remove("selected"); });
+      btn.classList.add("selected");
+      document.getElementById("ms-icon").value = btn.dataset.icon;
+    });
+  });
+
+  // ── Neuen Meilenstein Formular öffnen ──────────────────────────────
+  btnNew.addEventListener("click", function () {
+    resetForm();
+    formTitle.textContent = "Neuer Meilenstein";
+    formWrapper.classList.remove("hidden");
+    formWrapper.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  btnCancel.addEventListener("click", function () {
+    formWrapper.classList.add("hidden");
+  });
+
+  function resetForm() {
+    document.getElementById("ms-id").value = "";
+    document.getElementById("ms-title").value = "";
+    document.getElementById("ms-date").value = "";
+    document.getElementById("ms-desc").value = "";
+    document.getElementById("ms-icon").value = "🌟";
+    document.getElementById("ms-anniversary").checked = false;
+    document.querySelectorAll(".emoji-pick").forEach(function (b) {
+      b.classList.toggle("selected", b.dataset.icon === "🌟");
+    });
+  }
+
+  // ── Formular absenden (Create / Update) ───────────────────────────
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var msId = document.getElementById("ms-id").value;
+    var payload = {
+      title: document.getElementById("ms-title").value,
+      date: document.getElementById("ms-date").value,
+      description: document.getElementById("ms-desc").value || null,
+      icon: document.getElementById("ms-icon").value,
+      is_anniversary: document.getElementById("ms-anniversary").checked
+    };
+
+    var url = msId ? "/api/milestones/" + msId : "/api/milestones";
+    var method = msId ? "PUT" : "POST";
+
+    fetch(url, {
+      method: method,
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin"
+    , body: JSON.stringify(payload)
+    })
+    .then(function (r) {
+      if (r.ok) { location.reload(); }
+      else { r.json().then(function (d) { alert(d.detail || "Fehler"); }); }
+    })
+    .catch(function () { alert("Netzwerkfehler"); });
+  });
+
+  // ── Bearbeiten ────────────────────────────────────────────────────
+  document.querySelectorAll(".ms-edit-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.getElementById("ms-id").value = btn.dataset.id;
+      document.getElementById("ms-title").value = btn.dataset.title;
+      document.getElementById("ms-date").value = btn.dataset.date;
+      document.getElementById("ms-desc").value = btn.dataset.desc;
+      document.getElementById("ms-icon").value = btn.dataset.icon;
+      document.getElementById("ms-anniversary").checked = btn.dataset.anniversary === "true";
+      document.querySelectorAll(".emoji-pick").forEach(function (b) {
+        b.classList.toggle("selected", b.dataset.icon === btn.dataset.icon);
+      });
+      formTitle.textContent = "Meilenstein bearbeiten";
+      formWrapper.classList.remove("hidden");
+      formWrapper.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+
+  // ── Löschen ───────────────────────────────────────────────────────
+  document.querySelectorAll(".ms-delete-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      pendingDeleteId = btn.dataset.id;
+      deleteDialog.classList.remove("hidden");
+    });
+  });
+
+  deleteCancel.addEventListener("click", function () {
+    deleteDialog.classList.add("hidden");
+    pendingDeleteId = null;
+  });
+
+  deleteDialog.addEventListener("click", function (e) {
+    if (e.target === deleteDialog) {
+      deleteDialog.classList.add("hidden");
+      pendingDeleteId = null;
+    }
+  });
+
+  deleteConfirm.addEventListener("click", function () {
+    if (!pendingDeleteId) return;
+    fetch("/api/milestones/" + pendingDeleteId, {
+      method: "DELETE",
+      credentials: "same-origin"
+    })
+    .then(function (r) {
+      if (r.ok) { location.reload(); }
+      else { alert("Fehler beim Löschen"); }
+    })
+    .catch(function () { alert("Netzwerkfehler"); });
+  });
+
+  // ── Hover-Effekt für Edit/Delete Buttons ──────────────────────────
+  document.querySelectorAll("[data-milestone-id]").forEach(function (el) {
+    var btns = el.querySelectorAll(".ms-edit-btn, .ms-delete-btn");
+    el.addEventListener("mouseenter", function () {
+      btns.forEach(function (b) { b.parentElement.style.opacity = "1"; });
+    });
+    el.addEventListener("mouseleave", function () {
+      btns.forEach(function (b) { b.parentElement.style.opacity = "0"; });
+    });
+  });
+});
+</script>
+{% endblock %}

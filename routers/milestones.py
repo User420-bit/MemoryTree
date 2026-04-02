@@ -10,7 +10,7 @@ from database import get_db
 from models import Milestone, User
 from schemas import MilestoneCreate, MilestoneRead, MilestoneUpdate
 
-router = APIRouter(prefix="/milestones", tags=["Meilensteine"])
+router = APIRouter(prefix="/api/milestones", tags=["Meilensteine"])
 
 
 @router.get("", response_model=list[MilestoneRead])

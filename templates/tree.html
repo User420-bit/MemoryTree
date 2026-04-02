@@ -53,6 +53,57 @@
 
   /* Override beige body/main background on tree page */
   body, main { background-color: #4a8c54 !important; }
+
+  /* ── Wolken-Animation: langsames horizontales Gleiten ── */
+  @keyframes cloud-drift {
+    from { transform: translateX(-30%); }
+    to   { transform: translateX(130%); }
+  }
+  @keyframes cloud-drift-reverse {
+    from { transform: translateX(130%); }
+    to   { transform: translateX(-30%); }
+  }
+
+  /* ── Schaukel-Pendeln: sanfter als Erinnerungen ── */
+  @keyframes swing {
+    0%, 100% { transform: rotate(-2.5deg); }
+    50%      { transform: rotate(2.5deg); }
+  }
+  .tree-swing {
+    transform-origin: 370px 238px;
+    animation: swing 5s ease-in-out infinite;
+  }
+
+  /* ── Schmetterling: sanftes Flattern + Drift ── */
+  @keyframes flutter {
+    0%, 100% { transform: scaleX(1); }
+    50% { transform: scaleX(0.3); }
+  }
+  @keyframes butterfly-drift-1 {
+    0%   { transform: translate(0, 0); }
+    25%  { transform: translate(12px, -6px); }
+    50%  { transform: translate(20px, 2px); }
+    75%  { transform: translate(8px, 8px); }
+    100% { transform: translate(0, 0); }
+  }
+  @keyframes butterfly-drift-2 {
+    0%   { transform: translate(0, 0); }
+    25%  { transform: translate(-10px, -8px); }
+    50%  { transform: translate(-18px, 0px); }
+    75%  { transform: translate(-6px, 6px); }
+    100% { transform: translate(0, 0); }
+  }
+  .butterfly-wing { animation: flutter 0.4s ease-in-out infinite; transform-origin: center; }
+  .butterfly-1 { animation: butterfly-drift-1 12s ease-in-out infinite; }
+  .butterfly-2 { animation: butterfly-drift-2 15s ease-in-out infinite; animation-delay: -4s; }
+
+  /* ── Blumen: sanftes Wiegen im Wind ── */
+  @keyframes flower-sway {
+    0%, 100% { transform: rotate(-2deg); }
+    50% { transform: rotate(2deg); }
+  }
+  .flower-sway { animation: flower-sway 4s ease-in-out infinite; transform-origin: bottom center; }
+  .flower-sway-alt { animation: flower-sway 3.5s ease-in-out infinite; animation-delay: -1.5s; transform-origin: bottom center; }
 </style>
 {% endblock %}
 
@@ -63,10 +114,54 @@
    Baumansicht (Hero View) mit gepinnten Favoriten
    Baum steht auf dem Boden, Boden = unterer Viewport-Rand
    ═══════════════════════════════════════════════════════════════════════════ #}
-<section id="tree-hero" class="full-bleed relative -mt-8 min-h-screen flex flex-col justify-end items-center overflow-hidden bg-[#4a8c54]">
+<section id="tree-hero" class="full-bleed relative -mt-8 flex flex-col justify-end items-center overflow-hidden bg-[#4a8c54]"
+         style="height: clamp(420px, 80vh, 900px);">
 
   {# ── Hintergrund: Himmel ──────────────────────────────────────────── #}
   <div class="absolute inset-0 bg-gradient-to-b from-sky-200 via-sky-100 to-transparent"></div>
+
+  {# ── Hügelkette: 3 Silhouetten für Hintergrund-Tiefe ────────────── #}
+  <div class="absolute inset-x-0 bottom-0 z-[2] pointer-events-none" style="height: 70vh;">
+    <svg viewBox="0 0 1440 400" class="absolute bottom-0 w-full h-full" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      {# Hinterste Hügel — bläulich-grün, weich #}
+      <path d="M 0 280 C 120 220, 280 200, 420 240 C 560 280, 650 190, 800 210 C 950 230, 1050 180, 1200 220 C 1350 260, 1400 230, 1440 250 L 1440 400 L 0 400 Z"
+            fill="#8bb8a0" opacity="0.18"/>
+      {# Mittlere Hügel — mittelgrün #}
+      <path d="M 0 310 C 150 260, 300 250, 500 290 C 700 330, 800 240, 950 270 C 1100 300, 1250 250, 1440 290 L 1440 400 L 0 400 Z"
+            fill="#6a9e7a" opacity="0.25"/>
+      {# Vordere Hügel — sattgrün, nah #}
+      <path d="M 0 340 C 180 300, 350 310, 520 335 C 690 360, 800 290, 960 320 C 1120 350, 1280 310, 1440 340 L 1440 400 L 0 400 Z"
+            fill="#4d8a5c" opacity="0.35"/>
+    </svg>
+  </div>
+
+  {# ── Wolken: animiert, dezent ────────────────────────────────────── #}
+  <div class="absolute inset-x-0 top-0 z-[3] pointer-events-none overflow-hidden" style="height: 45%;">
+    {# Wolke 1 — groß, links→rechts, langsam #}
+    <svg class="absolute" style="top: 8%; width: 220px; height: 80px; animation: cloud-drift 100s linear infinite; animation-delay: -15s;" viewBox="0 0 220 80" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="110" cy="50" rx="90" ry="28" fill="white" opacity="0.5"/>
+      <ellipse cx="75" cy="42" rx="55" ry="22" fill="white" opacity="0.45"/>
+      <ellipse cx="145" cy="44" rx="50" ry="20" fill="white" opacity="0.4"/>
+      <ellipse cx="110" cy="38" rx="60" ry="18" fill="white" opacity="0.55"/>
+    </svg>
+    {# Wolke 2 — mittel, rechts→links (Gegenwind) #}
+    <svg class="absolute" style="top: 18%; width: 160px; height: 60px; animation: cloud-drift-reverse 85s linear infinite; animation-delay: -40s;" viewBox="0 0 160 60" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="80" cy="38" rx="65" ry="20" fill="white" opacity="0.4"/>
+      <ellipse cx="55" cy="32" rx="40" ry="16" fill="white" opacity="0.35"/>
+      <ellipse cx="110" cy="34" rx="38" ry="15" fill="white" opacity="0.35"/>
+    </svg>
+    {# Wolke 3 — klein, links→rechts, höher #}
+    <svg class="absolute" style="top: 4%; width: 120px; height: 50px; animation: cloud-drift 120s linear infinite; animation-delay: -65s;" viewBox="0 0 120 50" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="60" cy="30" rx="48" ry="16" fill="white" opacity="0.35"/>
+      <ellipse cx="42" cy="26" rx="30" ry="12" fill="white" opacity="0.3"/>
+      <ellipse cx="80" cy="27" rx="28" ry="11" fill="white" opacity="0.3"/>
+    </svg>
+    {# Wolke 4 — winzig, rechts→links, ganz oben #}
+    <svg class="absolute" style="top: 25%; width: 100px; height: 40px; animation: cloud-drift-reverse 110s linear infinite; animation-delay: -20s;" viewBox="0 0 100 40" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="50" cy="24" rx="40" ry="13" fill="white" opacity="0.3"/>
+      <ellipse cx="35" cy="20" rx="25" ry="10" fill="white" opacity="0.25"/>
+    </svg>
+  </div>
 
   {# ── Baum + Favoriten ────────────────────────────────────────────── #}
   <div class="relative z-10 w-full flex flex-col items-center">
@@ -182,10 +277,22 @@
         <path d="M 285 460 Q 315 478, 355 490" stroke="#5D4037" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.5"/>
         <path d="M 280 468 Q 302 492, 330 508" stroke="#5D4037" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.4"/>
         <path d="M 290 472 Q 325 485, 370 492" stroke="#5D4037" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.3"/>
+
+        {# ═══ SCHAUKEL — am unteren rechten Ast hängend ═══ #}
+        <g class="tree-swing">
+          {# Linkes Seil #}
+          <line x1="360" y1="238" x2="355" y2="348" stroke="#8B7355" stroke-width="1.8" stroke-linecap="round" opacity="0.7"/>
+          {# Rechtes Seil #}
+          <line x1="380" y1="238" x2="385" y2="348" stroke="#8B7355" stroke-width="1.8" stroke-linecap="round" opacity="0.7"/>
+          {# Sitzfläche (Holzbrett) #}
+          <rect x="350" y="346" width="40" height="5" rx="2" ry="2" fill="#8B6F47" opacity="0.75"/>
+          {# Schatten unter Sitzfläche #}
+          <rect x="352" y="351" width="36" height="2" rx="1" ry="1" fill="rgba(0,0,0,0.08)"/>
+        </g>
       </svg>
 
-      {# ── Hängende Favoriten (absolut positioniert über dem Baum) ────── #}
-      <div id="pinned-memories" class="absolute inset-0 pointer-events-none">
+      {# ── Desktop: Hängende Favoriten (frei positionierbar + draggable) ── #}
+      <div id="pinned-memories-desktop" class="hidden md:block absolute inset-0 pointer-events-none">
         {% if pinned_memories %}
           {% for memory, pos in pinned_memories %}
           <div class="hanging-memory group pointer-events-auto absolute flex flex-col items-center cursor-grab"
@@ -204,15 +311,15 @@
                 ✕
               </button>
               <a href="/memories/{{ memory.id }}" class="block">
-                <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden shadow-lg bg-white
+                <div class="w-20 h-20 rounded-2xl overflow-hidden shadow-lg bg-white
                             group-hover:scale-110 group-hover:shadow-xl transition-all duration-200 flex-shrink-0">
                   {% if memory.photos and memory.photos|length > 0 %}
                   <img src="/{{ memory.photos[0].filepath }}" alt="{{ memory.title }}"
-                       class="w-full h-full object-cover">
+                       class="w-full h-full object-cover" draggable="false">
                   {% else %}
                   {% set cat = memory.category or 'Alltag' %}
                   {% set conf = category_config.get(cat, category_config['Alltag']) %}
-                  <div class="w-full h-full flex items-center justify-center text-2xl sm:text-3xl"
+                  <div class="w-full h-full flex items-center justify-center text-3xl"
                        data-bg-color="{{ conf.color }}">
                     {{ conf.emoji }}
                   </div>
@@ -221,13 +328,12 @@
               </a>
             </div>
             <span class="mt-1 text-xs text-center text-green-900 font-medium bg-white/70 backdrop-blur-sm
-                         px-2 py-0.5 rounded-full max-w-[5rem] sm:max-w-[6rem] line-clamp-2 leading-tight shadow-sm">
+                         px-2 py-0.5 rounded-full max-w-[6rem] line-clamp-2 leading-tight shadow-sm">
               {{ memory.title }}
             </span>
           </div>
           {% endfor %}
         {% else %}
-          {# ── Leerer Zustand: dezenter Hinweis ── #}
           <div id="empty-tree-hint" class="absolute top-1/3 left-1/2 -translate-x-1/2 pointer-events-none text-center">
             <p class="text-sm text-green-700/60">
               Pinne Erinnerungen im Zeitstrahl um sie hier zu sehen 🌿
@@ -236,164 +342,764 @@
         {% endif %}
       </div>
 
+      {# ── Mobile: 4×2 Grid über der Baumkrone ── #}
+      <div id="pinned-memories-mobile" class="md:hidden absolute inset-x-0 z-20"
+           style="top: 1%; padding: 0 8%;">
+        {% if pinned_memories %}
+        <div class="grid grid-cols-4 gap-2 max-w-sm mx-auto">
+          {% for memory, pos in pinned_memories %}
+          <a href="/memories/{{ memory.id }}" class="group relative block">
+            <div class="aspect-square rounded-lg overflow-hidden shadow-md
+                        border-2 border-white/50 bg-white/80
+                        active:scale-95 transition-transform">
+              {% if memory.photos and memory.photos|length > 0 %}
+              <img src="/{{ memory.photos[0].filepath }}" alt="{{ memory.title }}"
+                   class="w-full h-full object-cover" draggable="false">
+              {% else %}
+              {% set cat = memory.category or 'Alltag' %}
+              {% set conf = category_config.get(cat, category_config['Alltag']) %}
+              <div class="w-full h-full flex items-center justify-center text-lg"
+                   data-bg-color="{{ conf.color }}">
+                {{ conf.emoji }}
+              </div>
+              {% endif %}
+            </div>
+            <p class="text-[10px] text-center text-green-800/70 mt-0.5 leading-tight line-clamp-1">
+              {{ memory.title }}
+            </p>
+            <button type="button"
+                    onclick="event.preventDefault(); event.stopPropagation(); unpinFromTree({{ memory.id }}, this)"
+                    class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500/80 text-white
+                           text-[8px] flex items-center justify-center z-10 shadow-sm">
+              ✕
+            </button>
+          </a>
+          {% endfor %}
+          {# Leere Slots bis 8 auffüllen #}
+          {% for i in range(pinned_memories|length, 8) %}
+          <div class="aspect-square rounded-lg border-2 border-dashed border-green-600/20"></div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-4">
+          <p class="text-xs text-green-700/50">
+            Pinne Erinnerungen im Zeitstrahl 🌿
+          </p>
+        </div>
+        {% endif %}
+      </div>
+
     </div>{# /tree-container #}
 
     {# ── Boden: volle Breite, unterer Abschluss ────────────────────── #}
     <div id="ground" class="relative w-full -mt-20 z-10">
-      <svg viewBox="0 0 1440 72" class="w-full block" preserveAspectRatio="none" style="height: 55px;">
+      <svg viewBox="0 0 1440 100" class="w-full block" preserveAspectRatio="none" style="height: 72px;">
         <defs>
           {# Erd-Gradient für Wurzelbereich #}
           <radialGradient id="root-earth" cx="50%" cy="0%" r="30%">
-            <stop offset="0%" stop-color="#3d7a42" stop-opacity="0.3"/>
+            <stop offset="0%" stop-color="#3d7a42" stop-opacity="0.35"/>
             <stop offset="100%" stop-color="#4a8c54" stop-opacity="0"/>
+          </radialGradient>
+          {# Weicher Gradient für Gartenpfad #}
+          <linearGradient id="path-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#c4a86e" stop-opacity="0.15"/>
+            <stop offset="100%" stop-color="#b8996b" stop-opacity="0.08"/>
+          </linearGradient>
+        </defs>
+
+        {# ── Schicht 4 (hinterste): Tiefes Dunkelgrün ── #}
+        <path d="M 0 55 C 200 48, 400 58, 720 50 C 1040 42, 1240 56, 1440 52 L 1440 100 L 0 100 Z"
+              fill="#3d7a42"/>
+
+        {# ── Schicht 3: Mittelgrün mit Textur ── #}
+        <path d="M 0 60 C 180 55, 420 66, 720 58 C 1020 50, 1260 62, 1440 58 L 1440 100 L 0 100 Z"
+              fill="#4a8c54"/>
+
+        {# ── Schicht 2: Warm-Grün ── #}
+        <path d="M 0 66 C 200 62, 500 70, 720 64 C 940 58, 1200 68, 1440 64 L 1440 100 L 0 100 Z"
+              fill="#4f9458"/>
+
+        {# ── Schicht 1 (vorderste): Hellste Graskante ── #}
+        <path d="M 0 72 C 160 68, 440 76, 720 70 C 1000 64, 1280 74, 1440 70 L 1440 100 L 0 100 Z"
+              fill="#52a060"/>
+
+        {# ── Gartenpfad (sanft angedeutet) ── #}
+        <path d="M 680 68 C 700 74, 740 76, 760 68" fill="url(#path-fill)" opacity="0.5"/>
+        <path d="M 670 74 C 700 80, 740 82, 770 74" fill="url(#path-fill)" opacity="0.35"/>
+
+        {# ── Kleewiese-Patches (subtile Farbvariationen) ── #}
+        <ellipse cx="300" cy="75" rx="60" ry="12" fill="#45a055" opacity="0.15"/>
+        <ellipse cx="900" cy="72" rx="50" ry="10" fill="#58b068" opacity="0.12"/>
+        <ellipse cx="1200" cy="76" rx="45" ry="9" fill="#45a055" opacity="0.1"/>
+
+        {# ── Erd-Patch um Stammbasis (Wurzelübergang) ── #}
+        <ellipse cx="720" cy="62" rx="130" ry="20" fill="url(#root-earth)"/>
+      </svg>
+
+      {# ── Vegetation: eigenes SVG mit proportionaler Skalierung ───── #}
+      <svg viewBox="0 0 1440 100" class="w-full absolute bottom-0 pointer-events-none" preserveAspectRatio="xMidYMid slice" style="height: 72px;">
+        <defs>
+          {# Rose-Blüten-Gradient #}
+          <radialGradient id="rose-red" cx="40%" cy="40%">
+            <stop offset="0%" stop-color="#fca5a5"/>
+            <stop offset="60%" stop-color="#e11d48"/>
+            <stop offset="100%" stop-color="#9f1239"/>
+          </radialGradient>
+          <radialGradient id="rose-pink" cx="40%" cy="40%">
+            <stop offset="0%" stop-color="#fbcfe8"/>
+            <stop offset="60%" stop-color="#ec4899"/>
+            <stop offset="100%" stop-color="#be185d"/>
+          </radialGradient>
+          <radialGradient id="rose-coral" cx="40%" cy="40%">
+            <stop offset="0%" stop-color="#fed7aa"/>
+            <stop offset="60%" stop-color="#f97316"/>
+            <stop offset="100%" stop-color="#c2410c"/>
           </radialGradient>
         </defs>
 
-        {# ── Schicht 3 (hinterste): Dunkelste, gesamte Breite ── #}
-        <path d="M 0 45 C 200 40, 400 50, 720 42 C 1040 35, 1240 48, 1440 43 L 1440 72 L 0 72 Z"
-              fill="#4a8c54"/>
-
-        {# ── Schicht 2 (Mitte): etwas heller ── #}
-        <path d="M 0 50 C 180 46, 420 55, 720 48 C 1020 42, 1260 52, 1440 48 L 1440 72 L 0 72 Z"
-              fill="#4a8c54"/>
-
-        {# ── Schicht 1 (vorderste): Hellste Graskante ── #}
-        <path d="M 0 55 C 160 52, 440 58, 720 53 C 1000 48, 1280 56, 1440 54 L 1440 72 L 0 72 Z"
-              fill="#52a060"/>
-
-        {# ── Erd-Patch um Stammbasis (Wurzelübergang) ── #}
-        <ellipse cx="720" cy="50" rx="130" ry="18" fill="url(#root-earth)"/>
-
         {# ══════════════════════════════════════════════════════════════
-           VEGETATION — Grasbüschel, Blumen, Steine
+           VEGETATION — Üppige Blumenwiese mit Rosen, Tulpen, Lavendel,
+           Schmetterlingen, Pilzen, Klee und detailiertem Gras
            ══════════════════════════════════════════════════════════════ #}
 
-        {# ── Grasbüschel (18 Stück, gleichmäßig über die Breite) ──── #}
-        <g class="grass-tuft" transform="translate(80, 54)">
-          <path d="M 0 0 Q -3 -16, -7 -22" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.4"/>
-          <path d="M 0 0 Q 1 -18, 2 -25" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.35"/>
-          <path d="M 0 0 Q 4 -14, 8 -20" stroke="#3d8b47" stroke-width="1.2" fill="none" opacity="0.3"/>
+        {# ── Kleefelder (subtile Bodendecker) ────────────────────────── #}
+        <g opacity="0.2">
+          <circle cx="120" cy="72" r="2.5" fill="#2d8a3e"/><circle cx="117" cy="70" r="2.5" fill="#2d8a3e"/><circle cx="123" cy="70" r="2.5" fill="#2d8a3e"/>
+          <circle cx="380" cy="74" r="2" fill="#2d8a3e"/><circle cx="377" cy="72.5" r="2" fill="#2d8a3e"/><circle cx="383" cy="72.5" r="2" fill="#2d8a3e"/>
+          <circle cx="640" cy="73" r="2.5" fill="#2d8a3e"/><circle cx="637" cy="71" r="2.5" fill="#2d8a3e"/><circle cx="643" cy="71" r="2.5" fill="#2d8a3e"/>
+          <circle cx="920" cy="72" r="2" fill="#2d8a3e"/><circle cx="917" cy="70.5" r="2" fill="#2d8a3e"/><circle cx="923" cy="70.5" r="2" fill="#2d8a3e"/>
+          <circle cx="1180" cy="74" r="2.5" fill="#2d8a3e"/><circle cx="1177" cy="72" r="2.5" fill="#2d8a3e"/><circle cx="1183" cy="72" r="2.5" fill="#2d8a3e"/>
+          <circle cx="1380" cy="73" r="2" fill="#2d8a3e"/><circle cx="1377" cy="71.5" r="2" fill="#2d8a3e"/><circle cx="1383" cy="71.5" r="2" fill="#2d8a3e"/>
         </g>
-        <g class="grass-tuft" transform="translate(160, 52)">
-          <path d="M 0 0 Q -4 -20, -9 -28" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.35"/>
-          <path d="M 0 0 Q 0 -22, 1 -30" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.4"/>
-          <path d="M 0 0 Q 5 -17, 10 -24" stroke="#4a9c55" stroke-width="1.2" fill="none" opacity="0.3"/>
+
+        {# ── Grasbüschel (24 Stück, üppiger und dichter) ─────────────── #}
+        <g class="grass-tuft" transform="translate(50, 70)">
+          <path d="M 0 0 Q -3 -18, -8 -26" stroke="#3d8b47" stroke-width="1.8" fill="none" opacity="0.45"/>
+          <path d="M 0 0 Q 0 -22, 1 -30" stroke="#4a9c55" stroke-width="1.6" fill="none" opacity="0.4"/>
+          <path d="M 0 0 Q 4 -16, 9 -23" stroke="#3d8b47" stroke-width="1.4" fill="none" opacity="0.35"/>
+          <path d="M 0 0 Q -5 -14, -10 -19" stroke="#56b06a" stroke-width="1" fill="none" opacity="0.25"/>
         </g>
-        <g class="grass-tuft" transform="translate(250, 56)">
-          <path d="M 0 0 Q -3 -12, -5 -17" stroke="#3d8b47" stroke-width="1.3" fill="none" opacity="0.3"/>
-          <path d="M 0 0 Q 1 -14, 3 -20" stroke="#4a9c55" stroke-width="1.3" fill="none" opacity="0.35"/>
+        <g class="grass-tuft" transform="translate(130, 68)">
+          <path d="M 0 0 Q -4 -22, -9 -30" stroke="#4a9c55" stroke-width="1.8" fill="none" opacity="0.4"/>
+          <path d="M 0 0 Q 1 -25, 2 -33" stroke="#3d8b47" stroke-width="1.6" fill="none" opacity="0.45"/>
+          <path d="M 0 0 Q 5 -18, 10 -25" stroke="#4a9c55" stroke-width="1.3" fill="none" opacity="0.35"/>
         </g>
-        <g class="grass-tuft" transform="translate(340, 51)">
-          <path d="M 0 0 Q -4 -18, -8 -25" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.4"/>
-          <path d="M 0 0 Q 1 -20, 3 -28" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.35"/>
-          <path d="M 0 0 Q 5 -16, 10 -22" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.3"/>
+        <g class="grass-tuft" transform="translate(220, 72)">
+          <path d="M 0 0 Q -3 -14, -6 -20" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.35"/>
+          <path d="M 0 0 Q 1 -17, 3 -24" stroke="#56b06a" stroke-width="1.4" fill="none" opacity="0.4"/>
+          <path d="M 0 0 Q 5 -12, 8 -17" stroke="#3d8b47" stroke-width="1.2" fill="none" opacity="0.3"/>
         </g>
-        <g class="grass-tuft" transform="translate(430, 55)">
-          <path d="M 0 0 Q -2 -15, -6 -21" stroke="#4a9c55" stroke-width="1.3" fill="none" opacity="0.35"/>
-          <path d="M 0 0 Q 2 -19, 4 -26" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.3"/>
-          <path d="M 0 0 Q 6 -13, 9 -18" stroke="#4a9c55" stroke-width="1.2" fill="none" opacity="0.25"/>
+        <g class="grass-tuft" transform="translate(310, 67)">
+          <path d="M 0 0 Q -4 -20, -8 -28" stroke="#3d8b47" stroke-width="1.8" fill="none" opacity="0.45"/>
+          <path d="M 0 0 Q 1 -24, 3 -32" stroke="#4a9c55" stroke-width="1.6" fill="none" opacity="0.4"/>
+          <path d="M 0 0 Q 5 -18, 10 -24" stroke="#56b06a" stroke-width="1.4" fill="none" opacity="0.35"/>
         </g>
-        <g class="grass-tuft" transform="translate(520, 53)">
-          <path d="M 0 0 Q -3 -17, -7 -24" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.4"/>
-          <path d="M 0 0 Q 1 -21, 2 -29" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.35"/>
+        <g class="grass-tuft" transform="translate(400, 71)">
+          <path d="M 0 0 Q -2 -17, -6 -24" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.4"/>
+          <path d="M 0 0 Q 2 -21, 4 -29" stroke="#3d8b47" stroke-width="1.6" fill="none" opacity="0.35"/>
         </g>
-        <g class="grass-tuft" transform="translate(610, 56)">
-          <path d="M 0 0 Q -4 -14, -6 -19" stroke="#4a9c55" stroke-width="1.3" fill="none" opacity="0.3"/>
-          <path d="M 0 0 Q 0 -16, 1 -23" stroke="#3d8b47" stroke-width="1.3" fill="none" opacity="0.35"/>
-          <path d="M 0 0 Q 5 -12, 8 -17" stroke="#4a9c55" stroke-width="1.2" fill="none" opacity="0.25"/>
-        </g>
-        <g class="grass-tuft" transform="translate(700, 52)">
-          <path d="M 0 0 Q -3 -19, -8 -26" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.35"/>
-          <path d="M 0 0 Q 1 -22, 3 -30" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.4"/>
-          <path d="M 0 0 Q 6 -16, 11 -22" stroke="#3d8b47" stroke-width="1.2" fill="none" opacity="0.3"/>
-        </g>
-        <g class="grass-tuft" transform="translate(790, 55)">
-          <path d="M 0 0 Q -2 -13, -5 -18" stroke="#4a9c55" stroke-width="1.3" fill="none" opacity="0.3"/>
-          <path d="M 0 0 Q 2 -17, 4 -24" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.35"/>
-        </g>
-        <g class="grass-tuft" transform="translate(870, 53)">
-          <path d="M 0 0 Q -4 -18, -8 -25" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.4"/>
-          <path d="M 0 0 Q 1 -20, 3 -27" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.35"/>
-          <path d="M 0 0 Q 5 -15, 9 -21" stroke="#3d8b47" stroke-width="1.2" fill="none" opacity="0.3"/>
-        </g>
-        <g class="grass-tuft" transform="translate(950, 56)">
-          <path d="M 0 0 Q -3 -15, -6 -20" stroke="#4a9c55" stroke-width="1.3" fill="none" opacity="0.35"/>
-          <path d="M 0 0 Q 0 -18, 2 -25" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.3"/>
-          <path d="M 0 0 Q 4 -12, 7 -17" stroke="#4a9c55" stroke-width="1.2" fill="none" opacity="0.25"/>
-        </g>
-        <g class="grass-tuft" transform="translate(1030, 51)">
-          <path d="M 0 0 Q -4 -20, -9 -28" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.35"/>
+        <g class="grass-tuft" transform="translate(490, 69)">
+          <path d="M 0 0 Q -3 -19, -7 -27" stroke="#3d8b47" stroke-width="1.7" fill="none" opacity="0.45"/>
           <path d="M 0 0 Q 1 -23, 2 -31" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.4"/>
+          <path d="M 0 0 Q 6 -15, 10 -21" stroke="#56b06a" stroke-width="1.2" fill="none" opacity="0.3"/>
         </g>
-        <g class="grass-tuft" transform="translate(1110, 54)">
-          <path d="M 0 0 Q -3 -16, -7 -23" stroke="#4a9c55" stroke-width="1.3" fill="none" opacity="0.3"/>
-          <path d="M 0 0 Q 1 -19, 3 -26" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.35"/>
-          <path d="M 0 0 Q 5 -14, 10 -20" stroke="#4a9c55" stroke-width="1.2" fill="none" opacity="0.3"/>
+        <g class="grass-tuft" transform="translate(570, 72)">
+          <path d="M 0 0 Q -4 -15, -7 -21" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.35"/>
+          <path d="M 0 0 Q 0 -19, 1 -26" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.4"/>
         </g>
-        <g class="grass-tuft" transform="translate(1190, 52)">
-          <path d="M 0 0 Q -4 -18, -8 -24" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.4"/>
-          <path d="M 0 0 Q 0 -21, 1 -29" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.35"/>
+        <g class="grass-tuft" transform="translate(660, 68)">
+          <path d="M 0 0 Q -3 -21, -8 -29" stroke="#3d8b47" stroke-width="1.8" fill="none" opacity="0.4"/>
+          <path d="M 0 0 Q 1 -25, 3 -34" stroke="#4a9c55" stroke-width="1.6" fill="none" opacity="0.45"/>
+          <path d="M 0 0 Q 6 -18, 11 -25" stroke="#3d8b47" stroke-width="1.3" fill="none" opacity="0.35"/>
         </g>
-        <g class="grass-tuft" transform="translate(1260, 56)">
-          <path d="M 0 0 Q -3 -13, -5 -18" stroke="#3d8b47" stroke-width="1.3" fill="none" opacity="0.3"/>
-          <path d="M 0 0 Q 2 -16, 4 -22" stroke="#4a9c55" stroke-width="1.3" fill="none" opacity="0.35"/>
-          <path d="M 0 0 Q 6 -11, 9 -16" stroke="#3d8b47" stroke-width="1.2" fill="none" opacity="0.25"/>
+        <g class="grass-tuft" transform="translate(760, 71)">
+          <path d="M 0 0 Q -2 -15, -5 -21" stroke="#56b06a" stroke-width="1.4" fill="none" opacity="0.35"/>
+          <path d="M 0 0 Q 2 -19, 4 -27" stroke="#3d8b47" stroke-width="1.6" fill="none" opacity="0.4"/>
         </g>
-        <g class="grass-tuft" transform="translate(1330, 53)">
-          <path d="M 0 0 Q -4 -17, -7 -23" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.35"/>
-          <path d="M 0 0 Q 1 -20, 3 -27" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.4"/>
-          <path d="M 0 0 Q 5 -14, 8 -19" stroke="#4a9c55" stroke-width="1.2" fill="none" opacity="0.3"/>
+        <g class="grass-tuft" transform="translate(850, 69)">
+          <path d="M 0 0 Q -4 -20, -8 -28" stroke="#3d8b47" stroke-width="1.7" fill="none" opacity="0.45"/>
+          <path d="M 0 0 Q 1 -23, 3 -30" stroke="#4a9c55" stroke-width="1.6" fill="none" opacity="0.4"/>
+          <path d="M 0 0 Q 5 -16, 9 -22" stroke="#56b06a" stroke-width="1.3" fill="none" opacity="0.35"/>
         </g>
-        <g class="grass-tuft" transform="translate(1400, 55)">
-          <path d="M 0 0 Q -3 -15, -6 -21" stroke="#3d8b47" stroke-width="1.3" fill="none" opacity="0.3"/>
-          <path d="M 0 0 Q 1 -18, 2 -25" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.35"/>
+        <g class="grass-tuft" transform="translate(940, 72)">
+          <path d="M 0 0 Q -3 -17, -6 -23" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.4"/>
+          <path d="M 0 0 Q 0 -20, 2 -28" stroke="#3d8b47" stroke-width="1.6" fill="none" opacity="0.35"/>
+          <path d="M 0 0 Q 4 -13, 7 -18" stroke="#56b06a" stroke-width="1.2" fill="none" opacity="0.3"/>
         </g>
-        <g class="grass-tuft" transform="translate(40, 56)">
-          <path d="M 0 0 Q -2 -14, -5 -19" stroke="#4a9c55" stroke-width="1.3" fill="none" opacity="0.3"/>
-          <path d="M 0 0 Q 2 -17, 5 -23" stroke="#3d8b47" stroke-width="1.3" fill="none" opacity="0.35"/>
+        <g class="grass-tuft" transform="translate(1020, 67)">
+          <path d="M 0 0 Q -4 -22, -9 -30" stroke="#3d8b47" stroke-width="1.8" fill="none" opacity="0.4"/>
+          <path d="M 0 0 Q 1 -26, 2 -34" stroke="#4a9c55" stroke-width="1.6" fill="none" opacity="0.45"/>
+        </g>
+        <g class="grass-tuft" transform="translate(1100, 70)">
+          <path d="M 0 0 Q -3 -18, -7 -25" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.35"/>
+          <path d="M 0 0 Q 1 -21, 3 -29" stroke="#3d8b47" stroke-width="1.6" fill="none" opacity="0.4"/>
+          <path d="M 0 0 Q 5 -15, 10 -21" stroke="#56b06a" stroke-width="1.3" fill="none" opacity="0.3"/>
+        </g>
+        <g class="grass-tuft" transform="translate(1190, 68)">
+          <path d="M 0 0 Q -4 -20, -8 -27" stroke="#3d8b47" stroke-width="1.7" fill="none" opacity="0.45"/>
+          <path d="M 0 0 Q 0 -23, 1 -31" stroke="#4a9c55" stroke-width="1.5" fill="none" opacity="0.4"/>
+        </g>
+        <g class="grass-tuft" transform="translate(1270, 72)">
+          <path d="M 0 0 Q -3 -15, -5 -21" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.35"/>
+          <path d="M 0 0 Q 2 -18, 4 -25" stroke="#56b06a" stroke-width="1.4" fill="none" opacity="0.4"/>
+          <path d="M 0 0 Q 6 -12, 9 -17" stroke="#3d8b47" stroke-width="1.2" fill="none" opacity="0.3"/>
+        </g>
+        <g class="grass-tuft" transform="translate(1350, 69)">
+          <path d="M 0 0 Q -4 -19, -7 -26" stroke="#4a9c55" stroke-width="1.6" fill="none" opacity="0.4"/>
+          <path d="M 0 0 Q 1 -22, 3 -30" stroke="#3d8b47" stroke-width="1.7" fill="none" opacity="0.45"/>
+          <path d="M 0 0 Q 5 -15, 8 -21" stroke="#56b06a" stroke-width="1.3" fill="none" opacity="0.35"/>
         </g>
 
-        {# ── Blumen (7 Stück, natürlich verteilt) ────────────────────── #}
-        {# Cluster links #}
-        <g transform="translate(180, 52)">
-          <line x1="0" y1="0" x2="-1" y2="-13" stroke="#4a8c54" stroke-width="1"/>
-          <circle cx="-1" cy="-15" r="3" fill="#fbbf24" opacity="0.7"/>
+        {# ── ROSEN — detaillierte Blüten mit Blättern (6 Stück) ────── #}
+
+        {# Rose 1: Rot, links (Cluster) #}
+        <g class="flower-sway" transform="translate(150, 68)">
+          <path d="M 0 0 C -1 -8, -2 -20, 0 -30" stroke="#2d6b35" stroke-width="1.8" fill="none"/>
+          <ellipse cx="-5" cy="-16" rx="5" ry="3" fill="#3a8a4a" opacity="0.6" transform="rotate(-30, -5, -16)"/>
+          <ellipse cx="4" cy="-22" rx="4.5" ry="2.5" fill="#3a8a4a" opacity="0.5" transform="rotate(20, 4, -22)"/>
+          <g transform="translate(0, -33)">
+            <circle cx="0" cy="0" r="5.5" fill="url(#rose-red)" opacity="0.85"/>
+            <path d="M -3 -1 C -1 -4, 2 -4, 3 -1 C 4 1, 2 3, 0 3 C -2 3, -4 1, -3 -1" fill="#fca5a5" opacity="0.5"/>
+            <circle cx="0" cy="0" r="2" fill="#9f1239" opacity="0.4"/>
+          </g>
         </g>
-        <g transform="translate(210, 54)">
-          <line x1="0" y1="0" x2="1" y2="-10" stroke="#4a8c54" stroke-width="0.8"/>
-          <circle cx="1" cy="-12" r="2" fill="#fbbf24" opacity="0.5"/>
+
+        {# Rose 2: Pink, links-cluster #}
+        <g class="flower-sway-alt" transform="translate(172, 70)">
+          <path d="M 0 0 C 1 -6, 2 -16, -1 -24" stroke="#2d6b35" stroke-width="1.5" fill="none"/>
+          <ellipse cx="4" cy="-12" rx="4" ry="2.5" fill="#3a8a4a" opacity="0.55" transform="rotate(25, 4, -12)"/>
+          <g transform="translate(-1, -27)">
+            <circle cx="0" cy="0" r="4.5" fill="url(#rose-pink)" opacity="0.8"/>
+            <path d="M -2 -0.5 C -0.5 -3, 1.5 -3, 2 -0.5 C 2.5 1, 1 2.5, 0 2.5 C -1 2.5, -2.5 1, -2 -0.5" fill="#fbcfe8" opacity="0.45"/>
+            <circle cx="0" cy="0" r="1.5" fill="#be185d" opacity="0.4"/>
+          </g>
         </g>
-        {# Mitte-links #}
-        <g transform="translate(480, 55)">
-          <line x1="0" y1="0" x2="0" y2="-11" stroke="#4a8c54" stroke-width="1"/>
-          <circle cx="0" cy="-13" r="2.5" fill="#f472b6" opacity="0.6"/>
+
+        {# Rose 3: Rote Rose Mitte-links #}
+        <g class="flower-sway" transform="translate(460, 70)">
+          <path d="M 0 0 C -1 -10, 0 -22, 1 -32" stroke="#2d6b35" stroke-width="1.8" fill="none"/>
+          <ellipse cx="-5" cy="-18" rx="5" ry="3" fill="#3a8a4a" opacity="0.6" transform="rotate(-25, -5, -18)"/>
+          <ellipse cx="5" cy="-24" rx="4.5" ry="2.5" fill="#3a8a4a" opacity="0.55" transform="rotate(30, 5, -24)"/>
+          <g transform="translate(1, -35)">
+            <circle cx="0" cy="0" r="6" fill="url(#rose-red)" opacity="0.85"/>
+            <path d="M -3.5 -1 C -1 -5, 2 -5, 3.5 -1 C 4.5 1.5, 2 3.5, 0 3.5 C -2 3.5, -4.5 1.5, -3.5 -1" fill="#fca5a5" opacity="0.45"/>
+            <circle cx="0" cy="0" r="2.2" fill="#9f1239" opacity="0.4"/>
+          </g>
         </g>
-        {# Mitte-rechts #}
-        <g transform="translate(820, 53)">
-          <line x1="0" y1="0" x2="-1" y2="-14" stroke="#4a8c54" stroke-width="1"/>
-          <circle cx="-1" cy="-16" r="3" fill="#fefce8" opacity="0.65"/>
+
+        {# Rose 4: Korallenrose Mitte-rechts #}
+        <g class="flower-sway-alt" transform="translate(860, 69)">
+          <path d="M 0 0 C 0 -8, -1 -18, 1 -28" stroke="#2d6b35" stroke-width="1.7" fill="none"/>
+          <ellipse cx="-4" cy="-14" rx="4.5" ry="2.8" fill="#3a8a4a" opacity="0.55" transform="rotate(-20, -4, -14)"/>
+          <g transform="translate(1, -31)">
+            <circle cx="0" cy="0" r="5.5" fill="url(#rose-coral)" opacity="0.85"/>
+            <path d="M -3 -1 C -1 -4, 2 -4, 3 -1 C 4 1, 2 3, 0 3 C -2 3, -4 1, -3 -1" fill="#fed7aa" opacity="0.45"/>
+            <circle cx="0" cy="0" r="2" fill="#c2410c" opacity="0.35"/>
+          </g>
         </g>
-        {# Cluster rechts #}
-        <g transform="translate(1050, 54)">
-          <line x1="0" y1="0" x2="0" y2="-12" stroke="#4a8c54" stroke-width="1"/>
-          <circle cx="0" cy="-14" r="2.5" fill="#c084fc" opacity="0.55"/>
+
+        {# Rose 5: Pink-Rose rechts #}
+        <g class="flower-sway" transform="translate(1120, 70)">
+          <path d="M 0 0 C -1 -9, -2 -21, 0 -30" stroke="#2d6b35" stroke-width="1.8" fill="none"/>
+          <ellipse cx="5" cy="-16" rx="5" ry="3" fill="#3a8a4a" opacity="0.6" transform="rotate(25, 5, -16)"/>
+          <ellipse cx="-4" cy="-22" rx="4" ry="2.5" fill="#3a8a4a" opacity="0.5" transform="rotate(-30, -4, -22)"/>
+          <g transform="translate(0, -33)">
+            <circle cx="0" cy="0" r="5.5" fill="url(#rose-pink)" opacity="0.85"/>
+            <path d="M -3 -1 C -1 -4, 2 -4, 3 -1 C 4 1, 2 3, 0 3 C -2 3, -4 1, -3 -1" fill="#fbcfe8" opacity="0.5"/>
+            <circle cx="0" cy="0" r="2" fill="#be185d" opacity="0.4"/>
+          </g>
         </g>
-        <g transform="translate(1080, 56)">
-          <line x1="0" y1="0" x2="1" y2="-10" stroke="#4a8c54" stroke-width="0.8"/>
-          <circle cx="1" cy="-12" r="2" fill="#f472b6" opacity="0.45"/>
+
+        {# Rose 6: Rote Rose ganz rechts #}
+        <g class="flower-sway-alt" transform="translate(1320, 69)">
+          <path d="M 0 0 C 1 -7, 0 -17, -1 -26" stroke="#2d6b35" stroke-width="1.6" fill="none"/>
+          <ellipse cx="-4" cy="-13" rx="4" ry="2.5" fill="#3a8a4a" opacity="0.55" transform="rotate(-20, -4, -13)"/>
+          <g transform="translate(-1, -29)">
+            <circle cx="0" cy="0" r="5" fill="url(#rose-red)" opacity="0.8"/>
+            <path d="M -2.5 -0.8 C -0.8 -3, 1.5 -3, 2.5 -0.8 C 3 1, 1.5 2.5, 0 2.5 C -1.5 2.5, -3 1, -2.5 -0.8" fill="#fca5a5" opacity="0.45"/>
+            <circle cx="0" cy="0" r="1.8" fill="#9f1239" opacity="0.4"/>
+          </g>
         </g>
-        {# Rechts außen #}
-        <g transform="translate(1300, 53)">
+
+        {# ── TULPEN — elegante Kelchform (4 Stück) ──────────────────── #}
+
+        {# Tulpe 1: Rot #}
+        <g class="flower-sway" transform="translate(240, 71)">
+          <line x1="0" y1="0" x2="-1" y2="-22" stroke="#2d6b35" stroke-width="1.5"/>
+          <ellipse cx="-3" cy="-12" rx="4" ry="2" fill="#3a8a4a" opacity="0.5" transform="rotate(-35, -3, -12)"/>
+          <path d="M -1 -22 C -5 -30, -4 -34, -1 -36 C 2 -34, 3 -30, -1 -22" fill="#ef4444" opacity="0.75"/>
+          <path d="M -1 -22 C 1 -29, 3 -33, -1 -36" fill="#dc2626" opacity="0.5"/>
+        </g>
+
+        {# Tulpe 2: Gelb #}
+        <g class="flower-sway-alt" transform="translate(560, 71)">
+          <line x1="0" y1="0" x2="0" y2="-20" stroke="#2d6b35" stroke-width="1.4"/>
+          <path d="M 0 -20 C -4 -27, -3 -31, 0 -33 C 3 -31, 4 -27, 0 -20" fill="#fbbf24" opacity="0.75"/>
+          <path d="M 0 -20 C 1 -26, 3 -30, 0 -33" fill="#f59e0b" opacity="0.5"/>
+        </g>
+
+        {# Tulpe 3: Lila #}
+        <g class="flower-sway" transform="translate(980, 71)">
+          <line x1="0" y1="0" x2="1" y2="-24" stroke="#2d6b35" stroke-width="1.5"/>
+          <ellipse cx="4" cy="-14" rx="4" ry="2" fill="#3a8a4a" opacity="0.5" transform="rotate(30, 4, -14)"/>
+          <path d="M 1 -24 C -3 -32, -2 -36, 1 -38 C 4 -36, 5 -32, 1 -24" fill="#a855f7" opacity="0.7"/>
+          <path d="M 1 -24 C 2 -31, 4 -35, 1 -38" fill="#7c3aed" opacity="0.45"/>
+        </g>
+
+        {# Tulpe 4: Rosa #}
+        <g class="flower-sway-alt" transform="translate(1240, 70)">
+          <line x1="0" y1="0" x2="-1" y2="-21" stroke="#2d6b35" stroke-width="1.4"/>
+          <path d="M -1 -21 C -5 -28, -4 -32, -1 -34 C 2 -32, 3 -28, -1 -21" fill="#f472b6" opacity="0.7"/>
+          <path d="M -1 -21 C 0 -27, 2 -31, -1 -34" fill="#ec4899" opacity="0.45"/>
+        </g>
+
+        {# ── GÄNSEBLÜMCHEN — weiße Strahlenblüten (5 Stück) ─────────── #}
+
+        {# Gänseblümchen 1 #}
+        <g class="flower-sway" transform="translate(90, 71)">
+          <line x1="0" y1="0" x2="0" y2="-14" stroke="#4a8c54" stroke-width="1"/>
+          <g transform="translate(0, -17)">
+            <ellipse cx="0" cy="-3" rx="1.5" ry="3" fill="white" opacity="0.8"/>
+            <ellipse cx="3" cy="-1" rx="1.5" ry="3" fill="white" opacity="0.75" transform="rotate(60, 3, -1)"/>
+            <ellipse cx="3" cy="2" rx="1.5" ry="3" fill="white" opacity="0.7" transform="rotate(120, 3, 2)"/>
+            <ellipse cx="0" cy="3" rx="1.5" ry="3" fill="white" opacity="0.75" transform="rotate(180, 0, 3)"/>
+            <ellipse cx="-3" cy="2" rx="1.5" ry="3" fill="white" opacity="0.7" transform="rotate(240, -3, 2)"/>
+            <ellipse cx="-3" cy="-1" rx="1.5" ry="3" fill="white" opacity="0.8" transform="rotate(300, -3, -1)"/>
+            <circle cx="0" cy="0" r="2.5" fill="#fbbf24" opacity="0.85"/>
+          </g>
+        </g>
+
+        {# Gänseblümchen 2 #}
+        <g class="flower-sway-alt" transform="translate(350, 72)">
+          <line x1="0" y1="0" x2="0" y2="-12" stroke="#4a8c54" stroke-width="0.9"/>
+          <g transform="translate(0, -14.5)">
+            <ellipse cx="0" cy="-2.5" rx="1.2" ry="2.5" fill="white" opacity="0.75"/>
+            <ellipse cx="2.5" cy="-0.8" rx="1.2" ry="2.5" fill="white" opacity="0.7" transform="rotate(60, 2.5, -0.8)"/>
+            <ellipse cx="2.5" cy="1.7" rx="1.2" ry="2.5" fill="white" opacity="0.65" transform="rotate(120, 2.5, 1.7)"/>
+            <ellipse cx="0" cy="2.5" rx="1.2" ry="2.5" fill="white" opacity="0.7" transform="rotate(180, 0, 2.5)"/>
+            <ellipse cx="-2.5" cy="1.7" rx="1.2" ry="2.5" fill="white" opacity="0.65" transform="rotate(240, -2.5, 1.7)"/>
+            <ellipse cx="-2.5" cy="-0.8" rx="1.2" ry="2.5" fill="white" opacity="0.75" transform="rotate(300, -2.5, -0.8)"/>
+            <circle cx="0" cy="0" r="2" fill="#fbbf24" opacity="0.8"/>
+          </g>
+        </g>
+
+        {# Gänseblümchen 3 #}
+        <g class="flower-sway" transform="translate(730, 72)">
           <line x1="0" y1="0" x2="0" y2="-13" stroke="#4a8c54" stroke-width="1"/>
-          <circle cx="0" cy="-15" r="2.5" fill="#fbbf24" opacity="0.6"/>
+          <g transform="translate(0, -16)">
+            <ellipse cx="0" cy="-2.8" rx="1.3" ry="2.8" fill="white" opacity="0.8"/>
+            <ellipse cx="2.8" cy="-0.9" rx="1.3" ry="2.8" fill="white" opacity="0.75" transform="rotate(60, 2.8, -0.9)"/>
+            <ellipse cx="2.8" cy="1.8" rx="1.3" ry="2.8" fill="white" opacity="0.7" transform="rotate(120, 2.8, 1.8)"/>
+            <ellipse cx="0" cy="2.8" rx="1.3" ry="2.8" fill="white" opacity="0.75" transform="rotate(180, 0, 2.8)"/>
+            <ellipse cx="-2.8" cy="1.8" rx="1.3" ry="2.8" fill="white" opacity="0.7" transform="rotate(240, -2.8, 1.8)"/>
+            <ellipse cx="-2.8" cy="-0.9" rx="1.3" ry="2.8" fill="white" opacity="0.8" transform="rotate(300, -2.8, -0.9)"/>
+            <circle cx="0" cy="0" r="2.2" fill="#fbbf24" opacity="0.85"/>
+          </g>
         </g>
 
-        {# ── Kleine Steine (4 Stück) ────────────────────────────────── #}
-        <ellipse cx="350" cy="57" rx="6" ry="3" fill="#9ca3af" opacity="0.22"/>
-        <ellipse cx="750" cy="56" rx="5" ry="2.5" fill="#a1a1aa" opacity="0.18"/>
-        <ellipse cx="1150" cy="55" rx="4" ry="2" fill="#9ca3af" opacity="0.2"/>
-        <ellipse cx="550" cy="58" rx="5" ry="2.5" fill="#a1a1aa" opacity="0.16"/>
+        {# Gänseblümchen 4 (klein) #}
+        <g class="flower-sway-alt" transform="translate(1060, 73)">
+          <line x1="0" y1="0" x2="0" y2="-10" stroke="#4a8c54" stroke-width="0.8"/>
+          <g transform="translate(0, -12.5)">
+            <ellipse cx="0" cy="-2" rx="1" ry="2" fill="white" opacity="0.7"/>
+            <ellipse cx="2" cy="-0.6" rx="1" ry="2" fill="white" opacity="0.65" transform="rotate(60, 2, -0.6)"/>
+            <ellipse cx="2" cy="1.4" rx="1" ry="2" fill="white" opacity="0.6" transform="rotate(120, 2, 1.4)"/>
+            <ellipse cx="0" cy="2" rx="1" ry="2" fill="white" opacity="0.65" transform="rotate(180, 0, 2)"/>
+            <ellipse cx="-2" cy="1.4" rx="1" ry="2" fill="white" opacity="0.6" transform="rotate(240, -2, 1.4)"/>
+            <ellipse cx="-2" cy="-0.6" rx="1" ry="2" fill="white" opacity="0.7" transform="rotate(300, -2, -0.6)"/>
+            <circle cx="0" cy="0" r="1.8" fill="#fbbf24" opacity="0.8"/>
+          </g>
+        </g>
+
+        {# Gänseblümchen 5 #}
+        <g class="flower-sway" transform="translate(1400, 71)">
+          <line x1="0" y1="0" x2="0" y2="-12" stroke="#4a8c54" stroke-width="0.9"/>
+          <g transform="translate(0, -14.5)">
+            <ellipse cx="0" cy="-2.5" rx="1.2" ry="2.5" fill="white" opacity="0.75"/>
+            <ellipse cx="2.5" cy="-0.8" rx="1.2" ry="2.5" fill="white" opacity="0.7" transform="rotate(60, 2.5, -0.8)"/>
+            <ellipse cx="2.5" cy="1.7" rx="1.2" ry="2.5" fill="white" opacity="0.65" transform="rotate(120, 2.5, 1.7)"/>
+            <ellipse cx="0" cy="2.5" rx="1.2" ry="2.5" fill="white" opacity="0.7" transform="rotate(180, 0, 2.5)"/>
+            <ellipse cx="-2.5" cy="1.7" rx="1.2" ry="2.5" fill="white" opacity="0.65" transform="rotate(240, -2.5, 1.7)"/>
+            <ellipse cx="-2.5" cy="-0.8" rx="1.2" ry="2.5" fill="white" opacity="0.75" transform="rotate(300, -2.5, -0.8)"/>
+            <circle cx="0" cy="0" r="2" fill="#fbbf24" opacity="0.8"/>
+          </g>
+        </g>
+
+        {# ── LAVENDEL — lila Rispen (3 Stück) ──────────────────────── #}
+
+        {# Lavendel 1 #}
+        <g class="flower-sway" transform="translate(280, 71)">
+          <line x1="0" y1="0" x2="0" y2="-26" stroke="#4a8c54" stroke-width="1.2"/>
+          <ellipse cx="-2" cy="-12" rx="3.5" ry="1.8" fill="#3a8a4a" opacity="0.5" transform="rotate(-20, -2, -12)"/>
+          <circle cx="0" cy="-28" r="1.5" fill="#a78bfa" opacity="0.6"/>
+          <circle cx="-1" cy="-30.5" r="1.5" fill="#8b5cf6" opacity="0.65"/>
+          <circle cx="0.5" cy="-33" r="1.5" fill="#a78bfa" opacity="0.7"/>
+          <circle cx="-0.5" cy="-35.5" r="1.3" fill="#8b5cf6" opacity="0.6"/>
+          <circle cx="0" cy="-37.5" r="1.1" fill="#a78bfa" opacity="0.55"/>
+        </g>
+
+        {# Lavendel 2 #}
+        <g class="flower-sway-alt" transform="translate(800, 70)">
+          <line x1="0" y1="0" x2="1" y2="-24" stroke="#4a8c54" stroke-width="1.2"/>
+          <circle cx="1" cy="-26" r="1.5" fill="#8b5cf6" opacity="0.65"/>
+          <circle cx="0" cy="-28.5" r="1.5" fill="#a78bfa" opacity="0.6"/>
+          <circle cx="1.5" cy="-31" r="1.4" fill="#8b5cf6" opacity="0.65"/>
+          <circle cx="0.5" cy="-33" r="1.2" fill="#a78bfa" opacity="0.55"/>
+          <circle cx="1" cy="-35" r="1" fill="#8b5cf6" opacity="0.5"/>
+        </g>
+
+        {# Lavendel 3 #}
+        <g class="flower-sway" transform="translate(1160, 71)">
+          <line x1="0" y1="0" x2="-1" y2="-25" stroke="#4a8c54" stroke-width="1.2"/>
+          <ellipse cx="3" cy="-14" rx="3.5" ry="1.8" fill="#3a8a4a" opacity="0.5" transform="rotate(25, 3, -14)"/>
+          <circle cx="-1" cy="-27" r="1.5" fill="#a78bfa" opacity="0.6"/>
+          <circle cx="0" cy="-29.5" r="1.5" fill="#8b5cf6" opacity="0.7"/>
+          <circle cx="-1" cy="-32" r="1.4" fill="#a78bfa" opacity="0.6"/>
+          <circle cx="-0.5" cy="-34" r="1.2" fill="#8b5cf6" opacity="0.55"/>
+          <circle cx="-1" cy="-36" r="1" fill="#a78bfa" opacity="0.5"/>
+        </g>
+
+        {# ── KLEINE WILDBLUMEN — Vergissmeinnicht, Butterblumen ────── #}
+
+        {# Vergissmeinnicht-Cluster links #}
+        <g transform="translate(195, 70)">
+          <line x1="0" y1="0" x2="-1" y2="-10" stroke="#4a8c54" stroke-width="0.8"/>
+          <circle cx="-1" cy="-12" r="2" fill="#93c5fd" opacity="0.65"/>
+          <circle cx="-1" cy="-12" r="0.8" fill="#fefce8" opacity="0.8"/>
+        </g>
+        <g transform="translate(205, 72)">
+          <line x1="0" y1="0" x2="1" y2="-8" stroke="#4a8c54" stroke-width="0.7"/>
+          <circle cx="1" cy="-10" r="1.5" fill="#93c5fd" opacity="0.55"/>
+          <circle cx="1" cy="-10" r="0.6" fill="#fefce8" opacity="0.7"/>
+        </g>
+
+        {# Butterblume Mitte #}
+        <g transform="translate(620, 72)">
+          <line x1="0" y1="0" x2="0" y2="-11" stroke="#4a8c54" stroke-width="0.9"/>
+          <circle cx="0" cy="-13" r="2.5" fill="#fbbf24" opacity="0.7"/>
+          <circle cx="0" cy="-13" r="1" fill="#f59e0b" opacity="0.8"/>
+        </g>
+
+        {# Vergissmeinnicht rechts #}
+        <g transform="translate(1290, 71)">
+          <line x1="0" y1="0" x2="0" y2="-9" stroke="#4a8c54" stroke-width="0.8"/>
+          <circle cx="0" cy="-11" r="2" fill="#93c5fd" opacity="0.6"/>
+          <circle cx="0" cy="-11" r="0.8" fill="#fefce8" opacity="0.8"/>
+        </g>
+        <g transform="translate(1305, 73)">
+          <line x1="0" y1="0" x2="1" y2="-7" stroke="#4a8c54" stroke-width="0.7"/>
+          <circle cx="1" cy="-9" r="1.5" fill="#93c5fd" opacity="0.5"/>
+          <circle cx="1" cy="-9" r="0.6" fill="#fefce8" opacity="0.65"/>
+        </g>
+
+        {# Butterblume rechts #}
+        <g transform="translate(1050, 72)">
+          <line x1="0" y1="0" x2="-1" y2="-10" stroke="#4a8c54" stroke-width="0.9"/>
+          <circle cx="-1" cy="-12" r="2.2" fill="#fbbf24" opacity="0.65"/>
+          <circle cx="-1" cy="-12" r="0.9" fill="#f59e0b" opacity="0.75"/>
+        </g>
+
+        {# ── PILZE — kleine Fliegenpilze (2 Stück) ──────────────────── #}
+        <g transform="translate(420, 73)">
+          <rect x="-1" y="-6" width="2" height="6" rx="0.8" fill="#e8d5b8" opacity="0.6"/>
+          <ellipse cx="0" cy="-7" rx="4" ry="3" fill="#ef4444" opacity="0.5"/>
+          <circle cx="-1.5" cy="-8" r="0.8" fill="white" opacity="0.6"/>
+          <circle cx="1.5" cy="-7.5" r="0.6" fill="white" opacity="0.55"/>
+          <circle cx="0" cy="-9" r="0.5" fill="white" opacity="0.5"/>
+        </g>
+        <g transform="translate(1010, 74)">
+          <rect x="-0.8" y="-5" width="1.6" height="5" rx="0.6" fill="#e8d5b8" opacity="0.55"/>
+          <ellipse cx="0" cy="-5.5" rx="3.5" ry="2.5" fill="#ef4444" opacity="0.45"/>
+          <circle cx="-1" cy="-6.5" r="0.6" fill="white" opacity="0.55"/>
+          <circle cx="1.2" cy="-6" r="0.5" fill="white" opacity="0.5"/>
+        </g>
+
+        {# ── STEINE — natürliche Formen mit Highlights ──────────────── #}
+        <g transform="translate(350, 73)">
+          <ellipse cx="0" cy="0" rx="7" ry="3.5" fill="#9ca3af" opacity="0.25"/>
+          <ellipse cx="-1" cy="-0.5" rx="4" ry="2" fill="#b0b8c4" opacity="0.12"/>
+        </g>
+        <g transform="translate(750, 72)">
+          <ellipse cx="0" cy="0" rx="5.5" ry="3" fill="#a1a1aa" opacity="0.2"/>
+          <ellipse cx="-0.5" cy="-0.5" rx="3" ry="1.5" fill="#b8bcc4" opacity="0.1"/>
+        </g>
+        <g transform="translate(550, 74)">
+          <ellipse cx="0" cy="0" rx="6" ry="3" fill="#9ca3af" opacity="0.18"/>
+        </g>
+        <g transform="translate(1150, 72)">
+          <ellipse cx="0" cy="0" rx="4.5" ry="2.5" fill="#9ca3af" opacity="0.22"/>
+          <ellipse cx="-0.5" cy="-0.5" rx="2.5" ry="1.2" fill="#b0b8c4" opacity="0.1"/>
+        </g>
+
+        {# ── SCHMETTERLINGE — animiert, zart ────────────────────────── #}
+        <g class="butterfly-1" transform="translate(320, 42)" opacity="0.65">
+          <path class="butterfly-wing" d="M 0 0 C -5 -6, -9 -4, -7 0 C -9 4, -5 6, 0 0" fill="#f472b6" opacity="0.7"/>
+          <path class="butterfly-wing" d="M 0 0 C 5 -6, 9 -4, 7 0 C 9 4, 5 6, 0 0" fill="#ec4899" opacity="0.65"/>
+          <line x1="0" y1="0" x2="0" y2="1" stroke="#6b2140" stroke-width="0.5"/>
+        </g>
+        <g class="butterfly-2" transform="translate(1080, 38)" opacity="0.55">
+          <path class="butterfly-wing" d="M 0 0 C -4 -5, -7 -3, -6 0 C -7 3, -4 5, 0 0" fill="#c084fc" opacity="0.65"/>
+          <path class="butterfly-wing" d="M 0 0 C 4 -5, 7 -3, 6 0 C 7 3, 4 5, 0 0" fill="#a855f7" opacity="0.6"/>
+          <line x1="0" y1="0" x2="0" y2="0.8" stroke="#4c1d95" stroke-width="0.4"/>
+        </g>
       </svg>
+
+      {# ── Holzzaun links ────────────────────────────────────────────── #}
+      <div class="hidden sm:block absolute pointer-events-none" style="left: 4%; bottom: 102px; z-index: 2;">
+        <svg width="280" height="110" viewBox="0 0 140 55" xmlns="http://www.w3.org/2000/svg">
+          {# Unterer Querbalken #}
+          <rect x="2" y="34" width="136" height="5" rx="2" fill="#7a6548" opacity="0.88"/>
+          {# Oberer Querbalken #}
+          <rect x="2" y="18" width="136" height="5" rx="2" fill="#7a6548" opacity="0.82"/>
+          {# Pfosten 1 #}
+          <rect x="5" y="4" width="7" height="50" rx="2" fill="#8B7355" opacity="0.92"/>
+          <path d="M 5 4 Q 8.5 0, 12 4" fill="#8B7355" opacity="0.92"/>
+          {# Pfosten 2 #}
+          <rect x="38" y="6" width="7" height="48" rx="2" fill="#8B7355" opacity="0.88"/>
+          <path d="M 38 6 Q 41.5 2, 45 6" fill="#8B7355" opacity="0.88"/>
+          {# Pfosten 3 #}
+          <rect x="71" y="3" width="7" height="51" rx="2" fill="#8B7355" opacity="0.92"/>
+          <path d="M 71 3 Q 74.5 -1, 78 3" fill="#8B7355" opacity="0.92"/>
+          {# Pfosten 4 #}
+          <rect x="104" y="7" width="7" height="47" rx="2" fill="#8B7355" opacity="0.88"/>
+          <path d="M 104 7 Q 107.5 3, 111 7" fill="#8B7355" opacity="0.88"/>
+          {# Pfosten 5 (Abschluss) #}
+          <rect x="131" y="5" width="7" height="49" rx="2" fill="#8B7355" opacity="0.9"/>
+          <path d="M 131 5 Q 134.5 1, 138 5" fill="#8B7355" opacity="0.9"/>
+        </svg>
+      </div>
+
+      {# ── Gewächse vor dem linken Zaun (z-index über Zaun) ─────────── #}
+      <div class="hidden sm:block absolute pointer-events-none" style="left: 3%; bottom: 30px; z-index: 4;">
+        <svg width="310" height="110" viewBox="0 0 310 110" xmlns="http://www.w3.org/2000/svg">
+          {# Busch links — dicht, rund, üppiger #}
+          <ellipse cx="40" cy="78" rx="36" ry="28" fill="#3a8a4a" opacity="0.7"/>
+          <ellipse cx="28" cy="70" rx="25" ry="20" fill="#48a058" opacity="0.6"/>
+          <ellipse cx="55" cy="72" rx="22" ry="18" fill="#3e9450" opacity="0.55"/>
+          <ellipse cx="42" cy="65" rx="18" ry="14" fill="#56b06a" opacity="0.35"/>
+          {# Rose im Busch (detailliert) #}
+          <g transform="translate(35, 56)">
+            <circle cx="0" cy="0" r="5" fill="#e11d48" opacity="0.8"/>
+            <path d="M -2.5 -0.5 C -0.8 -3, 1.5 -3, 2.5 -0.5 C 3 1, 1.5 2.5, 0 2.5 C -1.5 2.5, -3 1, -2.5 -0.5" fill="#fca5a5" opacity="0.4"/>
+            <circle cx="0" cy="0" r="1.8" fill="#9f1239" opacity="0.45"/>
+          </g>
+          {# Kleine pinke Blüte links #}
+          <circle cx="20" cy="58" r="3.5" fill="#f472b6" opacity="0.7"/>
+          <circle cx="20" cy="58" r="1.3" fill="#fbbf24" opacity="0.8"/>
+          {# Hohe Gräser Mitte — dichter #}
+          <path d="M 108 100 Q 105 65, 98 40" stroke="#3d8b47" stroke-width="2.5" fill="none" opacity="0.55"/>
+          <path d="M 111 100 Q 113 60, 116 35" stroke="#4a9c55" stroke-width="2" fill="none" opacity="0.5"/>
+          <path d="M 114 100 Q 120 68, 128 48" stroke="#3d8b47" stroke-width="2" fill="none" opacity="0.45"/>
+          <path d="M 117 100 Q 124 72, 135 55" stroke="#56b06a" stroke-width="1.5" fill="none" opacity="0.35"/>
+          {# Kleiner Busch Mitte-rechts mit Gänseblümchen #}
+          <ellipse cx="175" cy="84" rx="26" ry="20" fill="#3e9450" opacity="0.6"/>
+          <ellipse cx="168" cy="78" rx="20" ry="16" fill="#48a058" opacity="0.5"/>
+          <ellipse cx="182" cy="80" rx="16" ry="12" fill="#56b06a" opacity="0.35"/>
+          {# Gänseblümchen im Busch #}
+          <g transform="translate(170, 68)">
+            <circle cx="0" cy="-2" r="1.5" fill="white" opacity="0.7"/>
+            <circle cx="2" cy="0" r="1.5" fill="white" opacity="0.65"/>
+            <circle cx="0" cy="2" r="1.5" fill="white" opacity="0.65"/>
+            <circle cx="-2" cy="0" r="1.5" fill="white" opacity="0.7"/>
+            <circle cx="0" cy="0" r="2" fill="#fbbf24" opacity="0.8"/>
+          </g>
+          {# Rosen am rechten Rand (Rosenbeet) #}
+          <g class="flower-sway" transform="translate(225, 96)">
+            <path d="M 0 0 C -1 -10, -2 -24, 0 -36" stroke="#2d6b35" stroke-width="1.5" fill="none"/>
+            <ellipse cx="-4" cy="-18" rx="4.5" ry="2.5" fill="#3a8a4a" opacity="0.55" transform="rotate(-28, -4, -18)"/>
+            <circle cx="0" cy="-39" r="5.5" fill="#e11d48" opacity="0.8"/>
+            <path d="M -3 -39.5 C -1 -42.5, 2 -42.5, 3 -39.5 C 4 -37.5, 2 -36, 0 -36 C -2 -36, -4 -37.5, -3 -39.5" fill="#fca5a5" opacity="0.4"/>
+            <circle cx="0" cy="-39" r="2" fill="#9f1239" opacity="0.45"/>
+          </g>
+          <g class="flower-sway-alt" transform="translate(248, 97)">
+            <path d="M 0 0 C 1 -8, 1 -20, -1 -30" stroke="#2d6b35" stroke-width="1.3" fill="none"/>
+            <ellipse cx="3" cy="-14" rx="4" ry="2" fill="#3a8a4a" opacity="0.5" transform="rotate(22, 3, -14)"/>
+            <circle cx="-1" cy="-33" r="4.5" fill="#ec4899" opacity="0.75"/>
+            <path d="M -3 -33.5 C -1.5 -36, 1 -36, 2 -33.5 C 2.8 -32, 1 -30.5, -1 -30.5 C -2.5 -30.5, -3.5 -32, -3 -33.5" fill="#fbcfe8" opacity="0.4"/>
+            <circle cx="-1" cy="-33" r="1.5" fill="#be185d" opacity="0.4"/>
+          </g>
+          {# Lavendel-Stiel am Rand #}
+          <g transform="translate(268, 97)">
+            <line x1="0" y1="0" x2="1" y2="-28" stroke="#4a8c54" stroke-width="1.2"/>
+            <circle cx="1" cy="-30" r="1.3" fill="#a78bfa" opacity="0.6"/>
+            <circle cx="0.5" cy="-32" r="1.3" fill="#8b5cf6" opacity="0.65"/>
+            <circle cx="1" cy="-34" r="1.2" fill="#a78bfa" opacity="0.6"/>
+            <circle cx="0.5" cy="-36" r="1" fill="#8b5cf6" opacity="0.5"/>
+          </g>
+          {# Bodendecker rechts #}
+          <ellipse cx="285" cy="92" rx="22" ry="11" fill="#3a8a4a" opacity="0.45"/>
+        </svg>
+      </div>
+
+      {# ── Holzzaun rechts ───────────────────────────────────────────── #}
+      <div class="hidden sm:block absolute pointer-events-none" style="right: 4%; bottom: 105px; z-index: 2;">
+        <svg width="280" height="110" viewBox="0 0 140 55" xmlns="http://www.w3.org/2000/svg">
+          {# Unterer Querbalken #}
+          <rect x="2" y="34" width="136" height="5" rx="2" fill="#7a6548" opacity="0.88"/>
+          {# Oberer Querbalken #}
+          <rect x="2" y="18" width="136" height="5" rx="2" fill="#7a6548" opacity="0.82"/>
+          {# Pfosten 1 #}
+          <rect x="5" y="5" width="7" height="49" rx="2" fill="#8B7355" opacity="0.9"/>
+          <path d="M 5 5 Q 8.5 1, 12 5" fill="#8B7355" opacity="0.9"/>
+          {# Pfosten 2 #}
+          <rect x="38" y="3" width="7" height="51" rx="2" fill="#8B7355" opacity="0.92"/>
+          <path d="M 38 3 Q 41.5 -1, 45 3" fill="#8B7355" opacity="0.92"/>
+          {# Pfosten 3 #}
+          <rect x="71" y="6" width="7" height="48" rx="2" fill="#8B7355" opacity="0.88"/>
+          <path d="M 71 6 Q 74.5 2, 78 6" fill="#8B7355" opacity="0.88"/>
+          {# Pfosten 4 #}
+          <rect x="104" y="4" width="7" height="50" rx="2" fill="#8B7355" opacity="0.92"/>
+          <path d="M 104 4 Q 107.5 0, 111 4" fill="#8B7355" opacity="0.92"/>
+          {# Pfosten 5 (Abschluss) #}
+          <rect x="131" y="7" width="7" height="47" rx="2" fill="#8B7355" opacity="0.88"/>
+          <path d="M 131 7 Q 134.5 3, 138 7" fill="#8B7355" opacity="0.88"/>
+        </svg>
+      </div>
+
+      {# ── Gewächse vor dem rechten Zaun (z-index über Zaun) ────────── #}
+      <div class="hidden sm:block absolute pointer-events-none" style="right: 3%; bottom: 30px; z-index: 4;">
+        <svg width="310" height="110" viewBox="0 0 310 110" xmlns="http://www.w3.org/2000/svg">
+          {# Busch rechts — breit, üppiger #}
+          <ellipse cx="270" cy="78" rx="34" ry="26" fill="#3a8a4a" opacity="0.7"/>
+          <ellipse cx="280" cy="70" rx="22" ry="18" fill="#48a058" opacity="0.6"/>
+          <ellipse cx="255" cy="74" rx="20" ry="16" fill="#3e9450" opacity="0.55"/>
+          <ellipse cx="268" cy="66" rx="16" ry="12" fill="#56b06a" opacity="0.35"/>
+          {# Rose im Busch (detailliert) #}
+          <g transform="translate(275, 58)">
+            <circle cx="0" cy="0" r="5" fill="#f97316" opacity="0.75"/>
+            <path d="M -2.5 -0.5 C -0.8 -3, 1.5 -3, 2.5 -0.5 C 3 1, 1.5 2.5, 0 2.5 C -1.5 2.5, -3 1, -2.5 -0.5" fill="#fed7aa" opacity="0.4"/>
+            <circle cx="0" cy="0" r="1.8" fill="#c2410c" opacity="0.4"/>
+          </g>
+          {# Gelbe Blüte #}
+          <circle cx="288" cy="62" r="3" fill="#fbbf24" opacity="0.7"/>
+          <circle cx="288" cy="62" r="1.2" fill="#fff" opacity="0.8"/>
+          {# Hohe Gräser links — dichter #}
+          <path d="M 198 100 Q 193 62, 186 38" stroke="#3d8b47" stroke-width="2.5" fill="none" opacity="0.55"/>
+          <path d="M 195 100 Q 191 66, 188 44" stroke="#4a9c55" stroke-width="2" fill="none" opacity="0.45"/>
+          <path d="M 192 100 Q 185 70, 178 52" stroke="#56b06a" stroke-width="1.5" fill="none" opacity="0.35"/>
+          {# Kleiner Busch Mitte-links mit Blumen #}
+          <ellipse cx="135" cy="84" rx="24" ry="18" fill="#3e9450" opacity="0.6"/>
+          <ellipse cx="142" cy="78" rx="18" ry="14" fill="#48a058" opacity="0.5"/>
+          <ellipse cx="128" cy="80" rx="14" ry="10" fill="#56b06a" opacity="0.35"/>
+          {# Rose am Busch #}
+          <g transform="translate(138, 68)">
+            <circle cx="0" cy="0" r="4.5" fill="#ec4899" opacity="0.75"/>
+            <path d="M -2 -0.5 C -0.5 -2.5, 1 -2.5, 2 -0.5 C 2.5 0.8, 1 2, 0 2 C -1 2, -2.5 0.8, -2 -0.5" fill="#fbcfe8" opacity="0.4"/>
+            <circle cx="0" cy="0" r="1.5" fill="#be185d" opacity="0.4"/>
+          </g>
+          {# Rosen-Stiele links (Rosenbeet) #}
+          <g class="flower-sway" transform="translate(65, 97)">
+            <path d="M 0 0 C 1 -10, 2 -22, 0 -34" stroke="#2d6b35" stroke-width="1.5" fill="none"/>
+            <ellipse cx="4" cy="-16" rx="4.5" ry="2.5" fill="#3a8a4a" opacity="0.55" transform="rotate(25, 4, -16)"/>
+            <circle cx="0" cy="-37" r="5.5" fill="#e11d48" opacity="0.8"/>
+            <path d="M -3 -37.5 C -1 -40, 2 -40, 3 -37.5 C 3.5 -35.5, 2 -34, 0 -34 C -2 -34, -3.5 -35.5, -3 -37.5" fill="#fca5a5" opacity="0.4"/>
+            <circle cx="0" cy="-37" r="2" fill="#9f1239" opacity="0.45"/>
+          </g>
+          <g class="flower-sway-alt" transform="translate(45, 98)">
+            <path d="M 0 0 C -1 -8, 0 -18, 1 -28" stroke="#2d6b35" stroke-width="1.3" fill="none"/>
+            <ellipse cx="-3" cy="-13" rx="4" ry="2" fill="#3a8a4a" opacity="0.5" transform="rotate(-20, -3, -13)"/>
+            <circle cx="1" cy="-31" r="4.5" fill="#ec4899" opacity="0.75"/>
+            <path d="M -1 -31.5 C 0 -33.5, 2 -33.5, 3 -31.5 C 3.5 -30, 2 -29, 1 -29 C 0 -29, -1.5 -30, -1 -31.5" fill="#fbcfe8" opacity="0.4"/>
+            <circle cx="1" cy="-31" r="1.5" fill="#be185d" opacity="0.4"/>
+          </g>
+          {# Vergissmeinnicht-Cluster #}
+          <g transform="translate(88, 97)">
+            <line x1="0" y1="0" x2="0" y2="-18" stroke="#4a8c54" stroke-width="1"/>
+            <circle cx="0" cy="-20" r="2" fill="#93c5fd" opacity="0.65"/>
+            <circle cx="0" cy="-20" r="0.8" fill="#fefce8" opacity="0.8"/>
+          </g>
+          <g transform="translate(98, 98)">
+            <line x1="0" y1="0" x2="-1" y2="-14" stroke="#4a8c54" stroke-width="0.8"/>
+            <circle cx="-1" cy="-16" r="1.5" fill="#93c5fd" opacity="0.55"/>
+            <circle cx="-1" cy="-16" r="0.6" fill="#fefce8" opacity="0.7"/>
+          </g>
+          {# Bodendecker links #}
+          <ellipse cx="30" cy="92" rx="24" ry="11" fill="#3a8a4a" opacity="0.45"/>
+        </svg>
+      </div>
+
+      {# ── Gartenbank rechts vom Baum ────────────────────────────────── #}
+      <div class="hidden sm:block absolute pointer-events-none" style="right: 35%; bottom: 80px; z-index: 3;">
+        <svg width="112" height="96" viewBox="0 0 56 48" xmlns="http://www.w3.org/2000/svg">
+          {# Hintere Beine (leicht nach außen gestellt) #}
+          <line x1="8" y1="18" x2="4" y2="47" stroke="#5D4037" stroke-width="3" stroke-linecap="round" opacity="0.85"/>
+          <line x1="48" y1="18" x2="52" y2="47" stroke="#5D4037" stroke-width="3" stroke-linecap="round" opacity="0.85"/>
+          {# Rückenlehne: 3 vertikale Latten #}
+          <rect x="10" y="2" width="3" height="22" rx="1" fill="#8B7355" opacity="0.9"/>
+          <rect x="26" y="0" width="3" height="24" rx="1" fill="#8B7355" opacity="0.92"/>
+          <rect x="42" y="2" width="3" height="22" rx="1" fill="#8B7355" opacity="0.9"/>
+          {# Oberer Querbalken der Lehne #}
+          <rect x="8" y="3" width="40" height="4" rx="2" fill="#7a6548" opacity="0.85"/>
+          {# Sitzfläche (leicht gebogen) #}
+          <path d="M 4 24 C 14 22, 42 22, 52 24 L 52 28 C 42 26, 14 26, 4 28 Z"
+                fill="#8B7355" opacity="0.9"/>
+          {# Vordere Beine #}
+          <line x1="10" y1="28" x2="6" y2="47" stroke="#5D4037" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
+          <line x1="46" y1="28" x2="50" y2="47" stroke="#5D4037" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
+          {# Schatten unter der Bank #}
+          <ellipse cx="28" cy="47" rx="24" ry="3" fill="rgba(0,0,0,0.1)"/>
+        </svg>
+      </div>
+
+      {# ── Gewächse um die Bank — Rosengarten, Blumen, Gräser ────────── #}
+      <div class="hidden sm:block absolute pointer-events-none" style="right: 22%; bottom: 10px; z-index: 5;">
+        <svg width="200" height="90" viewBox="0 0 200 90" xmlns="http://www.w3.org/2000/svg">
+          {# Kleiner Busch links der Bank #}
+          <ellipse cx="15" cy="64" rx="18" ry="16" fill="#3a8a4a" opacity="0.6"/>
+          <ellipse cx="10" cy="58" rx="14" ry="12" fill="#48a058" opacity="0.5"/>
+          <ellipse cx="20" cy="60" rx="12" ry="9" fill="#56b06a" opacity="0.35"/>
+          {# Rose links — rot #}
+          <g class="flower-sway" transform="translate(32, 82)">
+            <path d="M 0 0 C -1 -10, -1 -22, 0 -34" stroke="#2d6b35" stroke-width="1.4" fill="none"/>
+            <ellipse cx="-4" cy="-17" rx="4" ry="2.2" fill="#3a8a4a" opacity="0.55" transform="rotate(-25, -4, -17)"/>
+            <ellipse cx="3" cy="-24" rx="3.5" ry="2" fill="#3a8a4a" opacity="0.5" transform="rotate(20, 3, -24)"/>
+            <circle cx="0" cy="-37" r="5.5" fill="#e11d48" opacity="0.8"/>
+            <path d="M -3 -37.5 C -1 -40, 2 -40, 3 -37.5 C 3.5 -35.5, 2 -34.5, 0 -34.5 C -2 -34.5, -3.5 -35.5, -3 -37.5" fill="#fca5a5" opacity="0.4"/>
+            <circle cx="0" cy="-37" r="2" fill="#9f1239" opacity="0.45"/>
+          </g>
+          {# Rose Mitte — pink #}
+          <g class="flower-sway-alt" transform="translate(50, 83)">
+            <path d="M 0 0 C 1 -8, 0 -18, -1 -28" stroke="#2d6b35" stroke-width="1.3" fill="none"/>
+            <ellipse cx="3" cy="-14" rx="3.5" ry="2" fill="#3a8a4a" opacity="0.5" transform="rotate(22, 3, -14)"/>
+            <circle cx="-1" cy="-31" r="4.8" fill="#ec4899" opacity="0.78"/>
+            <path d="M -3 -31.5 C -1 -34, 1 -34, 2.5 -31.5 C 3 -30, 1.5 -29, -1 -29 C -2.5 -29, -3.5 -30, -3 -31.5" fill="#fbcfe8" opacity="0.4"/>
+            <circle cx="-1" cy="-31" r="1.6" fill="#be185d" opacity="0.4"/>
+          </g>
+          {# Gänseblümchen zwischen Rosen #}
+          <g transform="translate(66, 82)">
+            <line x1="0" y1="0" x2="0" y2="-16" stroke="#4a8c54" stroke-width="0.9"/>
+            <g transform="translate(0, -19)">
+              <circle cx="0" cy="-2" r="1.2" fill="white" opacity="0.7"/>
+              <circle cx="2" cy="0" r="1.2" fill="white" opacity="0.65"/>
+              <circle cx="0" cy="2" r="1.2" fill="white" opacity="0.65"/>
+              <circle cx="-2" cy="0" r="1.2" fill="white" opacity="0.7"/>
+              <circle cx="0" cy="0" r="1.8" fill="#fbbf24" opacity="0.8"/>
+            </g>
+          </g>
+          {# Gräser rechts der Bank — dichter #}
+          <path d="M 140 82 Q 136 54, 130 32" stroke="#3d8b47" stroke-width="2" fill="none" opacity="0.5"/>
+          <path d="M 143 82 Q 146 56, 150 38" stroke="#4a9c55" stroke-width="1.8" fill="none" opacity="0.45"/>
+          <path d="M 146 82 Q 152 60, 158 44" stroke="#3d8b47" stroke-width="1.5" fill="none" opacity="0.4"/>
+          <path d="M 149 82 Q 156 64, 164 50" stroke="#56b06a" stroke-width="1.2" fill="none" opacity="0.3"/>
+          {# Rose rechts — korall #}
+          <g class="flower-sway" transform="translate(168, 82)">
+            <path d="M 0 0 C -1 -10, -2 -22, 0 -34" stroke="#2d6b35" stroke-width="1.4" fill="none"/>
+            <ellipse cx="4" cy="-18" rx="4" ry="2.2" fill="#3a8a4a" opacity="0.5" transform="rotate(28, 4, -18)"/>
+            <circle cx="0" cy="-37" r="5.2" fill="#f97316" opacity="0.78"/>
+            <path d="M -2.8 -37.5 C -1 -40, 1.5 -40, 2.8 -37.5 C 3.2 -36, 1.5 -34.5, 0 -34.5 C -1.5 -34.5, -3.2 -36, -2.8 -37.5" fill="#fed7aa" opacity="0.4"/>
+            <circle cx="0" cy="-37" r="1.8" fill="#c2410c" opacity="0.4"/>
+          </g>
+          {# Kleine Tulpe ganz rechts #}
+          <g class="flower-sway-alt" transform="translate(186, 82)">
+            <line x1="0" y1="0" x2="0" y2="-22" stroke="#2d6b35" stroke-width="1.2"/>
+            <path d="M 0 -22 C -3.5 -28, -3 -31, 0 -33 C 3 -31, 3.5 -28, 0 -22" fill="#a855f7" opacity="0.65"/>
+            <path d="M 0 -22 C 1 -27, 2.5 -30, 0 -33" fill="#7c3aed" opacity="0.4"/>
+          </g>
+          {# Bodendecker unter Bank — üppiger #}
+          <ellipse cx="95" cy="84" rx="40" ry="8" fill="#3a8a4a" opacity="0.35"/>
+          <ellipse cx="80" cy="82" rx="15" ry="5" fill="#48a058" opacity="0.2"/>
+        </svg>
+      </div>
 
       {# Partner-Badge + Navigation — unter dem Boden-SVG #}
       <div class="w-full bg-[#4a8c54] py-3 flex flex-col items-center gap-2">
@@ -418,9 +1124,27 @@
 {% block extra_scripts %}
 <script src="/static/js/pin-animation.js"></script>
 <script>
-  document.addEventListener("DOMContentLoaded", function () {
-    // ── Apply initial positions & colors ──
-    document.querySelectorAll("[data-pos-top][data-pos-left]").forEach(function (el) {
+/**
+ * Memory Tree — Drag & Drop for pinned memories
+ *
+ * RULES:
+ * - Only ONE element can be dragged at a time (global dragState)
+ * - pointermove/pointerup registered on DOCUMENT (not on element)
+ *   → ensures events are captured even when cursor briefly leaves the element
+ * - All document listeners are REMOVED on drop (not just deactivated)
+ * - Multiple-initialization is prevented
+ */
+(function () {
+  "use strict";
+
+  // Guard against double init (hot-reload / double script load)
+  if (window._treeDragInitialized) return;
+  window._treeDragInitialized = true;
+
+  // ── Apply initial positions & colors ──
+  function applyDataStyles() {
+    // Target .hanging-memory elements directly — works regardless of parent visibility
+    document.querySelectorAll(".hanging-memory[data-pos-top][data-pos-left]").forEach(function (el) {
       el.style.top = el.dataset.posTop;
       el.style.left = el.dataset.posLeft;
       el.style.transform = "translateX(-50%)";
@@ -428,164 +1152,262 @@
     document.querySelectorAll("[data-bg-color]").forEach(function (el) {
       el.style.backgroundColor = el.dataset.bgColor + "20";
     });
+  }
 
-    // ── Drag-to-Reposition for pinned memories ──
-    var container = document.getElementById("tree-container");
+  // ══════════════════════════════════════════════════════════════════
+  // Crown clamping geometry (unchanged from original)
+  // ══════════════════════════════════════════════════════════════════
+  var container, svgEl;
+  var DRAG_THRESHOLD = 5;
+  var VB_X = -20, VB_Y = -10, VB_W = 580, VB_H = 500;
+
+  var CROWN = [
+    {cx: 250, cy: 135, rx: 228, ry: 125},
+    {cx: 190, cy: 115, rx: 176, ry: 105},
+    {cx: 320, cy: 125, rx: 165, ry: 100},
+    {cx: 250, cy:  95, rx: 153, ry:  85},
+    {cx: 165, cy: 148, rx: 125, ry:  72},
+    {cx: 335, cy: 142, rx: 119, ry:  75},
+    {cx: 250, cy:  72, rx: 107, ry:  58},
+    {cx: 215, cy: 105, rx:  96, ry:  55},
+    {cx: 285, cy: 100, rx:  90, ry:  50}
+  ];
+
+  function ellipseDist2(x, y, e) {
+    var ndx = (x - e.cx) / e.rx, ndy = (y - e.cy) / e.ry;
+    return ndx * ndx + ndy * ndy;
+  }
+
+  function pctToSvg(lPct, tPct) {
+    var cr = container.getBoundingClientRect();
+    var sr = svgEl.getBoundingClientRect();
+    return {
+      x: (lPct / 100 * cr.width - (sr.left - cr.left)) / sr.width * VB_W + VB_X,
+      y: (tPct / 100 * cr.height - (sr.top - cr.top)) / sr.height * VB_H + VB_Y
+    };
+  }
+
+  function svgToPct(sx, sy) {
+    var cr = container.getBoundingClientRect();
+    var sr = svgEl.getBoundingClientRect();
+    return {
+      left: ((sx - VB_X) / VB_W * sr.width + (sr.left - cr.left)) / cr.width * 100,
+      top:  ((sy - VB_Y) / VB_H * sr.height + (sr.top - cr.top)) / cr.height * 100
+    };
+  }
+
+  function clampToCrown(lPct, tPct) {
+    var sv = pctToSvg(lPct, tPct);
+    var best = Infinity, bi = 0;
+    for (var i = 0; i < CROWN.length; i++) {
+      var d = ellipseDist2(sv.x, sv.y, CROWN[i]);
+      if (d <= 1) return { left: lPct, top: tPct };
+      if (d < best) { best = d; bi = i; }
+    }
+    var e = CROWN[bi];
+    var a = Math.atan2((sv.y - e.cy) / e.ry, (sv.x - e.cx) / e.rx);
+    return svgToPct(e.cx + e.rx * Math.cos(a), e.cy + e.ry * Math.sin(a));
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // GLOBAL DRAG STATE — single source of truth.
+  // Only ONE element can be dragged at a time.
+  // ══════════════════════════════════════════════════════════════════
+  var dragState = null;
+  // dragState = { element, startX, startY, startElLeft, startElTop, pointerId, moved }
+
+  // ── Document-level handlers (added on pointerdown, removed on endDrag) ──
+
+  function onPointerMove(e) {
+    if (!dragState) return;
+
+    var dx = e.clientX - dragState.startX;
+    var dy = e.clientY - dragState.startY;
+
+    if (!dragState.moved && Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return;
+
+    if (!dragState.moved) {
+      dragState.moved = true;
+      var el = dragState.element;
+      el.style.animation = "none";
+      el.style.zIndex = "50";
+      el.style.scale = "1.1";
+      el.style.filter = "drop-shadow(0 8px 16px rgba(0,0,0,0.25))";
+      el.style.cursor = "grabbing";
+    }
+
+    e.preventDefault();
+
+    var rect = container.getBoundingClientRect();
+    var c = clampToCrown(
+      (dragState.startElLeft + dx) / rect.width  * 100,
+      (dragState.startElTop  + dy) / rect.height * 100
+    );
+    dragState.element.style.left = c.left + "%";
+    dragState.element.style.top  = c.top  + "%";
+  }
+
+  function onPointerUp(e) {
+    endDrag();
+  }
+
+  function onPointerCancel(e) {
+    endDrag();
+  }
+
+  function endDrag() {
+    if (!dragState) return;
+
+    var el = dragState.element;
+    var memoryId = el.dataset.memoryId;
+    var wasMoved = dragState.moved;
+    var pointerId = dragState.pointerId;
+
+    // Release pointer capture
+    try { el.releasePointerCapture(pointerId); } catch (err) { /* already released */ }
+
+    // Reset styling
+    el.style.zIndex = "";
+    el.style.scale = "";
+    el.style.filter = "";
+    el.style.cursor = "grab";
+    el.style.animation = "";
+
+    // NULL state IMMEDIATELY — before anything else
+    dragState = null;
+
+    // Remove document listeners
+    document.removeEventListener("pointermove", onPointerMove);
+    document.removeEventListener("pointerup", onPointerUp);
+    document.removeEventListener("pointercancel", onPointerCancel);
+
+    if (wasMoved) {
+      // Suppress the click that follows pointerup after a drag
+      el.addEventListener("click", function preventClick(ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+      }, { once: true, capture: true });
+
+      // Save position to server
+      var topVal  = parseFloat(el.style.top).toFixed(1)  + "%";
+      var leftVal = parseFloat(el.style.left).toFixed(1) + "%";
+      fetch("/memories/" + memoryId + "/update-tree-position", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ top: topVal, left: leftVal })
+      }).catch(function (err) {
+        console.error("Position speichern fehlgeschlagen:", err);
+      });
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // SAFETY NETS — catch stuck drag state from edge cases
+  // ══════════════════════════════════════════════════════════════════
+
+  // If any click happens while dragState is stuck → force cleanup
+  document.addEventListener("click", function () {
+    if (dragState) {
+      console.warn("[MemoryTree] Drag state was stuck, force-cleaning");
+      endDrag();
+    }
+  }, true); // capture phase: fires BEFORE normal click handlers
+
+  // Window loses focus → cancel drag
+  window.addEventListener("blur", function () {
+    if (dragState) endDrag();
+  });
+
+  // Escape key → cancel drag
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && dragState) endDrag();
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // INIT — wire up pointerdown on each .hanging-memory
+  // ══════════════════════════════════════════════════════════════════
+
+  function initDraggable() {
+    container = document.getElementById("tree-container");
     if (!container) return;
-
-    var svgEl = container.querySelector("svg");
-    var DRAG_THRESHOLD = 5;
-
-    // viewBox: -20 -10 580 500
-    var VB_X = -20, VB_Y = -10, VB_W = 580, VB_H = 500;
-
-    // All 9 crown ellipses from the SVG, inset ~25/20 so the card stays visually inside
-    var CROWN = [
-      {cx: 250, cy: 135, rx: 228, ry: 125},
-      {cx: 190, cy: 115, rx: 176, ry: 105},
-      {cx: 320, cy: 125, rx: 165, ry: 100},
-      {cx: 250, cy:  95, rx: 153, ry:  85},
-      {cx: 165, cy: 148, rx: 125, ry:  72},
-      {cx: 335, cy: 142, rx: 119, ry:  75},
-      {cx: 250, cy:  72, rx: 107, ry:  58},
-      {cx: 215, cy: 105, rx:  96, ry:  55},
-      {cx: 285, cy: 100, rx:  90, ry:  50}
-    ];
-
-    function ellipseDist2(x, y, e) {
-      var ndx = (x - e.cx) / e.rx, ndy = (y - e.cy) / e.ry;
-      return ndx * ndx + ndy * ndy;
-    }
-
-    function pctToSvg(lPct, tPct) {
-      var cr = container.getBoundingClientRect();
-      var sr = svgEl.getBoundingClientRect();
-      return {
-        x: (lPct / 100 * cr.width - (sr.left - cr.left)) / sr.width * VB_W + VB_X,
-        y: (tPct / 100 * cr.height - (sr.top - cr.top)) / sr.height * VB_H + VB_Y
-      };
-    }
-
-    function svgToPct(sx, sy) {
-      var cr = container.getBoundingClientRect();
-      var sr = svgEl.getBoundingClientRect();
-      return {
-        left: ((sx - VB_X) / VB_W * sr.width + (sr.left - cr.left)) / cr.width * 100,
-        top:  ((sy - VB_Y) / VB_H * sr.height + (sr.top - cr.top)) / cr.height * 100
-      };
-    }
-
-    function clampToCrown(lPct, tPct) {
-      var sv = pctToSvg(lPct, tPct);
-      // Inside any of the 9 ellipses? → allow
-      var best = Infinity, bi = 0;
-      for (var i = 0; i < CROWN.length; i++) {
-        var d = ellipseDist2(sv.x, sv.y, CROWN[i]);
-        if (d <= 1) return { left: lPct, top: tPct };
-        if (d < best) { best = d; bi = i; }
-      }
-      // Outside all → snap to nearest ellipse boundary
-      var e = CROWN[bi];
-      var a = Math.atan2((sv.y - e.cy) / e.ry, (sv.x - e.cx) / e.rx);
-      return svgToPct(e.cx + e.rx * Math.cos(a), e.cy + e.ry * Math.sin(a));
-    }
+    svgEl = container.querySelector("svg");
 
     document.querySelectorAll(".hanging-memory[data-memory-id]").forEach(function (el) {
-      var isDragging = false;
-      var hasMoved = false;
-      var startX = 0, startY = 0, startElLeft = 0, startElTop = 0;
-      var activePointerId = null;
+      // Guard: don't double-init
+      if (el.dataset.dragInit === "true") return;
+      el.dataset.dragInit = "true";
 
-      // Prevent native drag ghost image on images inside
-      el.querySelectorAll("img").forEach(function (img) { img.setAttribute("draggable", "false"); });
+      el.setAttribute("draggable", "false");
+      el.style.cursor = "grab";
+      el.style.touchAction = "none";
+      el.style.userSelect = "none";
+      el.style.webkitUserSelect = "none";
+
+      // Prevent native drag ghost on images
+      el.querySelectorAll("img").forEach(function (img) {
+        img.setAttribute("draggable", "false");
+      });
 
       el.addEventListener("pointerdown", function (e) {
-        // Ignore clicks on the ✕ unpin button only
+        // Ignore clicks on ✕ button
         if (e.target.closest("button")) return;
 
-        isDragging = true;
-        hasMoved = false;
-        activePointerId = e.pointerId;
-        startX = e.clientX;
-        startY = e.clientY;
+        // If already dragging something → force end first
+        if (dragState) endDrag();
 
         var rect = container.getBoundingClientRect();
-        startElLeft = parseFloat(el.style.left) / 100 * rect.width;
-        startElTop  = parseFloat(el.style.top)  / 100 * rect.height;
 
-        // Capture pointer so we get events even outside the element
-        el.setPointerCapture(e.pointerId);
+        // Get current position — prefer inline styles set by applyDataStyles,
+        // fall back to getBoundingClientRect in case styles weren't applied yet
+        var elLeftPct = parseFloat(el.style.left);
+        var elTopPct  = parseFloat(el.style.top);
+        if (isNaN(elLeftPct) || isNaN(elTopPct)) {
+          var elRect = el.getBoundingClientRect();
+          elLeftPct = (elRect.left - rect.left + elRect.width / 2) / rect.width  * 100;
+          elTopPct  = (elRect.top  - rect.top)                    / rect.height * 100;
+          el.style.left = elLeftPct.toFixed(1) + "%";
+          el.style.top  = elTopPct.toFixed(1)  + "%";
+          el.style.transform = "translateX(-50%)";
+        }
+
+        dragState = {
+          element: el,
+          startX: e.clientX,
+          startY: e.clientY,
+          startElLeft: elLeftPct / 100 * rect.width,
+          startElTop:  elTopPct  / 100 * rect.height,
+          pointerId: e.pointerId,
+          moved: false
+        };
+
+        // Capture pointer
+        try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+
+        // Add document-level listeners (removed in endDrag)
+        document.addEventListener("pointermove", onPointerMove);
+        document.addEventListener("pointerup", onPointerUp);
+        document.addEventListener("pointercancel", onPointerCancel);
 
         e.preventDefault();
       });
-
-      el.addEventListener("pointermove", function (e) {
-        if (!isDragging || e.pointerId !== activePointerId) return;
-
-        var dx = e.clientX - startX;
-        var dy = e.clientY - startY;
-
-        if (!hasMoved && Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return;
-
-        if (!hasMoved) {
-          hasMoved = true;
-          el.style.animation = "none";
-          el.style.zIndex = "50";
-          el.style.scale = "1.1";
-          el.style.filter = "drop-shadow(0 8px 16px rgba(0,0,0,0.25))";
-          el.style.cursor = "grabbing";
-        }
-
-        e.preventDefault();
-
-        var rect = container.getBoundingClientRect();
-        var c = clampToCrown(
-          (startElLeft + dx) / rect.width  * 100,
-          (startElTop  + dy) / rect.height * 100
-        );
-        el.style.left = c.left + "%";
-        el.style.top  = c.top  + "%";
-      });
-
-      el.addEventListener("pointerup", function (e) {
-        if (!isDragging || e.pointerId !== activePointerId) return;
-        isDragging = false;
-        activePointerId = null;
-
-        el.releasePointerCapture(e.pointerId);
-
-        if (hasMoved) {
-          // Suppress the click that follows pointerup after a drag
-          el.addEventListener("click", preventClick, { once: true, capture: true });
-
-          el.style.zIndex = ""; el.style.scale = "";
-          el.style.filter = ""; el.style.cursor = "grab";
-          el.style.animation = "";
-
-          var topVal  = parseFloat(el.style.top).toFixed(1)  + "%";
-          var leftVal = parseFloat(el.style.left).toFixed(1) + "%";
-          fetch("/memories/" + el.dataset.memoryId + "/update-tree-position", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "same-origin",
-            body: JSON.stringify({ top: topVal, left: leftVal })
-          }).catch(function (err) {
-            console.error("Position speichern fehlgeschlagen:", err);
-          });
-        }
-      });
-
-      el.addEventListener("pointercancel", function (e) {
-        if (e.pointerId !== activePointerId) return;
-        isDragging = false;
-        activePointerId = null;
-        el.style.zIndex = ""; el.style.scale = "";
-        el.style.filter = ""; el.style.cursor = "grab";
-        el.style.animation = "";
-      });
-
-      function preventClick(e) { e.preventDefault(); e.stopPropagation(); }
     });
-  });
+  }
+
+  // ── Start ──
+  function init() {
+    applyDataStyles();
+    // Always init draggable — safe on mobile because .hanging-memory elements
+    // are inside display:none container (#pinned-memories-desktop hidden md:block)
+    // so they can never receive pointer events on small screens.
+    initDraggable();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
 </script>
 {% endblock %}

@@ -134,7 +134,7 @@
         </div>
       </div>
 
-      <p class="text-xs text-stone-400">Klicke auf die Karte, um die Koordinaten zu setzen.</p>
+      <p class="text-xs text-stone-400">Suche eine Adresse über das Suchfeld oder klicke auf die Karte.</p>
       <div id="map-picker"></div>
     </section>
 
@@ -224,9 +224,9 @@ document.addEventListener("DOMContentLoaded", function () {
   var initZoom = (latInput.value && lngInput.value) ? 12 : 4;
 
   var map = L.map("map-picker").setView([initLat, initLng], initZoom);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  L.tileLayer("https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png", {
     maxZoom: 19,
-    attribution: "&copy; OpenStreetMap"
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
   }).addTo(map);
 
   var marker = null;
@@ -234,11 +234,60 @@ document.addEventListener("DOMContentLoaded", function () {
     marker = L.marker([initLat, initLng]).addTo(map);
   }
 
+  // Flag: wurde der Ortsname per Reverse-Geocoding gesetzt?
+  var locationSetByGeocode = false;
+  var locationInput = document.getElementById("location");
+
+  // ── Geocoder-Suche (Adresseingabe auf der Karte) ──────────────────
+  var geocoder = L.Control.geocoder({
+    defaultMarkType: "L.marker",
+    placeholder: "Adresse suchen…",
+    errorMessage: "Nichts gefunden.",
+    geocoder: L.Control.Geocoder.nominatim({
+      geocodingQueryParams: { "accept-language": "de" }
+    })
+  }).on("markgeocode", function (e) {
+    var result = e.geocode;
+    var latlng = result.center;
+    map.setView(latlng, 15);
+    latInput.value = latlng.lat.toFixed(6);
+    lngInput.value = latlng.lng.toFixed(6);
+    if (marker) { marker.setLatLng(latlng); }
+    else { marker = L.marker(latlng).addTo(map); }
+    // Ortsnamen ins Feld übernehmen (falls leer oder vorher auto-gesetzt)
+    if (!locationInput.value || locationSetByGeocode) {
+      locationInput.value = result.name || "";
+      locationSetByGeocode = true;
+    }
+  }).addTo(map);
+
+  // ── Klick auf Karte (Fallback) + Reverse Geocoding ────────────────
   map.on("click", function (e) {
     latInput.value = e.latlng.lat.toFixed(6);
     lngInput.value = e.latlng.lng.toFixed(6);
     if (marker) { marker.setLatLng(e.latlng); }
     else { marker = L.marker(e.latlng).addTo(map); }
+
+    // Reverse Geocoding: Ortsname automatisch abfragen
+    if (!locationInput.value || locationSetByGeocode) {
+      fetch("https://nominatim.openstreetmap.org/reverse?format=json&lat=" +
+            e.latlng.lat.toFixed(6) + "&lon=" + e.latlng.lng.toFixed(6) +
+            "&zoom=14&addressdetails=1", {
+        headers: { "Accept-Language": "de" }
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data && data.display_name) {
+          // Kurzform: Stadt/Ort + Land extrahieren
+          var addr = data.address || {};
+          var name = addr.city || addr.town || addr.village || addr.municipality || "";
+          var country = addr.country || "";
+          locationInput.value = name ? (name + (country ? ", " + country : "")) : data.display_name.split(",").slice(0, 3).join(",").trim();
+          locationSetByGeocode = true;
+        }
+      })
+      .catch(function () { /* stille Fehler — Feld bleibt leer */ });
+    }
   });
 
   // ── Foto-Vorschau ─────────────────────────────────────────────────────

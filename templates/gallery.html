@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+
+{% block title %}Galerie{% endblock %}
+{% block d3 %}{% endblock %}
+{% block leaflet %}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .gallery-item {
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    overflow: hidden;
+  }
+  .gallery-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 32px rgba(0,0,0,0.15);
+  }
+  .gallery-item img {
+    transition: transform 0.4s ease;
+  }
+  .gallery-item:hover img {
+    transform: scale(1.06);
+  }
+  .gallery-overlay {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .gallery-item:hover .gallery-overlay {
+    opacity: 1;
+  }
+
+  /* Filter chips */
+  .filter-chip {
+    transition: all 0.2s ease;
+    cursor: pointer;
+    user-select: none;
+  }
+  .filter-chip:hover {
+    transform: translateY(-1px);
+  }
+  .filter-chip.active {
+    ring: 2;
+    box-shadow: 0 0 0 2px rgba(251,191,36,0.5);
+  }
+
+  /* Lightbox */
+  .lightbox-backdrop {
+    background: rgba(0,0,0,0.92);
+    backdrop-filter: blur(4px);
+  }
+  .lightbox-img {
+    max-height: 85vh;
+    max-width: 90vw;
+    object-fit: contain;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto pb-16">
+
+  {# ── Header ──────────────────────────────────────────────────────────── #}
+  <div class="mb-6">
+    <h1 class="text-2xl md:text-3xl font-bold text-stone-800">📸 Eure Galerie</h1>
+    <p class="text-sm text-stone-500 mt-1">{{ photos|length }} Fotos aus euren gemeinsamen Erinnerungen</p>
+  </div>
+
+  {# ── Filter-Bar ─────────────────────────────────────────────────────── #}
+  {% if photos %}
+  <div class="sticky top-16 z-30 bg-amber-50/95 backdrop-blur-sm border-b border-amber-200 py-3 -mx-4 px-4 mb-6">
+    <div class="flex flex-wrap gap-2 items-center">
+      <span class="text-xs text-stone-400 font-medium uppercase tracking-wide mr-1">Filter:</span>
+
+      {# Alle-Chip #}
+      <button type="button"
+              class="filter-chip active px-3 py-1.5 rounded-full text-xs font-medium
+                     bg-stone-800 text-white"
+              data-filter="all">
+        Alle
+      </button>
+
+      {# Jahr-Chips #}
+      {% for year in years %}
+      <button type="button"
+              class="filter-chip px-3 py-1.5 rounded-full text-xs font-medium
+                     bg-white text-stone-600 border border-stone-200 hover:border-stone-400"
+              data-filter-year="{{ year }}">
+        {{ year }}
+      </button>
+      {% endfor %}
+
+      {# Kategorie-Chips #}
+      {% for cat, cfg in category_config.items() %}
+      <button type="button"
+              class="filter-chip px-3 py-1.5 rounded-full text-xs font-medium
+                     bg-white border border-stone-200 hover:border-stone-400"
+              data-filter-category="{{ cat }}"
+              style="color: {{ cfg.color }};">
+        {{ cfg.emoji }} {{ cat }}
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ── Foto-Grid ──────────────────────────────────────────────────────── #}
+  <div id="gallery-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+    {% for photo in photos %}
+    {% set mem = photo.memory %}
+    <div class="gallery-item rounded-xl bg-white shadow-md relative cursor-pointer aspect-square"
+         data-year="{{ mem.date.year if mem else '' }}"
+         data-category="{{ mem.category if mem else '' }}"
+         data-lightbox-src="/{{ photo.filepath }}"
+         data-lightbox-caption="{{ photo.caption or '' }}"
+         data-lightbox-title="{{ mem.title if mem else '' }}"
+         data-lightbox-date="{{ mem.date.strftime('%d.%m.%Y') if mem else '' }}"
+         data-lightbox-id="{{ mem.id if mem else '' }}">
+      <img src="/{{ photo.filepath }}" alt="{{ photo.caption or (mem.title if mem else 'Foto') }}"
+           class="w-full h-full object-cover rounded-xl" loading="lazy">
+
+      {# Hover Overlay #}
+      <div class="gallery-overlay absolute inset-0 rounded-xl bg-gradient-to-t from-black/70 via-black/10 to-transparent flex flex-col justify-end p-3">
+        {% if mem %}
+        <p class="text-white text-sm font-semibold leading-tight truncate">{{ mem.title }}</p>
+        <p class="text-white/70 text-xs mt-0.5">{{ mem.date.strftime('%d.%m.%Y') }}</p>
+        {% if mem.category %}
+        <span class="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium text-white/90"
+              style="background: {{ category_config.get(mem.category, {}).get('color', '#6b7280') }}80;">
+          {{ category_config.get(mem.category, {}).get('emoji', '') }} {{ mem.category }}
+        </span>
+        {% endif %}
+        {% endif %}
+        {% if photo.caption %}
+        <p class="text-white/60 text-xs mt-1 truncate italic">{{ photo.caption }}</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# ── Keine Ergebnisse (unsichtbar, per JS eingeblendet) ─────────── #}
+  <div id="no-results" class="hidden text-center py-16">
+    <div class="text-5xl mb-3">🔍</div>
+    <h3 class="text-lg font-semibold text-stone-600">Keine Fotos für diesen Filter</h3>
+    <p class="text-stone-400 text-sm mt-1">Wähle einen anderen Filter oder zeige alle an.</p>
+  </div>
+
+  {% else %}
+  {# ── Leerer Zustand ─────────────────────────────────────────────── #}
+  <div class="text-center py-20">
+    <div class="text-6xl mb-4">📷</div>
+    <h2 class="text-xl font-bold text-stone-600 mb-2">Noch keine Fotos</h2>
+    <p class="text-stone-400 mb-6">Fügt Fotos zu euren Erinnerungen hinzu!</p>
+    <a href="/timeline"
+       class="inline-block bg-amber-600 hover:bg-amber-700 text-white font-semibold py-3 px-8 rounded-xl shadow-md hover:shadow-lg transition">
+      Zum Zeitstrahl →
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+{# ── Lightbox ──────────────────────────────────────────────────────────── #}
+<div id="lightbox" class="hidden fixed inset-0 z-50 lightbox-backdrop flex items-center justify-center">
+  {# Schließen-Button #}
+  <button id="lb-close" type="button"
+          class="absolute top-4 right-4 text-white/70 hover:text-white text-3xl font-light transition z-10"
+          aria-label="Schließen">&times;</button>
+
+  {# Navigations-Pfeile #}
+  <button id="lb-prev" type="button"
+          class="absolute left-3 md:left-6 text-white/50 hover:text-white text-5xl font-light transition z-10 select-none"
+          aria-label="Vorheriges Foto">&#8249;</button>
+  <button id="lb-next" type="button"
+          class="absolute right-3 md:right-6 text-white/50 hover:text-white text-5xl font-light transition z-10 select-none"
+          aria-label="Nächstes Foto">&#8250;</button>
+
+  {# Bild + Infos #}
+  <div class="text-center">
+    <img id="lb-img" src="" alt="" class="lightbox-img rounded-lg shadow-2xl mx-auto">
+    <div class="mt-3 text-white/90">
+      <p id="lb-title" class="text-lg font-semibold"></p>
+      <p id="lb-date" class="text-sm text-white/60 mt-0.5"></p>
+      <p id="lb-caption" class="text-sm text-white/50 italic mt-1"></p>
+      <a id="lb-link" href="#" class="inline-block mt-2 text-xs text-amber-400 hover:text-amber-300 transition">
+        Zur Erinnerung →
+      </a>
+    </div>
+  </div>
+
+  {# Thumbnail-Strip #}
+  <div id="lb-thumbs" class="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 overflow-x-auto px-4">
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  var grid = document.getElementById("gallery-grid");
+  if (!grid) return;
+
+  var items = Array.from(grid.querySelectorAll(".gallery-item"));
+  var noResults = document.getElementById("no-results");
+  var activeFilter = { type: "all", value: null };
+
+  // ── Filter-Logik ──────────────────────────────────────────────────
+  document.querySelectorAll(".filter-chip").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      document.querySelectorAll(".filter-chip").forEach(function (c) { c.classList.remove("active"); });
+      chip.classList.add("active");
+
+      if (chip.dataset.filter === "all") {
+        activeFilter = { type: "all", value: null };
+      } else if (chip.dataset.filterYear) {
+        activeFilter = { type: "year", value: chip.dataset.filterYear };
+      } else if (chip.dataset.filterCategory) {
+        activeFilter = { type: "category", value: chip.dataset.filterCategory };
+      }
+      applyFilter();
+    });
+  });
+
+  function applyFilter() {
+    var visible = 0;
+    items.forEach(function (item) {
+      var show = true;
+      if (activeFilter.type === "year") {
+        show = item.dataset.year === activeFilter.value;
+      } else if (activeFilter.type === "category") {
+        show = item.dataset.category === activeFilter.value;
+      }
+      item.style.display = show ? "" : "none";
+      if (show) visible++;
+    });
+    noResults.classList.toggle("hidden", visible > 0);
+  }
+
+  // ── Lightbox ──────────────────────────────────────────────────────
+  var lightbox = document.getElementById("lightbox");
+  var lbImg = document.getElementById("lb-img");
+  var lbTitle = document.getElementById("lb-title");
+  var lbDate = document.getElementById("lb-date");
+  var lbCaption = document.getElementById("lb-caption");
+  var lbLink = document.getElementById("lb-link");
+  var lbClose = document.getElementById("lb-close");
+  var lbPrev = document.getElementById("lb-prev");
+  var lbNext = document.getElementById("lb-next");
+  var lbThumbs = document.getElementById("lb-thumbs");
+  var currentIndex = 0;
+
+  function visibleItems() {
+    return items.filter(function (i) { return i.style.display !== "none"; });
+  }
+
+  function openLightbox(index) {
+    var vis = visibleItems();
+    if (index < 0 || index >= vis.length) return;
+    currentIndex = index;
+    var item = vis[index];
+
+    lbImg.src = item.dataset.lightboxSrc;
+    lbImg.alt = item.dataset.lightboxCaption || item.dataset.lightboxTitle || "Foto";
+    lbTitle.textContent = item.dataset.lightboxTitle || "";
+    lbDate.textContent = item.dataset.lightboxDate || "";
+    lbCaption.textContent = item.dataset.lightboxCaption || "";
+
+    var mid = item.dataset.lightboxId;
+    if (mid) {
+      lbLink.href = "/memories/" + mid;
+      lbLink.style.display = "";
+    } else {
+      lbLink.style.display = "none";
+    }
+
+    // Thumbnails
+    lbThumbs.innerHTML = "";
+    vis.forEach(function (v, i) {
+      var thumb = document.createElement("img");
+      thumb.src = v.dataset.lightboxSrc;
+      thumb.alt = "";
+      thumb.className = "w-10 h-10 object-cover rounded cursor-pointer transition " +
+        (i === index ? "ring-2 ring-amber-400 opacity-100" : "opacity-40 hover:opacity-70");
+      thumb.addEventListener("click", function () { openLightbox(i); });
+      lbThumbs.appendChild(thumb);
+    });
+
+    lightbox.classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeLightbox() {
+    lightbox.classList.add("hidden");
+    document.body.style.overflow = "";
+  }
+
+  items.forEach(function (item, i) {
+    item.addEventListener("click", function () {
+      var vis = visibleItems();
+      var idx = vis.indexOf(item);
+      openLightbox(idx >= 0 ? idx : 0);
+    });
+  });
+
+  lbClose.addEventListener("click", closeLightbox);
+  lightbox.addEventListener("click", function (e) {
+    if (e.target === lightbox) closeLightbox();
+  });
+
+  lbPrev.addEventListener("click", function (e) {
+    e.stopPropagation();
+    var vis = visibleItems();
+    openLightbox((currentIndex - 1 + vis.length) % vis.length);
+  });
+
+  lbNext.addEventListener("click", function (e) {
+    e.stopPropagation();
+    var vis = visibleItems();
+    openLightbox((currentIndex + 1) % vis.length);
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (lightbox.classList.contains("hidden")) return;
+    if (e.key === "Escape") closeLightbox();
+    if (e.key === "ArrowLeft") lbPrev.click();
+    if (e.key === "ArrowRight") lbNext.click();
+  });
+});
+</script>
+{% endblock %}

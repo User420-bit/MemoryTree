@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from auth import get_current_user, hash_password
 from database import Base, SessionLocal, engine, get_db
-from models import CoupleSettings, Memory, Photo, Place, User
+from models import CoupleSettings, Memory, Milestone, Photo, Place, User
 
 from routers.auth import router as auth_router
 from routers.memories import router as memories_router
@@ -348,6 +348,153 @@ def timeline_page(
             "tage_zusammen": tage_zusammen,
             "partner_since": partner_since_display,
             "total_pinned": total_pinned,
+        },
+    )
+
+
+# ── Meilensteine-Seite ──────────────────────────────────────────────────────
+
+@app.get("/milestones", response_class=HTMLResponse)
+def milestones_page(
+    request: Request,
+    current_user: Annotated[User, Depends(_get_current_user_or_redirect)],
+    db: Annotated[Session, Depends(get_db)],
+) -> Response:
+    """Meilensteine-Seite: vertikale Timeline besonderer Ereignisse."""
+    today: date = date.today()
+
+    milestones: list[Milestone] = (
+        db.query(Milestone).order_by(Milestone.date.desc()).all()
+    )
+
+    # Paar-Einstellungen laden
+    cs: CoupleSettings | None = db.query(CoupleSettings).first()
+    partner_since: date | None = cs.partner_since if cs else current_user.partner_since
+
+    # Nächstes Jubiläum berechnen
+    naechstes_jubilaeum: dict | None = None
+    if partner_since:
+        ps = partner_since
+        try:
+            anniversary_this_year = date(today.year, ps.month, ps.day)
+        except ValueError:
+            anniversary_this_year = date(today.year, ps.month, ps.day - 1)
+        if anniversary_this_year < today:
+            try:
+                anniversary_next = date(today.year + 1, ps.month, ps.day)
+            except ValueError:
+                anniversary_next = date(today.year + 1, ps.month, ps.day - 1)
+        else:
+            anniversary_next = anniversary_this_year
+        tage_bis = (anniversary_next - today).days
+        jahre = anniversary_next.year - ps.year
+        naechstes_jubilaeum = {
+            "jahre": jahre,
+            "tage_bis": tage_bis,
+            "datum": anniversary_next.strftime("%d.%m.%Y"),
+        }
+
+    return templates.TemplateResponse(
+        "milestones.html",
+        {
+            "request": request,
+            "user": current_user,
+            "milestones": milestones,
+            "today": today,
+            "naechstes_jubilaeum": naechstes_jubilaeum,
+        },
+    )
+
+
+# ── Galerie-Seite ───────────────────────────────────────────────────────────
+
+@app.get("/gallery", response_class=HTMLResponse)
+def gallery_page(
+    request: Request,
+    current_user: Annotated[User, Depends(_get_current_user_or_redirect)],
+    db: Annotated[Session, Depends(get_db)],
+) -> Response:
+    """Galerie: Grid aller Fotos mit Filtern und Lightbox."""
+    all_photos: list[Photo] = (
+        db.query(Photo)
+        .join(Memory, Photo.memory_id == Memory.id)
+        .order_by(Memory.date.desc(), Photo.uploaded_at.desc())
+        .all()
+    )
+
+    # Kategorie-Konfig
+    category_config: dict[str, dict[str, str]] = {
+        "Urlaub": {"emoji": "\U0001f3d6\ufe0f", "color": "#0891b2"},
+        "Meilenstein": {"emoji": "\U0001f31f", "color": "#d97706"},
+        "Feier": {"emoji": "\U0001f389", "color": "#7c3aed"},
+        "Alltag": {"emoji": "\U0001f4f8", "color": "#16a34a"},
+        "Abenteuer": {"emoji": "\U0001f32f", "color": "#ea580c"},
+        "Besonderes": {"emoji": "\u2764\ufe0f", "color": "#e11d48"},
+    }
+
+    # Verfügbare Jahre extrahieren
+    years: list[int] = sorted(
+        {p.memory.date.year for p in all_photos if p.memory},
+        reverse=True,
+    )
+
+    return templates.TemplateResponse(
+        "gallery.html",
+        {
+            "request": request,
+            "user": current_user,
+            "photos": all_photos,
+            "category_config": category_config,
+            "years": years,
+        },
+    )
+
+
+# ── Karten-Seite ────────────────────────────────────────────────────────────
+
+@app.get("/map", response_class=HTMLResponse)
+def map_page(
+    request: Request,
+    current_user: Annotated[User, Depends(_get_current_user_or_redirect)],
+    db: Annotated[Session, Depends(get_db)],
+) -> Response:
+    """Karten-Seite: interaktive Weltkarte aller besuchten Orte."""
+    # Erinnerungen mit Koordinaten laden
+    geo_memories: list[Memory] = (
+        db.query(Memory)
+        .filter(Memory.lat.isnot(None), Memory.lng.isnot(None))
+        .order_by(Memory.date.desc())
+        .all()
+    )
+
+    # Statistiken
+    orte_count: int = len(geo_memories)
+    laender_set: set[str] = set()
+    for m in geo_memories:
+        for p in m.places:
+            if p.country:
+                laender_set.add(p.country)
+    laender_count: int = len(laender_set)
+
+    # Kategorie-Konfig
+    category_config: dict[str, dict[str, str]] = {
+        "Urlaub": {"emoji": "\U0001f3d6\ufe0f", "color": "#0891b2"},
+        "Meilenstein": {"emoji": "\U0001f31f", "color": "#d97706"},
+        "Feier": {"emoji": "\U0001f389", "color": "#7c3aed"},
+        "Alltag": {"emoji": "\U0001f4f8", "color": "#16a34a"},
+        "Abenteuer": {"emoji": "\U0001f32f", "color": "#ea580c"},
+        "Besonderes": {"emoji": "\u2764\ufe0f", "color": "#e11d48"},
+    }
+
+    return templates.TemplateResponse(
+        "map.html",
+        {
+            "request": request,
+            "user": current_user,
+            "memories": geo_memories,
+            "category_config": category_config,
+            "orte_count": orte_count,
+            "laender_count": laender_count,
         },
     )
 
