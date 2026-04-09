@@ -1,38 +1,21 @@
 # Foto-Upload und -Verwaltung
 
+import logging
 import os
-import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from PIL import Image
 from sqlalchemy.orm import Session
 
 from auth import get_current_user
-from config import settings
 from database import get_db
 from models import Memory, Photo, User
 from schemas import PhotoRead
+from uploads import process_upload, safe_remove
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="", tags=["Fotos"])
-
-ALLOWED_CONTENT_TYPES: set[str] = {
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-}
-MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10 MB
-
-os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-
-
-def _resize_image(filepath: str) -> None:
-    """Bild proportional verkleinern, falls es größer als MAX_IMAGE_SIZE ist."""
-    with Image.open(filepath) as img:
-        max_dim: int = settings.MAX_IMAGE_SIZE
-        if img.width > max_dim or img.height > max_dim:
-            img.thumbnail((max_dim, max_dim))
-            img.save(filepath, quality=85)
 
 
 @router.post(
@@ -57,37 +40,21 @@ def upload_photo(
             detail="Erinnerung nicht gefunden",
         )
 
-    # Dateityp prüfen
-    if file.content_type not in ALLOWED_CONTENT_TYPES:
+    # Upload verarbeiten (Validierung, Magic Bytes, EXIF, Resize, Thumbnail)
+    result = process_upload(file)
+    if result is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Nur JPEG, PNG und WEBP Dateien erlaubt",
+            detail="Ungültige Bilddatei. Nur JPEG, PNG und WEBP bis 10 MB erlaubt.",
         )
 
-    # Datei einlesen & Größe prüfen
-    contents: bytes = file.file.read()
-    if len(contents) > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Datei zu groß (max. 10 MB)",
-        )
-
-    # Eindeutigen Dateinamen erzeugen
-    extension: str = os.path.splitext(file.filename or "upload.jpg")[1].lower()
-    unique_filename: str = f"{uuid.uuid4()}{extension}"
-    filepath: str = os.path.join(settings.UPLOAD_DIR, unique_filename)
-
-    # Datei speichern
-    with open(filepath, "wb") as f:
-        f.write(contents)
-
-    # Bild verkleinern, falls nötig
-    _resize_image(filepath)
+    main_path, thumb_path = result
+    rel_path = os.path.relpath(main_path, start=".")
 
     # Datenbank-Eintrag erstellen
     photo = Photo(
         memory_id=memory_id,
-        filepath=filepath,
+        filepath=rel_path,
         caption=caption,
     )
     db.add(photo)
@@ -112,8 +79,7 @@ def delete_photo(
         )
 
     # Datei vom Dateisystem entfernen
-    if os.path.exists(photo.filepath):
-        os.remove(photo.filepath)
+    safe_remove(photo.filepath)
 
     db.delete(photo)
     db.commit()

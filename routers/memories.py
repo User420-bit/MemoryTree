@@ -1,16 +1,13 @@
 # CRUD-Routen für Erinnerungen (JSON-API + HTML-Formulare)
 
 import logging
-import os
 import re
-import uuid
 from datetime import date
-from typing import Annotated, List, Optional
+from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from PIL import Image
 from sqlalchemy.orm import Session
 
 from auth import get_current_user
@@ -18,6 +15,7 @@ from config import settings
 from database import get_db
 from models import Memory, Photo, Place, User
 from schemas import MemoryCreate, MemoryRead, MemoryUpdate
+from uploads import safe_remove, save_uploaded_photos
 
 logger = logging.getLogger(__name__)
 
@@ -26,54 +24,6 @@ templates = Jinja2Templates(directory="templates")
 
 _NOT_FOUND = "Erinnerung nicht gefunden"
 _MEMORY_FORM_TEMPLATE = "memory_form.html"
-
-ALLOWED_CONTENT_TYPES: set[str] = {"image/jpeg", "image/png", "image/webp"}
-MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10 MB
-
-os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-
-
-def _resize_image(filepath: str) -> None:
-    """Bild proportional verkleinern, falls es größer als MAX_IMAGE_SIZE ist."""
-    with Image.open(filepath) as img:
-        max_dim: int = settings.MAX_IMAGE_SIZE
-        if img.width > max_dim or img.height > max_dim:
-            img.thumbnail((max_dim, max_dim))
-            img.save(filepath, quality=85)
-
-
-def _save_uploaded_photos(
-    files: list[UploadFile],
-    memory_id: int,
-    db: Session,
-) -> None:
-    """Hochgeladene Fotos validieren, speichern und als Photo-Objekte in die DB einfügen."""
-    for file in files:
-        if not file.filename or file.size == 0:
-            continue
-        if file.content_type not in ALLOWED_CONTENT_TYPES:
-            logger.warning("Ungültiger Dateityp: %s", file.content_type)
-            continue
-        if file.size and file.size > MAX_FILE_SIZE:
-            logger.warning("Datei zu groß: %s (%d bytes)", file.filename, file.size)
-            continue
-
-        ext = file.filename.rsplit(".", 1)[-1] if "." in file.filename else "jpg"
-        filename = f"{uuid.uuid4().hex}.{ext}"
-        filepath = os.path.join(settings.UPLOAD_DIR, filename)
-
-        with open(filepath, "wb") as out:
-            out.write(file.file.read())
-
-        _resize_image(filepath)
-
-        photo = Photo(
-            memory_id=memory_id,
-            filepath=f"{settings.UPLOAD_DIR}/{filename}",
-        )
-        db.add(photo)
-
-    db.flush()
 
 
 
@@ -139,7 +89,7 @@ def memory_form_create(
 
     # Fotos speichern
     if photos:
-        _save_uploaded_photos(photos, memory.id, db)
+        save_uploaded_photos(photos, memory.id, db)
 
     db.commit()
     logger.info("Erinnerung #%d erstellt von User #%d", memory.id, current_user.id)
@@ -215,11 +165,12 @@ def memory_form_update(
 
     # Neue Fotos hochladen
     if photos:
-        _save_uploaded_photos(photos, memory.id, db)
+        save_uploaded_photos(photos, memory.id, db)
 
     db.commit()
     logger.info("Erinnerung #%d aktualisiert von User #%d", memory.id, current_user.id)
-    return RedirectResponse(url=f"/memories/{memory.id}?success=updated", status_code=303)
+    redirect_url = f"/memories/{int(memory.id)}?success=updated"
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 
 @router.post(
@@ -271,7 +222,11 @@ def toggle_favorite(
 @router.post(
     "/{memory_id}/update-tree-position",
     response_model=None,
-    responses={404: {"description": _NOT_FOUND}},
+    responses={
+        400: {"description": "Nur gepinnte Erinnerungen können positioniert werden"},
+        404: {"description": _NOT_FOUND},
+        422: {"description": "Ungültiges Positionsformat"},
+    },
 )
 def update_tree_position(
     memory_id: int,
@@ -432,8 +387,7 @@ def delete_memory_form(
     # Zugehörige Foto-Dateien vom Dateisystem entfernen
     for photo in memory.photos:
         try:
-            if os.path.exists(photo.filepath):
-                os.remove(photo.filepath)
+            safe_remove(photo.filepath)
         except OSError:
             pass
 
@@ -456,8 +410,7 @@ def delete_memory(
 
     for photo in memory.photos:
         try:
-            if os.path.exists(photo.filepath):
-                os.remove(photo.filepath)
+            safe_remove(photo.filepath)
         except OSError:
             pass
 

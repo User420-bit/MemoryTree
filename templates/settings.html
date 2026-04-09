@@ -18,6 +18,7 @@
   {% endif %}
 
   <form method="post" action="/settings" enctype="multipart/form-data" class="space-y-8">
+    <input type="hidden" name="csrf_token" value="{{ get_csrf_token(request) }}">
 
     {# ── Abschnitt: Unser Profil ─────────────────────────────────────────── #}
     <section class="bg-white rounded-2xl shadow-md p-6">
@@ -70,7 +71,7 @@
         <div class="flex items-center gap-4">
           {# Aktuelles Profilbild #}
           {% if user.avatar_path %}
-          <img src="/{{ user.avatar_path }}" alt="Profilbild"
+          <img src="{{ user.avatar_path|upload_url }}" alt="Profilbild"
                class="w-16 h-16 rounded-full object-cover border-2 border-emerald-300">
           {% else %}
           <div class="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center text-2xl border-2 border-emerald-300">

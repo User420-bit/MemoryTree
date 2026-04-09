@@ -2,29 +2,23 @@
 
 import logging
 import os
-import uuid
 from datetime import date as date_cls
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
-from PIL import Image
 from sqlalchemy.orm import Session
 
 from auth import get_current_user
-from config import settings
 from database import get_db
 from models import CoupleSettings, User
+from uploads import process_upload, safe_remove
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Einstellungen"])
 templates = Jinja2Templates(directory="templates")
-
-ALLOWED_IMAGE_TYPES: set[str] = {"image/jpeg", "image/png", "image/webp"}
-MAX_AVATAR_SIZE: int = 10 * 1024 * 1024  # 10 MB
-AVATAR_MAX_DIM: int = 512
 
 
 def _get_or_create_couple_settings(db: Session) -> CoupleSettings:
@@ -70,31 +64,18 @@ def _handle_avatar_upload(
     avatar: UploadFile,
     current_user: User,
 ) -> None:
-    """Avatar-Bild validieren, speichern, skalieren und altes Bild entfernen."""
-    if not avatar.filename or avatar.content_type not in ALLOWED_IMAGE_TYPES:
+    """Avatar-Bild validieren, speichern und altes Bild entfernen."""
+    result = process_upload(avatar)
+    if result is None:
         return
 
-    contents: bytes = avatar.file.read()
-    if len(contents) > MAX_AVATAR_SIZE:
-        return
+    main_path, _ = result
+    rel_path = os.path.relpath(main_path, start=".")
 
-    extension: str = os.path.splitext(avatar.filename)[1].lower()
-    filename: str = f"avatar_{current_user.username}_{uuid.uuid4()}{extension}"
-    filepath: str = os.path.join(settings.UPLOAD_DIR, filename)
+    if current_user.avatar_path:
+        safe_remove(current_user.avatar_path)
 
-    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-    with open(filepath, "wb") as f:
-        f.write(contents)
-
-    with Image.open(filepath) as img:
-        if img.width > AVATAR_MAX_DIM or img.height > AVATAR_MAX_DIM:
-            img.thumbnail((AVATAR_MAX_DIM, AVATAR_MAX_DIM))
-            img.save(filepath, quality=85)
-
-    if current_user.avatar_path and os.path.exists(current_user.avatar_path):
-        os.remove(current_user.avatar_path)
-
-    current_user.avatar_path = filepath
+    current_user.avatar_path = rel_path
 
 
 @router.get("/settings", response_class=HTMLResponse)

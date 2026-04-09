@@ -1,0 +1,51 @@
+# Memory Tree — Docker Compose (Pi Zero 2 W / ARM64)
+
+services:
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: memory-tree-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - APP_ENV=production
+      - DATABASE_URL=sqlite:///./data/memory_tree.db
+      - UPLOAD_DIR=data/uploads
+    volumes:
+      # Persistente Daten: SQLite DB + Uploads
+      - app-data:/app/data
+    expose:
+      - "8000"
+    # RAM-Limit sinnvoll für Pi Zero 2 W
+    mem_limit: 256m
+    memswap_limit: 384m
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: memory-tree-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+      # Statische Dateien direkt ausliefern (read-only)
+      - ./static:/srv/static:ro
+      # Uploads direkt ausliefern (read-only aus Sicht von Caddy)
+      - app-data:/srv/app-data:ro
+    depends_on:
+      app:
+        condition: service_healthy
+    mem_limit: 64m
+
+volumes:
+  app-data:
+    driver: local
+  caddy-data:
+    driver: local
+  caddy-config:
+    driver: local

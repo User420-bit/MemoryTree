@@ -6,7 +6,6 @@ from typing import List, Optional
 
 from sqlalchemy import (
     Boolean,
-    Column,
     Date,
     DateTime,
     Float,
@@ -15,7 +14,7 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.orm import relationship, Mapped
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
 
@@ -40,12 +39,12 @@ class User(Base):
 
     __tablename__ = "users"
 
-    id: int = Column(Integer, primary_key=True, index=True)
-    name: str = Column(String(100), nullable=False)
-    username: str = Column(String(50), unique=True, nullable=False, index=True)
-    hashed_password: str = Column(String(255), nullable=False)
-    avatar_path: Optional[str] = Column(String(500), nullable=True)
-    partner_since: Optional[date] = Column(Date, nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    avatar_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    partner_since: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
     memories: Mapped[List["Memory"]] = relationship("Memory", back_populates="creator")
 
@@ -55,20 +54,20 @@ class Memory(Base):
 
     __tablename__ = "memories"
 
-    id: int = Column(Integer, primary_key=True, index=True)
-    title: str = Column(String(200), nullable=False)
-    date: date = Column(Date, nullable=False)
-    description: Optional[str] = Column(Text, nullable=True)
-    location: Optional[str] = Column(String(200), nullable=True)
-    lat: Optional[float] = Column(Float, nullable=True)
-    lng: Optional[float] = Column(Float, nullable=True)
-    mood: Optional[str] = Column(String(50), nullable=True)
-    category: str = Column(String(50), nullable=False, default=CategoryEnum.alltag.value)
-    is_favorite: bool = Column(Boolean, default=False, nullable=False)
-    tree_pos_top: Optional[str] = Column(String(10), nullable=True)
-    tree_pos_left: Optional[str] = Column(String(10), nullable=True)
-    created_by: int = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at: datetime = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    date: Mapped[date] = mapped_column(Date, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    location: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    lng: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    mood: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    category: Mapped[str] = mapped_column(String(50), nullable=False, default=CategoryEnum.alltag.value)
+    is_favorite: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    tree_pos_top: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    tree_pos_left: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    created_by: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     creator: Mapped["User"] = relationship("User", back_populates="memories")
     photos: Mapped[List["Photo"]] = relationship("Photo", back_populates="memory", cascade="all, delete-orphan")
@@ -80,13 +79,13 @@ class Photo(Base):
 
     __tablename__ = "photos"
 
-    id: int = Column(Integer, primary_key=True, index=True)
-    memory_id: int = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    memory_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("memories.id", ondelete="CASCADE"), nullable=False
     )
-    filepath: str = Column(String(500), nullable=False)
-    caption: Optional[str] = Column(String(500), nullable=True)
-    uploaded_at: datetime = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    filepath: Mapped[str] = mapped_column(String(500), nullable=False)
+    caption: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     memory: Mapped["Memory"] = relationship("Memory", back_populates="photos")
 
@@ -96,12 +95,12 @@ class Milestone(Base):
 
     __tablename__ = "milestones"
 
-    id: int = Column(Integer, primary_key=True, index=True)
-    title: str = Column(String(200), nullable=False)
-    date: date = Column(Date, nullable=False)
-    icon: str = Column(String(50), default="🌟")
-    description: Optional[str] = Column(Text, nullable=True)
-    is_anniversary: bool = Column(Boolean, default=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    date: Mapped[date] = mapped_column(Date, nullable=False)
+    icon: Mapped[str] = mapped_column(String(50), default="🌟")
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_anniversary: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class Place(Base):
@@ -109,14 +108,14 @@ class Place(Base):
 
     __tablename__ = "places"
 
-    id: int = Column(Integer, primary_key=True, index=True)
-    memory_id: int = Column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    memory_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("memories.id", ondelete="CASCADE"), nullable=False
     )
-    name: str = Column(String(200), nullable=False)
-    country: Optional[str] = Column(String(100), nullable=True)
-    lat: float = Column(Float, nullable=False)
-    lng: float = Column(Float, nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    country: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    lat: Mapped[float] = mapped_column(Float, nullable=False)
+    lng: Mapped[float] = mapped_column(Float, nullable=False)
 
     memory: Mapped["Memory"] = relationship("Memory", back_populates="places")
 
@@ -126,7 +125,7 @@ class CoupleSettings(Base):
 
     __tablename__ = "couple_settings"
 
-    id: int = Column(Integer, primary_key=True, index=True)
-    partner_since: Optional[date] = Column(Date, nullable=True)
-    partner_a_name: str = Column(String(100), nullable=False, default="Partner A")
-    partner_b_name: str = Column(String(100), nullable=False, default="Partner B")
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    partner_since: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    partner_a_name: Mapped[str] = mapped_column(String(100), nullable=False, default="Partner A")
+    partner_b_name: Mapped[str] = mapped_column(String(100), nullable=False, default="Partner B")

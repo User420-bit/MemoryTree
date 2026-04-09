@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ── Auth ─────────────────────────────────────────────────────────────────────
 
 class LoginRequest(BaseModel):
-    username: str
-    password: str
+    username: str = Field(..., min_length=1, max_length=50)
+    password: str = Field(..., min_length=1, max_length=200)
 
 
 class TokenResponse(BaseModel):
@@ -22,8 +22,8 @@ class TokenResponse(BaseModel):
 # ── User ─────────────────────────────────────────────────────────────────────
 
 class UserBase(BaseModel):
-    name: str
-    username: str
+    name: str = Field(..., min_length=1, max_length=100)
+    username: str = Field(..., min_length=1, max_length=50)
 
 
 class UserRead(UserBase):
@@ -49,10 +49,10 @@ class PhotoRead(BaseModel):
 # ── Place ────────────────────────────────────────────────────────────────────
 
 class PlaceBase(BaseModel):
-    name: str
-    country: str | None = None
-    lat: float
-    lng: float
+    name: str = Field(..., min_length=1, max_length=200)
+    country: str | None = Field(None, max_length=100)
+    lat: float = Field(..., ge=-90.0, le=90.0)
+    lng: float = Field(..., ge=-180.0, le=180.0)
 
 
 class PlaceRead(PlaceBase):
@@ -64,16 +64,26 @@ class PlaceRead(PlaceBase):
 
 # ── Memory ───────────────────────────────────────────────────────────────────
 
+_VALID_CATEGORIES = {"Urlaub", "Meilenstein", "Feier", "Alltag", "Abenteuer", "Besonderes"}
+
+
 class MemoryBase(BaseModel):
-    title: str
+    title: str = Field(..., min_length=1, max_length=200)
     date: datetime.date
-    description: str | None = None
-    location: str | None = None
-    lat: float | None = None
-    lng: float | None = None
-    mood: str | None = None
-    category: str = "Alltag"
+    description: str | None = Field(None, max_length=10000)
+    location: str | None = Field(None, max_length=200)
+    lat: float | None = Field(None, ge=-90.0, le=90.0)
+    lng: float | None = Field(None, ge=-180.0, le=180.0)
+    mood: str | None = Field(None, max_length=50)
+    category: str = Field("Alltag", max_length=50)
     is_favorite: bool = False
+
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, v: str) -> str:
+        if v not in _VALID_CATEGORIES:
+            raise ValueError(f"Ungültige Kategorie: {v}")
+        return v
 
 
 class MemoryCreate(MemoryBase):
@@ -81,15 +91,22 @@ class MemoryCreate(MemoryBase):
 
 
 class MemoryUpdate(BaseModel):
-    title: str | None = None
+    title: str | None = Field(None, min_length=1, max_length=200)
     date: datetime.date | None = None
-    description: str | None = None
-    location: str | None = None
-    lat: float | None = None
-    lng: float | None = None
-    mood: str | None = None
-    category: str | None = None
+    description: str | None = Field(None, max_length=10000)
+    location: str | None = Field(None, max_length=200)
+    lat: float | None = Field(None, ge=-90.0, le=90.0)
+    lng: float | None = Field(None, ge=-180.0, le=180.0)
+    mood: str | None = Field(None, max_length=50)
+    category: str | None = Field(None, max_length=50)
     is_favorite: bool | None = None
+
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, v: str | None) -> str | None:
+        if v is not None and v not in _VALID_CATEGORIES:
+            raise ValueError(f"Ungültige Kategorie: {v}")
+        return v
 
 
 class MemoryRead(MemoryBase):
@@ -105,10 +122,10 @@ class MemoryRead(MemoryBase):
 # ── Milestone ────────────────────────────────────────────────────────────────
 
 class MilestoneBase(BaseModel):
-    title: str
+    title: str = Field(..., min_length=1, max_length=200)
     date: datetime.date
-    icon: str = "🌟"
-    description: str | None = None
+    icon: str = Field("🌟", max_length=50)
+    description: str | None = Field(None, max_length=5000)
     is_anniversary: bool = False
 
 
@@ -117,10 +134,10 @@ class MilestoneCreate(MilestoneBase):
 
 
 class MilestoneUpdate(BaseModel):
-    title: str | None = None
+    title: str | None = Field(None, min_length=1, max_length=200)
     date: datetime.date | None = None
-    icon: str | None = None
-    description: str | None = None
+    icon: str | None = Field(None, max_length=50)
+    description: str | None = Field(None, max_length=5000)
     is_anniversary: bool | None = None
 
 
@@ -153,5 +170,5 @@ class CoupleSettingsRead(BaseModel):
 
 class CoupleSettingsUpdate(BaseModel):
     partner_since: datetime.date | None = None
-    partner_a_name: str | None = None
-    partner_b_name: str | None = None
+    partner_a_name: str | None = Field(None, min_length=1, max_length=100)
+    partner_b_name: str | None = Field(None, min_length=1, max_length=100)

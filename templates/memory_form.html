@@ -31,6 +31,7 @@
         action="{{ '/memories/' ~ memory.id ~ '/edit' if memory else '/memories/new' }}"
         enctype="multipart/form-data"
         class="space-y-8">
+    <input type="hidden" name="csrf_token" value="{{ get_csrf_token(request) }}">
 
     {# ── Abschnitt: Grunddaten ───────────────────────────────────────────── #}
     <section class="bg-white rounded-2xl shadow-md p-6 space-y-6">
@@ -158,7 +159,8 @@
       <div class="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-4">
         {% for photo in memory.photos %}
         <div class="relative group">
-          <img src="/{{ photo.filepath }}" alt="{{ photo.caption or 'Vorschau der Erinnerung' }}"
+          {% set preview_alt = (photo.caption or 'Vorschau der Erinnerung')|e %}
+          <img src="{{ photo.filepath|upload_url }}" alt="{{ preview_alt }}"
                class="w-full h-24 object-cover rounded-lg">
         </div>
         {% endfor %}

@@ -38,7 +38,6 @@
     transform: translateY(-1px);
   }
   .filter-chip.active {
-    ring: 2;
     box-shadow: 0 0 0 2px rgba(251,191,36,0.5);
   }
 
@@ -94,7 +93,7 @@
               class="filter-chip px-3 py-1.5 rounded-full text-xs font-medium
                      bg-white border border-stone-200 hover:border-stone-400"
               data-filter-category="{{ cat }}"
-              style="color: {{ cfg.color }};">
+              data-color="{{ cfg.color }}">
         {{ cfg.emoji }} {{ cat }}
       </button>
       {% endfor %}
@@ -108,12 +107,13 @@
     <div class="gallery-item rounded-xl bg-white shadow-md relative cursor-pointer aspect-square"
          data-year="{{ mem.date.year if mem else '' }}"
          data-category="{{ mem.category if mem else '' }}"
-         data-lightbox-src="/{{ photo.filepath }}"
+         data-lightbox-src="{{ photo.filepath|upload_url }}"
          data-lightbox-caption="{{ photo.caption or '' }}"
          data-lightbox-title="{{ mem.title if mem else '' }}"
          data-lightbox-date="{{ mem.date.strftime('%d.%m.%Y') if mem else '' }}"
          data-lightbox-id="{{ mem.id if mem else '' }}">
-      <img src="/{{ photo.filepath }}" alt="{{ photo.caption or (mem.title if mem else 'Foto') }}"
+      {% set img_alt = (photo.caption or (mem.title if mem else 'Bild'))|e %}
+      <img src="{{ photo.filepath|upload_url }}" alt="{{ img_alt }}"
            class="w-full h-full object-cover rounded-xl" loading="lazy">
 
       {# Hover Overlay #}
@@ -123,7 +123,7 @@
         <p class="text-white/70 text-xs mt-0.5">{{ mem.date.strftime('%d.%m.%Y') }}</p>
         {% if mem.category %}
         <span class="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium text-white/90"
-              style="background: {{ category_config.get(mem.category, {}).get('color', '#6b7280') }}80;">
+              data-bg-color="{{ category_config.get(mem.category, {}).get('color', '#6b7280') }}">
           {{ category_config.get(mem.category, {}).get('emoji', '') }} {{ mem.category }}
         </span>
         {% endif %}
@@ -194,6 +194,14 @@
 {% block extra_scripts %}
 <script>
 document.addEventListener("DOMContentLoaded", function () {
+  // ── Daten-Attribute anwenden ──────────────────────────────────────
+  document.querySelectorAll("[data-color]").forEach(function (el) {
+    el.style.color = el.dataset.color;
+  });
+  document.querySelectorAll("[data-bg-color]").forEach(function (el) {
+    el.style.background = el.dataset.bgColor + "80";
+  });
+
   var grid = document.getElementById("gallery-grid");
   if (!grid) return;
 

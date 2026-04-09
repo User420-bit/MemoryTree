@@ -1,12 +1,15 @@
 # Memory Tree — FastAPI Hauptanwendung
 
+import json
 import logging
+import sys
+from contextlib import asynccontextmanager
 from datetime import date, datetime
+from pathlib import Path
 from typing import Annotated, List
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -14,7 +17,15 @@ from sqlalchemy import extract, func, inspect as sa_inspect, text
 from sqlalchemy.orm import Session
 
 from auth import get_current_user, hash_password
+from config import settings
 from database import Base, SessionLocal, engine, get_db
+from middleware import (
+    CSRFMiddleware,
+    RequestIDMiddleware,
+    SecurityHeadersMiddleware,
+    TokenRefreshMiddleware,
+    get_csrf_token,
+)
 from models import CoupleSettings, Memory, Milestone, Photo, Place, User
 
 from routers.auth import router as auth_router
@@ -23,102 +34,110 @@ from routers.photos import router as photos_router
 from routers.milestones import router as milestones_router
 from routers.settings import router as settings_router
 
+
+# ── Structured Logging ───────────────────────────────────────────────────────
+
+class JSONFormatter(logging.Formatter):
+    """JSON-Logformat für strukturiertes Logging via docker logs."""
+    def format(self, record: logging.LogRecord) -> str:
+        log_data = {
+            "ts": self.formatTime(record),
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        # Extra-Felder hinzufügen (Request-ID etc.)
+        for key in ("request_id", "method", "path", "status", "duration_ms"):
+            val = getattr(record, key, None)
+            if val is not None:
+                log_data[key] = val
+        if record.exc_info and record.exc_info[0]:
+            log_data["exception"] = self.formatException(record.exc_info)
+        return json.dumps(log_data, ensure_ascii=False)
+
+
+def _setup_logging() -> None:
+    """Logging konfigurieren: JSON auf stdout in Production, lesbar in Dev."""
+    root = logging.getLogger()
+    root.setLevel(getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO))
+
+    # Vorhandene Handler entfernen
+    for handler in root.handlers[:]:
+        root.removeHandler(handler)
+
+    handler = logging.StreamHandler(sys.stdout)
+    if settings.is_production:
+        handler.setFormatter(JSONFormatter())
+    else:
+        handler.setFormatter(logging.Formatter(
+            "%(asctime)s %(levelname)-8s %(name)s — %(message)s"
+        ))
+    root.addHandler(handler)
+
+    # Externe Libraries leiser stellen
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+
+
+_setup_logging()
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
-
-# ── FastAPI App erstellen ────────────────────────────────────────────────────
-
-app = FastAPI(
-    title="Memory Tree",
-    description="Privates digitales Erinnerungsbuch für Paare",
-    version="1.0.0",
-)
-
-# ── CORS Middleware ──────────────────────────────────────────────────────────
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# ── Statische Dateien & Templates ───────────────────────────────────────────
-
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
-templates.env.globals["now"] = datetime.now
-
-# ── Router einbinden ────────────────────────────────────────────────────────
-
-app.include_router(auth_router)
-app.include_router(memories_router)
-app.include_router(photos_router)
-app.include_router(milestones_router)
-app.include_router(settings_router)
 
 
-# ── Exception-Handler: 401 → Login-Redirect ─────────────────────────────────
+# ── Lifespan: Startup / Shutdown ─────────────────────────────────────────────
 
-@app.exception_handler(HTTPException)
-async def auth_exception_handler(request: Request, exc: HTTPException) -> Response:
-    """Bei 401 automatisch zur Login-Seite weiterleiten."""
-    if exc.status_code == 401:
-        return RedirectResponse(url="/auth/login", status_code=303)
-    # Alle anderen HTTP-Fehler normal weitergeben
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup: DB initialisieren, Verzeichnisse erstellen. Shutdown: aufräumen."""
+    # Startup
+    _init_database()
+    _ensure_directories()
+    logger.info("Memory Tree gestartet (env=%s)", settings.APP_ENV)
+    yield
+    # Shutdown
+    logger.info("Memory Tree wird beendet")
 
 
-# ── Startup-Event ────────────────────────────────────────────────────────────
+def _ensure_directories() -> None:
+    """Upload- und Daten-Verzeichnisse erstellen."""
+    Path(settings.UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
+    Path(settings.UPLOAD_DIR, "thumbs").mkdir(parents=True, exist_ok=True)
+    # DB-Verzeichnis aus DATABASE_URL extrahieren
+    if settings.DATABASE_URL.startswith("sqlite:///"):
+        db_path = settings.DATABASE_URL.replace("sqlite:///", "")
+        if db_path.startswith("./"):
+            db_path = db_path[2:]
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
-@app.on_event("startup")
-def on_startup() -> None:
-    """Datenbank-Tabellen erstellen und Test-Benutzer anlegen."""
+
+def _init_database() -> None:
+    """DB-Tabellen erstellen und bei Bedarf Spalten nachrüsten."""
     Base.metadata.create_all(bind=engine)
     logger.info("Datenbank initialisiert")
 
-    # Pragmatische SQLite-Migration: is_favorite Spalte nachrüsten
+    # Pragmatische SQLite-Migration: Spalten nachrüsten
     inspector = sa_inspect(engine)
-    columns = [c["name"] for c in inspector.get_columns("memories")]
-    if "is_favorite" not in columns:
+    try:
+        columns = [c["name"] for c in inspector.get_columns("memories")]
+    except Exception:
+        columns = []
+
+    if columns and "is_favorite" not in columns:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE memories ADD COLUMN is_favorite BOOLEAN DEFAULT 0 NOT NULL"))
         logger.info("Spalte 'is_favorite' zu memories hinzugefügt")
-    if "tree_pos_top" not in columns:
+    if columns and "tree_pos_top" not in columns:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE memories ADD COLUMN tree_pos_top VARCHAR(10)"))
             conn.execute(text("ALTER TABLE memories ADD COLUMN tree_pos_left VARCHAR(10)"))
         logger.info("Spalten 'tree_pos_top/left' zu memories hinzugefügt")
 
+    # Initiale Benutzer nur in Development erstellen
+    if not settings.is_production:
+        _create_dev_users()
+
+    # Paar-Einstellungen (Singleton)
     db: Session = SessionLocal()
     try:
-        existing_a: User | None = db.query(User).filter(User.username == "partner_a").first()
-        existing_b: User | None = db.query(User).filter(User.username == "partner_b").first()
-
-        if not existing_a:
-            user_a = User(
-                name="Partner A",
-                username="partner_a",
-                hashed_password=hash_password("test1234"),
-                partner_since=date(2024, 1, 1),
-            )
-            db.add(user_a)
-
-        if not existing_b:
-            user_b = User(
-                name="Partner B",
-                username="partner_b",
-                hashed_password=hash_password("test1234"),
-                partner_since=date(2024, 1, 1),
-            )
-            db.add(user_b)
-
-        if not existing_a or not existing_b:
-            db.commit()
-            logger.info("Test-Benutzer erstellt")
-
-        # Paar-Einstellungen anlegen (Singleton)
         cs: CoupleSettings | None = db.query(CoupleSettings).first()
         if cs is None:
             cs = CoupleSettings(
@@ -131,6 +150,111 @@ def on_startup() -> None:
             logger.info("Paar-Einstellungen erstellt")
     finally:
         db.close()
+
+
+def _create_dev_users() -> None:
+    """Test-Benutzer nur in der Entwicklungsumgebung erstellen."""
+    db: Session = SessionLocal()
+    try:
+        existing_a = db.query(User).filter(User.username == "partner_a").first()
+        existing_b = db.query(User).filter(User.username == "partner_b").first()
+
+        if not existing_a:
+            db.add(User(
+                name="Partner A",
+                username="partner_a",
+                hashed_password=hash_password("test1234"),
+                partner_since=date(2024, 1, 1),
+            ))
+        if not existing_b:
+            db.add(User(
+                name="Partner B",
+                username="partner_b",
+                hashed_password=hash_password("test1234"),
+                partner_since=date(2024, 1, 1),
+            ))
+        if not existing_a or not existing_b:
+            db.commit()
+            logger.info("Dev-Benutzer erstellt")
+    finally:
+        db.close()
+
+
+# ── FastAPI App erstellen ────────────────────────────────────────────────────
+
+app = FastAPI(
+    title="Memory Tree",
+    description="Privates digitales Erinnerungsbuch für Paare",
+    version="1.0.0",
+    lifespan=lifespan,
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url=None,
+)
+
+# ── Middleware (Reihenfolge: letzter add = äußerste Schicht = zuerst ausgeführt) ──
+
+app.add_middleware(RequestIDMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(CSRFMiddleware)
+app.add_middleware(TokenRefreshMiddleware)
+
+# ── Statische Dateien & Templates ───────────────────────────────────────────
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Uploads separat mounten (data/uploads → /uploads/)
+_upload_path = Path(settings.UPLOAD_DIR)
+_upload_path.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(_upload_path)), name="uploads")
+
+templates = Jinja2Templates(directory="templates")
+templates.env.globals["now"] = datetime.now
+templates.env.globals["get_csrf_token"] = get_csrf_token
+
+
+def _upload_url(filepath: str) -> str:
+    """Wandelt DB-Dateipfad in URL um. Unterstützt alte (static/uploads/) und neue (data/uploads/) Pfade."""
+    if not filepath:
+        return ""
+    # Altes Format: static/uploads/xxx.jpg → /static/uploads/xxx.jpg
+    if filepath.startswith("static/"):
+        return f"/{filepath}"
+    # Neues Format: data/uploads/xxx.jpg → /uploads/xxx.jpg
+    if filepath.startswith("data/uploads/"):
+        return filepath.replace("data/uploads/", "/uploads/", 1)
+    # Absoluter Pfad (Legacy) → nur Dateiname extrahieren
+    import os
+    basename = os.path.basename(filepath)
+    return f"/uploads/{basename}"
+
+
+templates.env.filters["upload_url"] = _upload_url
+
+# ── Router einbinden ────────────────────────────────────────────────────────
+
+app.include_router(auth_router)
+app.include_router(memories_router)
+app.include_router(photos_router)
+app.include_router(milestones_router)
+app.include_router(settings_router)
+
+
+# ── Health Endpoint ──────────────────────────────────────────────────────────
+
+@app.get("/health")
+def health_check() -> dict[str, str]:
+    """Einfacher Health-Check für Docker und Monitoring."""
+    return {"status": "ok"}
+
+
+# ── Exception-Handler: 401 → Login-Redirect ─────────────────────────────────
+
+@app.exception_handler(HTTPException)
+async def auth_exception_handler(request: Request, exc: HTTPException) -> Response:
+    """Bei 401 automatisch zur Login-Seite weiterleiten."""
+    if exc.status_code == 401:
+        return RedirectResponse(url="/auth/login", status_code=303)
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 
 # ── Dashboard-Route ──────────────────────────────────────────────────────────
@@ -157,12 +281,21 @@ def dashboard(
     # Statistiken abfragen
     erinnerungen_count: int = db.query(func.count(Memory.id)).scalar() or 0
     fotos_count: int = db.query(func.count(Photo.id)).scalar() or 0
+
+    # Länder: distinct countries aus places, Fallback auf distinct locations
     laender_count: int = (
         db.query(func.count(func.distinct(Place.country)))
-        .filter(Place.country.isnot(None))
+        .filter(Place.country.isnot(None), Place.country != "")
         .scalar()
         or 0
     )
+    if laender_count == 0:
+        laender_count = (
+            db.query(func.count(func.distinct(Memory.location)))
+            .filter(Memory.location.isnot(None), Memory.location != "")
+            .scalar()
+            or 0
+        )
 
     # Paar-Einstellungen laden
     cs: CoupleSettings | None = db.query(CoupleSettings).first()
@@ -184,6 +317,10 @@ def dashboard(
     letzte_erinnerungen: List[Memory] = (
         db.query(Memory).order_by(Memory.date.desc()).limit(5).all()
     )
+
+    # Partnername ermitteln (der jeweils andere)
+    partner: User | None = db.query(User).filter(User.id != current_user.id).first()
+    partner_name: str | None = partner.name if partner else None
 
     # Nächstes Jubiläum berechnen
     naechstes_jubilaeum: str | None = None
@@ -228,6 +365,7 @@ def dashboard(
             "favoriten_count": favoriten_count,
             "naechstes_jubilaeum": naechstes_jubilaeum,
             "an_diesem_tag": an_diesem_tag,
+            "partner_name": partner_name,
         },
     )
 

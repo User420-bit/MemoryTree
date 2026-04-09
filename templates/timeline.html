@@ -118,7 +118,7 @@
                class="relative md:w-56 lg:w-64 flex-shrink-0 block">
               {% if memory.photos and memory.photos|length > 0 %}
               <div class="h-48 md:h-full overflow-hidden">
-                <img src="/{{ memory.photos[0].filepath }}" alt="{{ memory.title }}"
+                <img src="{{ memory.photos[0].filepath|upload_url }}" alt="{{ memory.title }}"
                      class="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                      loading="lazy">
               </div>
