@@ -113,7 +113,7 @@ def set_auth_cookies(response: Response, username: str) -> None:
     access_token = create_access_token(data={"sub": username})
     refresh_token = create_refresh_token(data={"sub": username})
 
-    secure_flag = settings.is_production
+    secure_flag = False
 
     response.set_cookie(
         key="access_token",
