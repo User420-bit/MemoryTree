@@ -3,6 +3,7 @@
 .gitignore
 .env
 .env.example
+.claude/
 .venv
 __pycache__
 *.pyc
@@ -26,6 +27,5 @@ docs/
 *.code-workspace
 start.sh
 stop.sh
-scripts/
 *.bak
 models.py.bak

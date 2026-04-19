@@ -12,7 +12,6 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import extract, func, inspect as sa_inspect, text
 from sqlalchemy.orm import Session
 
@@ -24,7 +23,6 @@ from middleware import (
     RequestIDMiddleware,
     SecurityHeadersMiddleware,
     TokenRefreshMiddleware,
-    get_csrf_token,
 )
 from models import CoupleSettings, Memory, Milestone, Photo, Place, User
 
@@ -130,12 +128,18 @@ def _init_database() -> None:
             conn.execute(text("ALTER TABLE memories ADD COLUMN tree_pos_top VARCHAR(10)"))
             conn.execute(text("ALTER TABLE memories ADD COLUMN tree_pos_left VARCHAR(10)"))
         logger.info("Spalten 'tree_pos_top/left' zu memories hinzugefügt")
+    if columns and "sort_order" not in columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE memories ADD COLUMN sort_order INTEGER DEFAULT 0 NOT NULL"))
+        logger.info("Spalte 'sort_order' zu memories hinzugefügt")
 
     # Initiale Benutzer nur in Development erstellen
     if not settings.is_production:
         _create_dev_users()
 
     # Paar-Einstellungen (Singleton)
+    # SCHUTZLOGIK: partner_since wird hier NICHT gesetzt.
+    # Es darf ausschließlich über POST /settings geändert werden.
     db: Session = SessionLocal()
     try:
         cs: CoupleSettings | None = db.query(CoupleSettings).first()
@@ -143,11 +147,10 @@ def _init_database() -> None:
             cs = CoupleSettings(
                 partner_a_name="Partner A",
                 partner_b_name="Partner B",
-                partner_since=date(2024, 1, 1),
             )
             db.add(cs)
             db.commit()
-            logger.info("Paar-Einstellungen erstellt")
+            logger.info("Paar-Einstellungen erstellt (ohne Datum — wird über Einstellungen gesetzt)")
     finally:
         db.close()
 
@@ -159,19 +162,19 @@ def _create_dev_users() -> None:
         existing_a = db.query(User).filter(User.username == "partner_a").first()
         existing_b = db.query(User).filter(User.username == "partner_b").first()
 
+        # SCHUTZLOGIK: Dev-User werden OHNE partner_since erstellt.
+        # Das Beziehungsdatum wird ausschließlich über couple_settings verwaltet.
         if not existing_a:
             db.add(User(
                 name="Partner A",
                 username="partner_a",
                 hashed_password=hash_password("test1234"),
-                partner_since=date(2024, 1, 1),
             ))
         if not existing_b:
             db.add(User(
                 name="Partner B",
                 username="partner_b",
                 hashed_password=hash_password("test1234"),
-                partner_since=date(2024, 1, 1),
             ))
         if not existing_a or not existing_b:
             db.commit()
@@ -207,28 +210,7 @@ _upload_path = Path(settings.UPLOAD_DIR)
 _upload_path.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(_upload_path)), name="uploads")
 
-templates = Jinja2Templates(directory="templates")
-templates.env.globals["now"] = datetime.now
-templates.env.globals["get_csrf_token"] = get_csrf_token
-
-
-def _upload_url(filepath: str) -> str:
-    """Wandelt DB-Dateipfad in URL um. Unterstützt alte (static/uploads/) und neue (data/uploads/) Pfade."""
-    if not filepath:
-        return ""
-    # Altes Format: static/uploads/xxx.jpg → /static/uploads/xxx.jpg
-    if filepath.startswith("static/"):
-        return f"/{filepath}"
-    # Neues Format: data/uploads/xxx.jpg → /uploads/xxx.jpg
-    if filepath.startswith("data/uploads/"):
-        return filepath.replace("data/uploads/", "/uploads/", 1)
-    # Absoluter Pfad (Legacy) → nur Dateiname extrahieren
-    import os
-    basename = os.path.basename(filepath)
-    return f"/uploads/{basename}"
-
-
-templates.env.filters["upload_url"] = _upload_url
+from template_engine import templates
 
 # ── Router einbinden ────────────────────────────────────────────────────────
 
@@ -456,7 +438,7 @@ def timeline_page(
 
     # Alle Erinnerungen chronologisch absteigend
     all_memories: list[Memory] = (
-        db.query(Memory).order_by(Memory.date.desc()).all()
+        db.query(Memory).order_by(Memory.date.desc(), Memory.sort_order.asc()).all()
     )
 
     # Anzahl gepinnter Erinnerungen

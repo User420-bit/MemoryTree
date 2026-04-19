@@ -1,0 +1,38 @@
+# Memory Tree — systemd Service
+# Für Deployment ohne Docker auf dem Raspberry Pi Zero 2 W
+#
+# Installation:
+#   sudo cp scripts/memory-tree.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable memory-tree
+#   sudo systemctl start memory-tree
+#
+# Logs:
+#   sudo journalctl -u memory-tree -f
+
+[Unit]
+Description=Memory Tree Web App
+After=network.target
+
+[Service]
+Type=exec
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/memory-tree
+Environment="PATH=/home/pi/memory-tree/.venv/bin:/usr/bin:/bin"
+EnvironmentFile=/home/pi/memory-tree/.env
+ExecStart=/home/pi/memory-tree/.venv/bin/gunicorn -c gunicorn.conf.py main:app
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/pi/memory-tree/data
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

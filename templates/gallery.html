@@ -1,8 +1,6 @@
 {% extends "base.html" %}
 
 {% block title %}Galerie{% endblock %}
-{% block d3 %}{% endblock %}
-{% block leaflet %}{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -172,10 +170,10 @@
           class="absolute right-3 md:right-6 text-white/50 hover:text-white text-5xl font-light transition z-10 select-none"
           aria-label="Nächstes Foto">&#8250;</button>
 
-  {# Bild + Infos #}
-  <div class="text-center">
-    <img id="lb-img" src="" alt="" class="lightbox-img rounded-lg shadow-2xl mx-auto">
-    <div class="mt-3 text-white/90">
+  {# Bild + Infos (pb-16 to avoid collision with thumbnail strip) #}
+  <div class="text-center max-h-[calc(100vh-5rem)] flex flex-col items-center pb-16">
+    <img id="lb-img" src="" alt="" class="lightbox-img rounded-lg shadow-2xl mx-auto max-h-[calc(100vh-12rem)]">
+    <div class="mt-3 text-white/90 flex-shrink-0">
       <p id="lb-title" class="text-lg font-semibold"></p>
       <p id="lb-date" class="text-sm text-white/60 mt-0.5"></p>
       <p id="lb-caption" class="text-sm text-white/50 italic mt-1"></p>

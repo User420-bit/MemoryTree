@@ -54,6 +54,11 @@ fi
 source .venv/bin/activate
 
 # ── 3. Abhängigkeiten installieren ──
+# macOS erzeugt ._*-Dateien auf externen Laufwerken (exFAT/FAT32),
+# die pip als korrupte Distributionen interpretiert → gelbe Warnungen.
+export COPYFILE_DISABLE=1
+find .venv/lib -maxdepth 3 -name '._*' -type f -delete 2>/dev/null || true
+
 info "Prüfe Abhängigkeiten ..."
 pip install --quiet --upgrade pip
 pip install --quiet -r requirements.txt
@@ -69,20 +74,36 @@ else
 fi
 
 # ── 5. Upload-Verzeichnis sicherstellen ──
-mkdir -p static/uploads static/css static/js static/img
+mkdir -p data/uploads/thumbs static/css static/js static/img
 
 # ── 6. Server starten ──
 echo ""
-echo -e "${BOLD}┌─────────────────────────────────────┐${NC}"
-echo -e "${BOLD}│  🌳 Memory Tree wird gestartet ...  │${NC}"
-echo -e "${BOLD}│                                     │${NC}"
-echo -e "${BOLD}│  → ${CYAN}http://localhost:8000${NC}${BOLD}             │${NC}"
-echo -e "${BOLD}│  → Stoppen: ${YELLOW}CTRL+C${NC}${BOLD}                 │${NC}"
-echo -e "${BOLD}│                                     │${NC}"
-echo -e "${BOLD}│  Zugangsdaten (Standard):            │${NC}"
-echo -e "${BOLD}│  Benutzer: ${CYAN}partner_a${NC}${BOLD} / ${CYAN}partner_b${NC}${BOLD}    │${NC}"
-echo -e "${BOLD}│  Passwort: ${CYAN}test1234${NC}${BOLD}                 │${NC}"
-echo -e "${BOLD}└─────────────────────────────────────┘${NC}"
+
+# Box-Zeile mit automatischem Padding
+# Verwendung: _bline "Text mit ${ANSI}Farben${NC}" [extra_breite]
+# extra_breite: für Zeichen die breiter als 1 Spalte sind (z.B. Emojis: +1)
+_W=39
+_bline() {
+    local raw="$1"
+    local extra="${2:-0}"
+    local plain
+    plain=$(printf '%b' "$raw" | sed $'s/\033\\[[0-9;]*m//g')
+    local vlen=$(( ${#plain} + extra ))
+    local pad=$(( _W - vlen ))
+    [ "$pad" -lt 0 ] && pad=0
+    echo -e "${BOLD}│${raw}$(printf '%*s' "$pad" '')│${NC}"
+}
+
+echo -e "${BOLD}┌───────────────────────────────────────┐${NC}"
+_bline "  🌳 Memory Tree wird gestartet ..." 1
+_bline ""
+_bline "  → ${CYAN}http://localhost:8000${NC}${BOLD}"
+_bline "  → Stoppen: ${YELLOW}CTRL+C${NC}${BOLD}"
+_bline ""
+_bline "  Zugangsdaten (Standard):"
+_bline "  Benutzer: ${CYAN}partner_a${NC}${BOLD} / ${CYAN}partner_b${NC}${BOLD}"
+_bline "  Passwort: ${CYAN}test1234${NC}${BOLD}"
+echo -e "${BOLD}└───────────────────────────────────────┘${NC}"
 echo ""
 
 # Browser nach kurzer Verzögerung öffnen (im Hintergrund)

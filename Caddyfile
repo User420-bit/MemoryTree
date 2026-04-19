@@ -14,18 +14,16 @@
         header @immutable Cache-Control "public, max-age=31536000, immutable"
     }
 
-    # ── Uploads ausliefern ───────────────────────────────────────────────
-    handle /uploads/* {
-        uri strip_prefix /uploads
-        root * /srv/app-data/uploads
+    # ── Thumbnails ───────────────────────────────────────────────────────
+    handle_path /uploads/thumbs/* {
+        root * /srv/app-data/uploads/thumbs
         file_server
         header Cache-Control "public, max-age=86400"
     }
 
-    # ── Thumbnails ───────────────────────────────────────────────────────
-    handle /uploads/thumbs/* {
-        uri strip_prefix /uploads/thumbs
-        root * /srv/app-data/uploads/thumbs
+    # ── Uploads ausliefern ───────────────────────────────────────────────
+    handle_path /uploads/* {
+        root * /srv/app-data/uploads
         file_server
         header Cache-Control "public, max-age=86400"
     }
@@ -45,6 +43,7 @@
         X-Frame-Options "DENY"
         X-Content-Type-Options "nosniff"
         Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=(self), payment=()"
         # HSTS nur aktivieren wenn echtes HTTPS mit Domain-Zertifikat
         # Strict-Transport-Security "max-age=63072000; includeSubDomains"
     }

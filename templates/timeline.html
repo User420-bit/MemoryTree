@@ -1,8 +1,6 @@
 {% extends "base.html" %}
 
 {% block title %}Zeitstrahl{% endblock %}
-{% block d3 %}{% endblock %}
-{% block leaflet %}{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -13,13 +11,26 @@
     color: white;
   }
 
-  /* ── Card hover ──────────────────────────────────────────────────────── */
+  /* ── Card hover + stretched link ──────────────────────────────────────── */
   .timeline-card {
     transition: box-shadow 0.25s ease, transform 0.25s ease;
+    position: relative;
   }
   .timeline-card:hover {
     box-shadow: 0 12px 28px rgba(0,0,0,0.12);
     transform: translateY(-2px);
+  }
+  .timeline-card .stretched-link::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
+  /* Keep interactive elements above the stretched link */
+  .timeline-card .pin-btn,
+  .timeline-card .drag-handle {
+    position: relative;
+    z-index: 2;
   }
 
   /* ── Pin button ──────────────────────────────────────────────────────── */
@@ -27,11 +38,9 @@
   .pin-btn:hover { transform: scale(1.15); }
   .pin-btn:active { transform: scale(0.92); }
 
-  /* ── Year divider sticky below the filter bar ────────────────────────── */
+  /* ── Year divider ────────────────────────────────────────────────────── */
   .year-divider {
-    position: sticky;
-    top: 8.5rem;
-    z-index: 20;
+    z-index: 10;
   }
 </style>
 {% endblock %}
@@ -87,7 +96,7 @@
 
   {% if memories %}
 
-    {% set ns = namespace(current_year=0) %}
+    {% set ns = namespace(current_year=0, current_date=None) %}
     {% for memory in memories %}
       {% set mem_year = memory.date.year %}
       {% set cat = memory.category or 'Alltag' %}
@@ -95,6 +104,11 @@
 
       {# ── Jahres-Trenner ────────────────────────────────────────────── #}
       {% if mem_year != ns.current_year %}
+        {# Vorherige Datumsgruppe schließen #}
+        {% if ns.current_date is not none %}
+          </div>{# /date-group #}
+        {% endif %}
+        {% set ns.current_date = None %}
         {% set ns.current_year = mem_year %}
         <div class="year-divider pt-6 pb-3" data-year="{{ mem_year }}">
           <div class="flex items-center gap-4">
@@ -104,8 +118,26 @@
         </div>
       {% endif %}
 
+      {# ── Datumsgruppen-Wechsel ─────────────────────────────────────── #}
+      {% if memory.date != ns.current_date %}
+        {% if ns.current_date is not none %}
+          </div>{# /date-group #}
+        {% endif %}
+        {% set ns.current_date = memory.date %}
+
+        {# Datums-Header #}
+        <div class="flex items-center gap-3 mt-4 mb-2">
+          <div class="w-3 h-3 rounded-full bg-emerald-500 border-2 border-white shadow"></div>
+          <span class="text-sm font-medium text-stone-400">{{ memory.date.strftime('%d.%m.%Y') }}</span>
+        </div>
+
+        {# Datumsgruppe öffnen (Drag-Container) #}
+        <div class="date-group space-y-3" data-date="{{ memory.date.isoformat() }}">
+      {% endif %}
+
       {# ── Erinnerungs-Karte ─────────────────────────────────────────── #}
       <div class="timeline-card-wrapper mb-5"
+           data-memory-id="{{ memory.id }}"
            data-category="{{ cat }}"
            data-date="{{ memory.date.isoformat() }}"
            data-year="{{ mem_year }}">
@@ -113,9 +145,8 @@
         <div class="timeline-card bg-white rounded-2xl shadow-md overflow-hidden">
           <div class="flex flex-col md:flex-row">
 
-            {# ── Foto / Platzhalter (links auf Desktop) ────────────── #}
-            <a href="/memories/{{ memory.id }}"
-               class="relative md:w-56 lg:w-64 flex-shrink-0 block">
+            {# ── Foto / Platzhalter ────────────────────────────────── #}
+            <div class="relative md:w-56 lg:w-64 flex-shrink-0">
               {% if memory.photos and memory.photos|length > 0 %}
               <div class="h-48 md:h-full overflow-hidden">
                 <img src="{{ memory.photos[0].filepath|upload_url }}" alt="{{ memory.title }}"
@@ -128,7 +159,7 @@
                 {{ conf.emoji }}
               </div>
               {% endif %}
-            </a>
+            </div>
 
             {# ── Inhalt (rechts auf Desktop) ───────────────────────── #}
             <div class="flex-1 p-5 flex flex-col">
@@ -156,8 +187,8 @@
                 </div>
               </div>
 
-              {# Titel #}
-              <a href="/memories/{{ memory.id }}" class="group">
+              {# Titel (stretched-link: macht ganze Karte klickbar) #}
+              <a href="/memories/{{ memory.id }}" class="group stretched-link">
                 <h3 class="text-lg font-semibold text-stone-800 group-hover:text-emerald-700 transition">
                   {{ memory.title }}
                 </h3>
@@ -181,15 +212,15 @@
               </p>
               {% endif %}
 
-              {# Link zur Detailseite #}
-              <div class="mt-auto pt-3">
-                <a href="/memories/{{ memory.id }}"
-                   class="text-sm text-emerald-600 hover:text-emerald-700 font-medium transition">
-                  Weiterlesen →
-                </a>
-              </div>
-
             </div>{# /content #}
+
+            {# ── Drag-Handle (rechts) ──────────────────────────────── #}
+            <div class="drag-handle hidden cursor-grab active:cursor-grabbing text-stone-300 hover:text-stone-500
+                        flex-shrink-0 select-none items-center justify-center w-8 md:w-10
+                        border-l border-stone-100"
+                 title="Reihenfolge ändern">
+              <span class="text-xl">⠿</span>
+            </div>
 
           </div>{# /flex row #}
         </div>{# /timeline-card #}
@@ -197,6 +228,10 @@
       </div>{# /timeline-card-wrapper #}
 
     {% endfor %}
+    {# Letzte Datumsgruppe schließen #}
+    {% if ns.current_date is not none %}
+      </div>{# /date-group #}
+    {% endif %}
 
   {% else %}
 
@@ -253,4 +288,5 @@
 </script>
 <script src="/static/js/pin-animation.js"></script>
 <script src="/static/js/timeline.js"></script>
+<script src="/static/js/timeline-sort.js"></script>
 {% endblock %}

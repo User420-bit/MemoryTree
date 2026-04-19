@@ -7,7 +7,6 @@ from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from auth import get_current_user
@@ -15,12 +14,12 @@ from config import settings
 from database import get_db
 from models import Memory, Photo, Place, User
 from schemas import MemoryCreate, MemoryRead, MemoryUpdate
+from template_engine import templates
 from uploads import safe_remove, save_uploaded_photos
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/memories", tags=["Erinnerungen"])
-templates = Jinja2Templates(directory="templates")
 
 _NOT_FOUND = "Erinnerung nicht gefunden"
 _MEMORY_FORM_TEMPLATE = "memory_form.html"
@@ -262,6 +261,77 @@ def update_tree_position(
 
     logger.info("Erinnerung #%d Position aktualisiert: top=%s left=%s", memory.id, top, left)
     return JSONResponse({"ok": True})
+
+
+@router.post("/reorder", response_model=None)
+async def reorder_memories(
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> JSONResponse:
+    """Reihenfolge von Erinnerungen innerhalb eines Datums aktualisieren."""
+    data = await request.json()
+    order_list = data.get("order", [])
+
+    if not isinstance(order_list, list) or len(order_list) > 100:
+        raise HTTPException(status_code=400, detail="Ungültige Daten")
+
+    for item in order_list:
+        memory_id = item.get("id")
+        sort_val = item.get("sort_order")
+        if not isinstance(memory_id, int) or not isinstance(sort_val, int):
+            continue
+        if sort_val < 0 or sort_val > 999:
+            continue
+        memory = db.query(Memory).filter(Memory.id == memory_id).first()
+        if memory:
+            memory.sort_order = sort_val
+
+    db.commit()
+    logger.info("Reihenfolge aktualisiert von User #%d (%d Einträge)", current_user.id, len(order_list))
+    return JSONResponse({"status": "ok"})
+
+
+@router.get("/locations", response_model=None)
+def list_saved_locations(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> JSONResponse:
+    """Alle gespeicherten Orte als Autocomplete-Vorschläge zurückgeben."""
+    from sqlalchemy import distinct
+
+    # Orte aus memories (location + lat/lng)
+    locations: list[dict] = []
+    seen: set[str] = set()
+
+    rows = (
+        db.query(Memory.location, Memory.lat, Memory.lng)
+        .filter(Memory.location.isnot(None), Memory.location != "")
+        .distinct()
+        .order_by(Memory.location)
+        .all()
+    )
+    for loc, lat, lng in rows:
+        key = loc.strip().lower()
+        if key not in seen:
+            seen.add(key)
+            locations.append({"name": loc, "lat": lat, "lng": lng})
+
+    # Orte aus places Tabelle (name + country + lat/lng)
+    place_rows = (
+        db.query(Place.name, Place.country, Place.lat, Place.lng)
+        .distinct()
+        .order_by(Place.name)
+        .all()
+    )
+    for name, country, lat, lng in place_rows:
+        display = f"{name}, {country}" if country else name
+        key = display.strip().lower()
+        if key not in seen:
+            seen.add(key)
+            locations.append({"name": display, "lat": lat, "lng": lng})
+
+    return JSONResponse(locations)
 
 
 @router.get("", response_model=list[MemoryRead])

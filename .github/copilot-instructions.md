@@ -98,7 +98,7 @@ memory-tree/
 ## Database Tables
 
 - `users`: id, name, username, password_hash, avatar_path, partner_since
-- `memories`: id, title, date, description, location, lat, lng, mood, category, created_by
+- `memories`: id, title, date, description, location, lat, lng, mood, category, is_favorite, tree_pos_top, tree_pos_left, sort_order, created_by, created_at
 - `photos`: id, memory_id, filepath, caption, uploaded_at
 - `milestones`: id, title, date, icon, description, is_anniversary
 - `places`: id, memory_id, name, country, lat, lng

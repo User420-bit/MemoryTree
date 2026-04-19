@@ -1,7 +1,15 @@
 {% extends "base.html" %}
 
 {% block title %}{{ memory.title }}{% endblock %}
-{% block d3 %}{% endblock %}
+{% block leaflet %}
+<!-- Leaflet.js -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -18,9 +26,26 @@
 {% block content %}
 <div class="max-w-3xl mx-auto">
 
-  {# ── Zurück-Link ───────────────────────────────────────────────────────── #}
-  <a href="/" class="inline-flex items-center text-stone-500 hover:text-stone-700 transition mb-6">
-    ← Zurück zum Dashboard
+  {# ── Zurück-Link (intelligent: zurück zur Herkunftsseite) ────────────── #}
+  {% set ref = request.headers.get('referer', '') %}
+  {% if '/timeline' in ref %}
+    {% set back_url = '/timeline' %}
+    {% set back_label = 'Zurück zum Zeitstrahl' %}
+  {% elif '/gallery' in ref %}
+    {% set back_url = '/gallery' %}
+    {% set back_label = 'Zurück zur Galerie' %}
+  {% elif '/map' in ref %}
+    {% set back_url = '/map' %}
+    {% set back_label = 'Zurück zur Karte' %}
+  {% elif '/tree' in ref %}
+    {% set back_url = '/tree' %}
+    {% set back_label = 'Zurück zum Baum' %}
+  {% else %}
+    {% set back_url = '/' %}
+    {% set back_label = 'Zurück zum Dashboard' %}
+  {% endif %}
+  <a href="{{ back_url }}" class="inline-flex items-center text-stone-500 hover:text-stone-700 transition mb-6">
+    ← {{ back_label }}
   </a>
 
   {# ── Erfolgsmeldung ────────────────────────────────────────────────────── #}

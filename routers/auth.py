@@ -5,7 +5,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from auth import (
@@ -19,12 +18,11 @@ from auth import (
 )
 from database import get_db
 from models import User
+from template_engine import templates
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Authentifizierung"])
-
-templates = Jinja2Templates(directory="templates")
 
 
 def _get_client_ip(request: Request) -> str:
@@ -83,7 +81,12 @@ def refresh_token(
     if user is None:
         return RedirectResponse(url="/auth/login", status_code=303)
 
-    response = RedirectResponse(url=request.query_params.get("next", "/"), status_code=303)
+    # Open-Redirect-Schutz: nur relative Pfade ohne Host-Komponente erlauben
+    next_url = request.query_params.get("next", "/")
+    if not next_url.startswith("/") or next_url.startswith("//"):
+        next_url = "/"
+
+    response = RedirectResponse(url=next_url, status_code=303)
     set_auth_cookies(response, user.username)
     return response
 

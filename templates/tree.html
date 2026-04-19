@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 
 {% block title %}Memory Tree{% endblock %}
-{% block d3 %}{% endblock %}
 {% block leaflet %}{% endblock %}
 
 {% block extra_head %}
@@ -336,9 +335,11 @@
           {% endfor %}
         {% else %}
           <div id="empty-tree-hint" class="absolute top-1/3 left-1/2 -translate-x-1/2 pointer-events-none text-center">
-            <p class="text-sm text-green-700/60">
-              Pinne Erinnerungen im Zeitstrahl um sie hier zu sehen 🌿
-            </p>
+            <div class="bg-white/90 backdrop-blur-sm rounded-xl px-6 py-4 shadow-md border border-green-200">
+              <p class="text-base text-[#2d6a4f] font-medium">
+                Pinne Erinnerungen im Zeitstrahl um sie hier zu sehen 🌿
+              </p>
+            </div>
           </div>
         {% endif %}
       </div>
@@ -383,9 +384,11 @@
         </div>
         {% else %}
         <div class="text-center py-4">
-          <p class="text-xs text-green-700/50">
-            Pinne Erinnerungen im Zeitstrahl 🌿
-          </p>
+          <div class="inline-block bg-white/90 backdrop-blur-sm rounded-lg px-4 py-2 shadow-sm border border-green-200">
+            <p class="text-sm text-[#2d6a4f] font-medium">
+              Pinne Erinnerungen im Zeitstrahl 🌿
+            </p>
+          </div>
         </div>
         {% endif %}
       </div>

@@ -68,6 +68,7 @@ class Memory(Base):
     tree_pos_left: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     created_by: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     creator: Mapped["User"] = relationship("User", back_populates="memories")
     photos: Mapped[List["Photo"]] = relationship("Photo", back_populates="memory", cascade="all, delete-orphan")

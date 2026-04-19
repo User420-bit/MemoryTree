@@ -7,22 +7,25 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from auth import get_current_user
 from database import get_db
 from models import CoupleSettings, User
+from template_engine import templates
 from uploads import process_upload, safe_remove
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Einstellungen"])
-templates = Jinja2Templates(directory="templates")
 
 
 def _get_or_create_couple_settings(db: Session) -> CoupleSettings:
-    """Singleton-Zugriff auf die Paar-Einstellungen."""
+    """Singleton-Zugriff auf die Paar-Einstellungen.
+
+    SCHUTZLOGIK: partner_since wird hier NICHT gesetzt.
+    Es darf ausschließlich über POST /settings geändert werden.
+    """
     cs: CoupleSettings | None = db.query(CoupleSettings).first()
     if cs is None:
         cs = CoupleSettings(partner_a_name="Partner A", partner_b_name="Partner B")
@@ -32,22 +35,40 @@ def _get_or_create_couple_settings(db: Session) -> CoupleSettings:
     return cs
 
 
-def _parse_partner_since(raw_value: str | None) -> date_cls | None:
-    """Datums-String parsen. Gibt None zurück bei ungültigem/leerem Wert."""
+def _parse_and_validate_partner_since(raw_value: str | None) -> date_cls | None:
+    """Datums-String parsen und validieren.
+
+    Returns None bei leerem/ungültigem Wert.
+    Lehnt unrealistische Datumswerte ab (vor 1950 oder in der Zukunft).
+    """
     if not raw_value:
         return None
     try:
-        return date_cls.fromisoformat(raw_value)
+        parsed = date_cls.fromisoformat(raw_value)
     except ValueError:
-        logger.warning("Ungültiges Datum ignoriert: %s", raw_value)
+        logger.warning("Ungültiges Datumsformat ignoriert: %s", raw_value)
         return None
 
+    if parsed.year < 1950:
+        logger.warning("Unrealistisches Datum abgelehnt (vor 1950): %s", parsed)
+        return None
+    if parsed > date_cls.today():
+        logger.warning("Datum in der Zukunft abgelehnt: %s", parsed)
+        return None
 
-def _sync_partner_users(
+    return parsed
+
+
+def _sync_partner_names(
     db: Session,
     cs: CoupleSettings,
 ) -> None:
-    """User-Tabelle mit den aktuellen CoupleSettings-Werten synchronisieren."""
+    """User-Tabelle mit den aktuellen Namen synchronisieren.
+
+    SCHUTZLOGIK: Synchronisiert NUR die Namen, NICHT partner_since.
+    partner_since wird ausschließlich in couple_settings gespeichert
+    und von dort gelesen. Die User-Tabelle wird nicht angefasst.
+    """
     for username, name in [
         ("partner_a", cs.partner_a_name),
         ("partner_b", cs.partner_b_name),
@@ -56,8 +77,6 @@ def _sync_partner_users(
         if user is None:
             continue
         user.name = name
-        if cs.partner_since:
-            user.partner_since = cs.partner_since
 
 
 def _handle_avatar_upload(
@@ -85,22 +104,26 @@ def settings_page(
     db: Annotated[Session, Depends(get_db)],
 ) -> Response:
     """Einstellungsseite anzeigen."""
-    cs: CoupleSettings = _get_or_create_couple_settings(db)
+    try:
+        cs: CoupleSettings = _get_or_create_couple_settings(db)
 
-    partner_a: User | None = db.query(User).filter(User.username == "partner_a").first()
-    partner_b: User | None = db.query(User).filter(User.username == "partner_b").first()
+        partner_a: User | None = db.query(User).filter(User.username == "partner_a").first()
+        partner_b: User | None = db.query(User).filter(User.username == "partner_b").first()
 
-    return templates.TemplateResponse(
-        "settings.html",
-        {
-            "request": request,
-            "user": current_user,
-            "couple": cs,
-            "partner_a": partner_a,
-            "partner_b": partner_b,
-            "success": request.query_params.get("success"),
-        },
-    )
+        return templates.TemplateResponse(
+            "settings.html",
+            {
+                "request": request,
+                "user": current_user,
+                "couple": cs,
+                "partner_a": partner_a,
+                "partner_b": partner_b,
+                "success": request.query_params.get("success"),
+            },
+        )
+    except Exception:
+        logger.exception("Fehler beim Laden der Einstellungsseite")
+        raise
 
 
 @router.post("/settings", response_class=HTMLResponse)
@@ -114,19 +137,33 @@ def save_settings(
     avatar: Annotated[UploadFile | None, File()] = None,
 ) -> Response:
     """Einstellungen speichern."""
-    cs: CoupleSettings = _get_or_create_couple_settings(db)
+    try:
+        cs: CoupleSettings = _get_or_create_couple_settings(db)
 
-    cs.partner_a_name = partner_a_name.strip()
-    cs.partner_b_name = partner_b_name.strip()
+        cs.partner_a_name = partner_a_name.strip()
+        cs.partner_b_name = partner_b_name.strip()
 
-    parsed_date = _parse_partner_since(partner_since)
-    if parsed_date is not None:
-        cs.partner_since = parsed_date
+        # SCHUTZLOGIK: partner_since wird NUR geändert wenn der Nutzer
+        # explizit ein gültiges Datum im Formular gesendet hat.
+        # Leeres Feld → alten Wert beibehalten, NICHT überschreiben.
+        parsed_date = _parse_and_validate_partner_since(partner_since)
+        if parsed_date is not None:
+            old_date = cs.partner_since
+            cs.partner_since = parsed_date
+            if old_date != parsed_date:
+                logger.info(
+                    "Beziehungsdatum geändert: %s → %s (von User %s)",
+                    old_date, parsed_date, current_user.id,
+                )
 
-    _sync_partner_users(db, cs)
+        _sync_partner_names(db, cs)
 
-    if avatar is not None:
-        _handle_avatar_upload(avatar, current_user)
+        if avatar is not None:
+            _handle_avatar_upload(avatar, current_user)
 
-    db.commit()
-    return RedirectResponse(url="/settings?success=1", status_code=303)
+        db.commit()
+        return RedirectResponse(url="/settings?success=1", status_code=303)
+    except Exception:
+        logger.exception("Fehler beim Speichern der Einstellungen")
+        db.rollback()
+        raise

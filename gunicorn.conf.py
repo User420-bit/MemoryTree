@@ -15,6 +15,10 @@ timeout = 120
 graceful_timeout = 30
 keepalive = 5
 
+# Worker nach N Requests neustarten (Schutz gegen Memory-Leaks auf Pi)
+max_requests = 1000
+max_requests_jitter = 50
+
 # Logging auf stdout/stderr für docker logs
 accesslog = "-"
 errorlog = "-"

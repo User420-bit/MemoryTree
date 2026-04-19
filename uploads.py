@@ -182,7 +182,12 @@ def safe_remove(filepath: str) -> None:
     if not filepath:
         return
     # Aus dem DB-Pfad den absoluten Pfad rekonstruieren
-    abs_path = Path(filepath).resolve()
+    # DB speichert relative Pfade wie "data/uploads/abc.jpg"
+    candidate = Path(filepath)
+    if not candidate.is_absolute():
+        candidate = Path.cwd() / candidate
+    abs_path = candidate.resolve()
+
     # Sicherheitsprüfung: Pfad muss innerhalb UPLOAD_DIR liegen
     try:
         abs_path.relative_to(_UPLOAD_DIR)

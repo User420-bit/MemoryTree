@@ -1,7 +1,18 @@
 {% extends "base.html" %}
 
 {% block title %}{{ "Erinnerung bearbeiten" if memory else "Neue Erinnerung" }}{% endblock %}
-{% block d3 %}{% endblock %}
+{% block leaflet %}
+<!-- Leaflet.js -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+<!-- Leaflet Control Geocoder -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder@2.4.0/dist/Control.Geocoder.css" integrity="sha384-gOibXC9S5JpMrpEP0ee6wCSVHjFSEuOzLLzTUmg58qM+mJ1rI8h/aY3lS9YUmo55" crossorigin="anonymous">
+<script src="https://unpkg.com/leaflet-control-geocoder@2.4.0/dist/Control.Geocoder.min.js" integrity="sha384-EADtkExeXPeBSTq5AuJlPHB8Plc+U1etLhXeYN5K8AqMJjDxB0ZC+W6v36zwCEZs" crossorigin="anonymous"></script>
+{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -105,15 +116,21 @@
     <section class="bg-white rounded-2xl shadow-md p-6 space-y-4">
       <h2 class="text-lg font-semibold text-stone-700">📍 Ort</h2>
 
-      <div>
+      <div class="relative">
         <label for="location" class="block text-sm font-medium text-stone-600 mb-1">
           Ortsname
         </label>
         <input type="text" id="location" name="location"
                value="{{ memory.location if memory and memory.location else '' }}"
                placeholder="z. B. Rom, Italien"
+               autocomplete="off"
                class="w-full px-4 py-2.5 rounded-lg border border-stone-300
                       focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
+        {# Autocomplete-Dropdown für gespeicherte Orte #}
+        <div id="location-suggestions"
+             class="hidden absolute z-10 left-0 right-0 mt-1 bg-white border border-stone-200
+                    rounded-lg shadow-lg max-h-48 overflow-y-auto">
+        </div>
       </div>
 
       <div class="grid grid-cols-2 gap-4">
@@ -308,6 +325,76 @@ document.addEventListener("DOMContentLoaded", function () {
       };
       reader.readAsDataURL(file);
     });
+  });
+
+  // ── Orts-Autocomplete aus gespeicherten Orten ─────────────────────────
+  var suggestionsBox = document.getElementById("location-suggestions");
+  var savedLocations = [];
+
+  // Orte einmalig laden
+  fetch("/memories/locations", { credentials: "include" })
+    .then(function (r) { return r.json(); })
+    .then(function (data) { savedLocations = data || []; })
+    .catch(function () { /* keine Vorschläge verfügbar */ });
+
+  function showSuggestions(query) {
+    suggestionsBox.innerHTML = "";
+    if (!query || query.length < 1) {
+      suggestionsBox.classList.add("hidden");
+      return;
+    }
+    var q = query.toLowerCase();
+    var matches = savedLocations.filter(function (loc) {
+      return loc.name.toLowerCase().indexOf(q) !== -1;
+    }).slice(0, 8);
+
+    if (matches.length === 0) {
+      suggestionsBox.classList.add("hidden");
+      return;
+    }
+
+    matches.forEach(function (loc) {
+      var item = document.createElement("button");
+      item.type = "button";
+      item.className = "w-full text-left px-4 py-2.5 text-sm text-stone-700 hover:bg-emerald-50 " +
+                        "transition flex items-center gap-2 border-b border-stone-100 last:border-0";
+      item.innerHTML = '<span class="text-stone-400">📍</span> ' +
+                        '<span>' + escapeHtml(loc.name) + '</span>';
+      item.addEventListener("mousedown", function (e) {
+        e.preventDefault(); // Verhindert blur bevor click registriert wird
+        locationInput.value = loc.name;
+        if (loc.lat != null && loc.lng != null) {
+          latInput.value = loc.lat;
+          lngInput.value = loc.lng;
+          // Karte + Marker aktualisieren
+          var latlng = L.latLng(loc.lat, loc.lng);
+          map.setView(latlng, 13);
+          if (marker) { marker.setLatLng(latlng); }
+          else { marker = L.marker(latlng).addTo(map); }
+        }
+        locationSetByGeocode = false;
+        suggestionsBox.classList.add("hidden");
+      });
+      suggestionsBox.appendChild(item);
+    });
+    suggestionsBox.classList.remove("hidden");
+  }
+
+  function escapeHtml(text) {
+    var div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  locationInput.addEventListener("input", function () {
+    showSuggestions(locationInput.value);
+  });
+  locationInput.addEventListener("focus", function () {
+    if (locationInput.value) showSuggestions(locationInput.value);
+  });
+  locationInput.addEventListener("blur", function () {
+    // Kleine Verzögerung damit mousedown auf Vorschlag noch greift
+    setTimeout(function () { suggestionsBox.classList.add("hidden"); }, 150);
   });
 
 });

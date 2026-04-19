@@ -35,12 +35,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Anwendungscode kopieren
-COPY main.py config.py database.py auth.py models.py schemas.py middleware.py uploads.py gunicorn.conf.py ./
+COPY main.py config.py database.py auth.py models.py schemas.py middleware.py uploads.py template_engine.py gunicorn.conf.py ./
 COPY routers/ ./routers/
 COPY templates/ ./templates/
 COPY static/ ./static/
 COPY alembic/ ./alembic/
 COPY alembic.ini ./
+COPY scripts/ ./scripts/
 
 # Daten-Verzeichnisse erstellen
 RUN mkdir -p /app/data/uploads/thumbs && \

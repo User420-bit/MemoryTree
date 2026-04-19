@@ -281,3 +281,142 @@ Falls die App nur über Tailscale erreichbar ist:
 - HSTS-Header deaktiviert lassen
 - `Secure`-Flag auf Cookies kann problematisch sein ohne HTTPS — wird über `APP_ENV` gesteuert
 - UFW-Regeln können auf Port 22 + Tailscale beschränkt werden
+
+---
+
+## 9. Deployment ohne Docker (7-Phasen-Plan)
+
+Für ein leichtgewichtiges Setup direkt auf dem Pi (ohne Docker-Overhead).
+
+### Phase 1: Pi vorbereiten
+
+```bash
+# SSH auf dem Pi aktivieren (falls noch nicht geschehen)
+sudo systemctl enable ssh
+sudo systemctl start ssh
+
+# IP-Adresse herausfinden
+hostname -I
+```
+
+### Phase 2: Mac → Pi verbinden
+
+```bash
+# Vom Mac aus:
+ssh pi@<PI_IP>
+```
+
+### Phase 3: Pi-System einrichten
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y python3.11 python3.11-venv python3-pip git sqlite3 libjpeg-dev zlib1g-dev libwebp-dev
+```
+
+### Phase 4: Code übertragen
+
+```bash
+# Vom Mac aus (NICHT .venv, .env, data/, __pycache__):
+rsync -avz --exclude '.venv' --exclude '.env' --exclude 'data/' \
+  --exclude '__pycache__' --exclude '.git' --exclude '.claude/' \
+  --exclude 'node_modules' --exclude '*.pyc' --exclude '.DS_Store' \
+  /pfad/zu/MemoryTree/ pi@<PI_IP>:/home/pi/memory-tree/
+```
+
+### Phase 5: App konfigurieren
+
+```bash
+ssh pi@<PI_IP>
+cd /home/pi/memory-tree
+
+# Virtuelle Umgebung erstellen
+python3.11 -m venv .venv
+source .venv/bin/activate
+
+# Abhängigkeiten installieren
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# .env anlegen
+cp .env.example .env
+nano .env
+# SECRET_KEY generieren:
+python3 -c "import secrets; print(secrets.token_urlsafe(64))"
+# Ausgabe als SECRET_KEY= in .env eintragen
+
+# Datenverzeichnisse erstellen
+mkdir -p data/uploads/thumbs
+
+# Benutzer erstellen
+python3 scripts/create_users.py
+```
+
+### Phase 6: App starten & Auto-Start
+
+```bash
+# Teststart
+source .venv/bin/activate
+gunicorn -c gunicorn.conf.py main:app
+# → http://<PI_IP>:8000 im Browser testen, dann CTRL+C
+
+# systemd-Service installieren
+sudo cp scripts/memory-tree.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable memory-tree
+sudo systemctl start memory-tree
+
+# Status prüfen
+sudo systemctl status memory-tree
+curl -s http://localhost:8000/health
+```
+
+### Phase 7: Vom Handy testen
+
+1. Handy im gleichen WLAN wie der Pi
+2. Browser öffnen: `http://<PI_IP>:8000`
+3. Login mit den erstellten Zugangsdaten prüfen
+4. Erinnerung anlegen, Foto hochladen, Baum prüfen
+
+> **Hinweis:** Ohne HTTPS sind Cookies nicht mit `Secure`-Flag gesetzt (`APP_ENV=production` + kein HTTPS = `Secure=False`). Das ist im privaten LAN akzeptabel. Für Zugriff über das Internet Caddy mit HTTPS vorschalten oder Tailscale verwenden.
+
+---
+
+## 10. Host-Hardening Checkliste
+
+### Zusammenfassung der Sicherheitsmaßnahmen
+
+| Maßnahme | Status | Abschnitt |
+|---|---|---|
+| SSH Key-Only | ✅ | 1.1 |
+| PasswordAuthentication no | ✅ | 1.1 |
+| PermitRootLogin no | ✅ | 1.1 |
+| UFW Firewall (22/80/443) | ✅ | 1.2 |
+| Fail2ban für SSH | ✅ | 1.3 |
+| unattended-upgrades | ✅ | 1.4 |
+| Docker non-root User | ✅ | Dockerfile |
+| Docker-Socket nicht exponieren | ✅ | 1.5 |
+| SECRET_KEY aus .env | ✅ | config.py |
+| JWT in HttpOnly Cookies | ✅ | auth.py |
+| CSRF Double-Submit | ✅ | middleware.py |
+| Rate Limiting (Login) | ✅ | auth.py |
+| CSP / Security Headers | ✅ | middleware.py |
+| Upload Magic-Byte-Validierung | ✅ | uploads.py |
+| SQLite WAL + Hardening | ✅ | database.py |
+| Backup-Script | ✅ | scripts/backup.sh |
+
+### Regelmäßige Wartung
+
+```bash
+# Backups testen (monatlich Restore-Test empfohlen)
+./scripts/backup.sh
+tar -tzf backups/memory-tree-*.tar.gz | head
+
+# Disk-Auslastung prüfen
+df -h
+
+# Docker-Images aufräumen
+docker system prune -f
+
+# SQLite-Integrität prüfen
+sqlite3 data/memory_tree.db "PRAGMA integrity_check;"
+```
