@@ -38,9 +38,26 @@ class Settings(BaseSettings):
     LOGIN_RATE_LIMIT_MAX: int = 5       # max Versuche
     LOGIN_RATE_LIMIT_WINDOW: int = 300  # Fenster in Sekunden (5 Min)
 
+    # ── Transport-Security ───────────────────────────────────────────────
+    # Muss explizit auf true gesetzt werden, wenn die App ausschließlich
+    # über HTTPS erreichbar ist (z. B. Cloudflare Tunnel, Tailscale+HTTPS,
+    # Reverse-Proxy mit TLS). Bei HTTP im LAN muss dieser Wert false bleiben,
+    # sonst verwirft der Browser die Auth-Cookies komplett.
+    FORCE_SECURE_COOKIES: bool = False
+
     @property
     def is_production(self) -> bool:
         return self.APP_ENV == "production"
+
+    @property
+    def use_secure_cookies(self) -> bool:
+        """Secure-Flag nur aktivieren, wenn explizit per .env gesetzt.
+
+        Production != HTTPS: die App läuft auf dem Pi per HTTP im LAN,
+        ist aber trotzdem APP_ENV=production. Daher wird das Secure-Flag
+        an einen eigenen Schalter gebunden.
+        """
+        return self.FORCE_SECURE_COOKIES
 
     model_config = {
         "env_file": ".env",
@@ -64,3 +81,38 @@ if not settings.SECRET_KEY or settings.SECRET_KEY == "dein-geheimer-schluessel-h
         # Dev-Modus: temporären Key generieren und warnen
         settings.SECRET_KEY = secrets.token_urlsafe(64)
         print("WARNUNG: Kein SECRET_KEY gesetzt – temporärer Key wird verwendet (nur für Entwicklung).", file=sys.stderr)
+
+# SECRET_KEY-Längen-Guard: auch für gesetzte Keys minimum 32 Zeichen
+if settings.is_production and len(settings.SECRET_KEY) < 32:
+    print(
+        f"FATAL: SECRET_KEY ist zu kurz ({len(settings.SECRET_KEY)} Zeichen). "
+        "Mindestens 32 Zeichen erforderlich.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+# Hinweis wenn Production ohne Secure-Cookies läuft (bewusst per .env, aber warnen).
+if settings.is_production and not settings.FORCE_SECURE_COOKIES:
+    print(
+        "HINWEIS: APP_ENV=production aber FORCE_SECURE_COOKIES=false. "
+        "Cookies laufen unverschlüsselt — nur OK wenn die App ausschließlich "
+        "über HTTP im vertrauenswürdigen LAN erreichbar ist.",
+        file=sys.stderr,
+    )
+
+
+# ── Gemeinsame Konstanten ───────────────────────────────────────────────────
+
+# Max. gleichzeitig am Baum gepinnte Erinnerungen
+MAX_PINNED_MEMORIES: int = 8
+
+# Emoji + Farbe pro Kategorie (wird in mehreren Views verwendet).
+# Zentral hier, damit Tree/Timeline/Gallery/Map einheitlich bleiben.
+CATEGORY_CONFIG: dict[str, dict[str, str]] = {
+    "Urlaub":      {"emoji": "\U0001f3d6\ufe0f", "color": "#0891b2"},
+    "Meilenstein": {"emoji": "\U0001f31f",       "color": "#d97706"},
+    "Feier":       {"emoji": "\U0001f389",       "color": "#7c3aed"},
+    "Alltag":      {"emoji": "\U0001f4f8",       "color": "#16a34a"},
+    "Abenteuer":   {"emoji": "\U0001f32f",       "color": "#ea580c"},
+    "Besonderes":  {"emoji": "\u2764\ufe0f",     "color": "#e11d48"},
+}

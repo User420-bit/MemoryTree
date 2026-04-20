@@ -263,7 +263,11 @@ def update_tree_position(
     return JSONResponse({"ok": True})
 
 
-@router.post("/reorder", response_model=None)
+@router.post(
+    "/reorder",
+    response_model=None,
+    responses={400: {"description": "Ungültige Reorder-Daten"}},
+)
 async def reorder_memories(
     request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -458,8 +462,8 @@ def delete_memory_form(
     for photo in memory.photos:
         try:
             safe_remove(photo.filepath)
-        except OSError:
-            pass
+        except OSError as exc:
+            logger.warning("Foto-Datei konnte nicht gelöscht werden (%s): %s", photo.filepath, exc)
 
     db.delete(memory)
     db.commit()
@@ -481,8 +485,8 @@ def delete_memory(
     for photo in memory.photos:
         try:
             safe_remove(photo.filepath)
-        except OSError:
-            pass
+        except OSError as exc:
+            logger.warning("Foto-Datei konnte nicht gelöscht werden (%s): %s", photo.filepath, exc)
 
     db.delete(memory)
     db.commit()

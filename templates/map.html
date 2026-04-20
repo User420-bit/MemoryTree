@@ -40,6 +40,7 @@
     transform: translateX(-50%);
     z-index: 1000;
     pointer-events: none;
+    max-width: calc(100vw - 24px);
   }
   .stats-bar > div { pointer-events: auto; }
 
@@ -50,6 +51,29 @@
     right: 12px;
     z-index: 1000;
     max-width: 200px;
+  }
+  /* Auf schmalen Screens: Filter-Panel unter Stats-Bar schieben, damit
+     sich beide nicht überlappen. */
+  @media (max-width: 640px) {
+    .stats-bar {
+      left: 12px;
+      right: 12px;
+      transform: none;
+      max-width: none;
+    }
+    .stats-bar > div {
+      width: auto;
+      padding: 0.4rem 0.75rem !important;
+      gap: 0.75rem !important;
+      font-size: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .filter-panel {
+      top: auto;
+      bottom: 12px;
+      right: 12px;
+      max-width: calc(100vw - 24px);
+    }
   }
   .cat-toggle {
     cursor: pointer;

@@ -17,6 +17,18 @@
       100% { transform: scale(1); }
     }
     .tree-pulse { animation: treePulse 0.5s ease-out; }
+
+    /* ── Globale Responsive-Sicherheitsnetze ─────────────────────────────
+       Verhindern horizontales Scrollen durch abs. positionierte Dekor-
+       Elemente und breche lange Wörter (lange Titel/Ortsnamen) sauber um. */
+    html, body { overflow-x: hidden; max-width: 100%; }
+    img { max-width: 100%; height: auto; }
+    /* Leaflet-Kachel-Bilder in tile-panes dürfen NICHT durch den globalen
+       max-width beschnitten werden, sonst verschieben sich die Kacheln. */
+    .leaflet-container img { max-width: none; height: auto; }
+    .leaflet-container .leaflet-tile { max-width: none !important; }
+    /* Lange Wörter (Ortsnamen, URLs) brechen in Text-Blöcken um. */
+    h1, h2, h3, h4, p, span, a, li, td, th, label { overflow-wrap: anywhere; }
   </style>
 
   {% block extra_head %}{% endblock %}
@@ -28,15 +40,15 @@
   {% set current_path = request.url.path %}
   <nav class="fixed top-0 left-0 right-0 z-50 bg-emerald-800 text-white shadow-lg">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex items-center justify-between h-16">
+      <div class="flex items-center justify-between h-16 gap-2">
 
         {# Logo / Brand #}
-        <a href="/" class="flex items-center gap-2 text-lg md:text-xl font-bold tracking-wide hover:text-emerald-200 transition shrink-0 mr-8">
-          🌳 Memory Tree
+        <a href="/" class="flex items-center gap-2 text-base lg:text-xl font-bold tracking-wide hover:text-emerald-200 transition shrink-0">
+          🌳 <span class="hidden sm:inline">Memory Tree</span>
         </a>
 
-        {# Desktop Navigation (center) #}
-        <div class="hidden md:flex items-center gap-1 flex-1">
+        {# Desktop Navigation (center) — ab lg sichtbar, sonst Hamburger #}
+        <div class="hidden lg:flex items-center gap-1 flex-1 min-w-0 ml-6">
           {% set nav_links = [
             ("/", "Dashboard"),
             ("/tree", "Baum"),
@@ -47,7 +59,7 @@
           ] %}
           {% for href, label in nav_links %}
           <a href="{{ href }}"
-             class="px-3 py-1.5 rounded-md text-sm font-medium transition
+             class="px-3 py-1.5 rounded-md text-sm font-medium transition whitespace-nowrap
                     {{ 'bg-emerald-900 text-white' if current_path == href else 'text-emerald-100 hover:bg-emerald-700 hover:text-white' }}">
             {{ label }}
           </a>
@@ -55,20 +67,20 @@
         </div>
 
         {# Desktop User-Bereich (right) #}
-        <div class="hidden md:flex items-center gap-3 ml-6 shrink-0">
+        <div class="hidden lg:flex items-center gap-3 ml-4 shrink-0 min-w-0">
           {% if user %}
-          <span class="text-emerald-200 text-sm">{{ user.name }}</span>
-          <a href="/settings" class="text-emerald-200 hover:text-white transition" title="Einstellungen">⚙️</a>
+          <span class="text-emerald-200 text-sm truncate max-w-[10rem]" title="{{ user.name }}">{{ user.name }}</span>
+          <a href="/settings" class="text-emerald-200 hover:text-white transition shrink-0" title="Einstellungen">⚙️</a>
           {% endif %}
           <a href="/auth/logout"
-             class="bg-emerald-700 hover:bg-emerald-600 px-3 py-1.5 rounded-md text-sm font-medium transition">
+             class="bg-emerald-700 hover:bg-emerald-600 px-3 py-1.5 rounded-md text-sm font-medium transition whitespace-nowrap shrink-0">
             Abmelden
           </a>
         </div>
 
-        {# Mobile Hamburger Button #}
+        {# Mobile/Tablet Hamburger Button — bis einschließlich md #}
         <button id="mobile-menu-btn"
-                class="md:hidden p-2 rounded-md hover:bg-emerald-700 transition"
+                class="lg:hidden p-2 rounded-md hover:bg-emerald-700 transition shrink-0"
                 aria-label="Menü öffnen">
           <svg id="hamburger-open" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -82,9 +94,9 @@
       </div>
     </div>
 
-    {# Mobile Dropdown Menu #}
+    {# Mobile/Tablet Dropdown Menu — bis einschließlich md #}
     <div id="mobile-menu"
-         class="md:hidden hidden overflow-hidden transition-all duration-300 ease-in-out"
+         class="lg:hidden hidden overflow-hidden transition-all duration-300 ease-in-out"
          style="max-height: 0;">
       <div class="px-4 pt-2 pb-4 space-y-1 bg-emerald-900">
         {% for href, label in nav_links %}
@@ -97,12 +109,12 @@
         <hr class="border-emerald-700 my-2">
         <div class="px-3 py-2">
           {% if user %}
-          <span class="block text-sm text-emerald-200 mb-2">Angemeldet als {{ user.name }}</span>
+          <span class="block text-sm text-emerald-200 mb-2 break-words">Angemeldet als {{ user.name }}</span>
           {% endif %}
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3 flex-wrap">
             <a href="/settings" class="flex items-center gap-1 text-emerald-200 hover:text-white transition text-sm">⚙️ Einstellungen</a>
             <a href="/auth/logout"
-               class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg text-sm font-medium transition ml-auto">
+               class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg text-sm font-medium transition ml-auto whitespace-nowrap">
               Abmelden
             </a>
           </div>

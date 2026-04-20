@@ -16,7 +16,7 @@ from sqlalchemy import extract, func, inspect as sa_inspect, text
 from sqlalchemy.orm import Session
 
 from auth import get_current_user, hash_password
-from config import settings
+from config import CATEGORY_CONFIG, settings
 from database import Base, SessionLocal, engine, get_db
 from middleware import (
     CSRFMiddleware,
@@ -31,6 +31,31 @@ from routers.memories import router as memories_router
 from routers.photos import router as photos_router
 from routers.milestones import router as milestones_router
 from routers.settings import router as settings_router
+
+
+# ── Jubiläums-Helper ──────────────────────────────────────────────────────
+
+def _next_anniversary(partner_since: date, today: date) -> tuple[date, int, int]:
+    """Berechnet das nächste Jubiläumsdatum (Schaltjahr-sicher).
+
+    Gibt (datum, jahre, tage_bis) zurück. Wenn der Jahrestag heute oder in
+    Zukunft liegt, wird dieses Jahr verwendet, sonst das nächste.
+    """
+    def _safe_date(year: int, month: int, day: int) -> date:
+        try:
+            return date(year, month, day)
+        except ValueError:
+            # Schaltjahr-Sonderfall: 29. Feb → 28. Feb
+            return date(year, month, day - 1)
+
+    anniv_this_year = _safe_date(today.year, partner_since.month, partner_since.day)
+    if anniv_this_year < today:
+        anniv_next = _safe_date(today.year + 1, partner_since.month, partner_since.day)
+    else:
+        anniv_next = anniv_this_year
+    tage_bis = (anniv_next - today).days
+    jahre = anniv_next.year - partner_since.year
+    return anniv_next, jahre, tage_bis
 
 
 # ── Structured Logging ───────────────────────────────────────────────────────
@@ -133,8 +158,14 @@ def _init_database() -> None:
             conn.execute(text("ALTER TABLE memories ADD COLUMN sort_order INTEGER DEFAULT 0 NOT NULL"))
         logger.info("Spalte 'sort_order' zu memories hinzugefügt")
 
-    # Initiale Benutzer nur in Development erstellen
-    if not settings.is_production:
+    # Initiale Benutzer nur in Development erstellen.
+    # Doppel-Gate: zusätzlich DEBUG=True, damit ein fehlkonfiguriertes
+    # APP_ENV allein nicht reicht, um Dev-Passwörter zu aktivieren.
+    if not settings.is_production and settings.DEBUG:
+        logger.warning(
+            "DEV-MODUS: Erstelle Standard-Benutzer partner_a / partner_b "
+            "mit bekanntem Passwort. NIEMALS in Production!"
+        )
         _create_dev_users()
 
     # Paar-Einstellungen (Singleton)
@@ -307,22 +338,11 @@ def dashboard(
     # Nächstes Jubiläum berechnen
     naechstes_jubilaeum: str | None = None
     if partner_since:
-        ps: date = partner_since
-        try:
-            anniversary_this_year = date(today.year, ps.month, ps.day)
-        except ValueError:
-            # Schaltjahr-Sonderfall: 29. Feb → 28. Feb
-            anniversary_this_year = date(today.year, ps.month, ps.day - 1)
-        if anniversary_this_year < today:
-            try:
-                anniversary_next = date(today.year + 1, ps.month, ps.day)
-            except ValueError:
-                anniversary_next = date(today.year + 1, ps.month, ps.day - 1)
-        else:
-            anniversary_next = anniversary_this_year
-        tage_bis: int = (anniversary_next - today).days
-        jahre: int = anniversary_next.year - ps.year
-        naechstes_jubilaeum = f"{jahre}. Jahrestag in {tage_bis} Tagen ({anniversary_next.strftime('%d.%m.%Y')})"
+        anniv_next, jahre, tage_bis = _next_anniversary(partner_since, today)
+        naechstes_jubilaeum = (
+            f"{jahre}. Jahrestag in {tage_bis} Tagen "
+            f"({anniv_next.strftime('%d.%m.%Y')})"
+        )
 
     # "An diesem Tag"-Erinnerungen (gleicher Monat + Tag)
     an_diesem_tag: List[Memory] = (
@@ -390,14 +410,7 @@ def tree_page(
         pinned.append((mem, pos))
 
     # Kategorie-Konfig für Emoji-Fallback bei Fotos
-    category_config: dict[str, dict[str, str]] = {
-        "Urlaub": {"emoji": "\U0001f3d6\ufe0f", "color": "#0891b2"},
-        "Meilenstein": {"emoji": "\U0001f31f", "color": "#d97706"},
-        "Feier": {"emoji": "\U0001f389", "color": "#7c3aed"},
-        "Alltag": {"emoji": "\U0001f4f8", "color": "#16a34a"},
-        "Abenteuer": {"emoji": "\U0001f32f", "color": "#ea580c"},
-        "Besonderes": {"emoji": "\u2764\ufe0f", "color": "#e11d48"},
-    }
+    category_config = CATEGORY_CONFIG
 
     partner_since_display: str = ""
     if partner_since:
@@ -449,14 +462,7 @@ def timeline_page(
     )
 
     # Kategorie-Konfig
-    category_config: dict[str, dict[str, str]] = {
-        "Urlaub": {"emoji": "\U0001f3d6\ufe0f", "color": "#0891b2"},
-        "Meilenstein": {"emoji": "\U0001f31f", "color": "#d97706"},
-        "Feier": {"emoji": "\U0001f389", "color": "#7c3aed"},
-        "Alltag": {"emoji": "\U0001f4f8", "color": "#16a34a"},
-        "Abenteuer": {"emoji": "\U0001f32f", "color": "#ea580c"},
-        "Besonderes": {"emoji": "\u2764\ufe0f", "color": "#e11d48"},
-    }
+    category_config = CATEGORY_CONFIG
 
     return templates.TemplateResponse(
         "timeline.html",
@@ -494,24 +500,11 @@ def milestones_page(
     # Nächstes Jubiläum berechnen
     naechstes_jubilaeum: dict | None = None
     if partner_since:
-        ps = partner_since
-        try:
-            anniversary_this_year = date(today.year, ps.month, ps.day)
-        except ValueError:
-            anniversary_this_year = date(today.year, ps.month, ps.day - 1)
-        if anniversary_this_year < today:
-            try:
-                anniversary_next = date(today.year + 1, ps.month, ps.day)
-            except ValueError:
-                anniversary_next = date(today.year + 1, ps.month, ps.day - 1)
-        else:
-            anniversary_next = anniversary_this_year
-        tage_bis = (anniversary_next - today).days
-        jahre = anniversary_next.year - ps.year
+        anniv_next, jahre, tage_bis = _next_anniversary(partner_since, today)
         naechstes_jubilaeum = {
             "jahre": jahre,
             "tage_bis": tage_bis,
-            "datum": anniversary_next.strftime("%d.%m.%Y"),
+            "datum": anniv_next.strftime("%d.%m.%Y"),
         }
 
     return templates.TemplateResponse(
@@ -543,14 +536,7 @@ def gallery_page(
     )
 
     # Kategorie-Konfig
-    category_config: dict[str, dict[str, str]] = {
-        "Urlaub": {"emoji": "\U0001f3d6\ufe0f", "color": "#0891b2"},
-        "Meilenstein": {"emoji": "\U0001f31f", "color": "#d97706"},
-        "Feier": {"emoji": "\U0001f389", "color": "#7c3aed"},
-        "Alltag": {"emoji": "\U0001f4f8", "color": "#16a34a"},
-        "Abenteuer": {"emoji": "\U0001f32f", "color": "#ea580c"},
-        "Besonderes": {"emoji": "\u2764\ufe0f", "color": "#e11d48"},
-    }
+    category_config = CATEGORY_CONFIG
 
     # Verfügbare Jahre extrahieren
     years: list[int] = sorted(
@@ -597,14 +583,7 @@ def map_page(
     laender_count: int = len(laender_set)
 
     # Kategorie-Konfig
-    category_config: dict[str, dict[str, str]] = {
-        "Urlaub": {"emoji": "\U0001f3d6\ufe0f", "color": "#0891b2"},
-        "Meilenstein": {"emoji": "\U0001f31f", "color": "#d97706"},
-        "Feier": {"emoji": "\U0001f389", "color": "#7c3aed"},
-        "Alltag": {"emoji": "\U0001f4f8", "color": "#16a34a"},
-        "Abenteuer": {"emoji": "\U0001f32f", "color": "#ea580c"},
-        "Besonderes": {"emoji": "\u2764\ufe0f", "color": "#e11d48"},
-    }
+    category_config = CATEGORY_CONFIG
 
     return templates.TemplateResponse(
         "map.html",

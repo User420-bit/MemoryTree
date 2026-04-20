@@ -16,15 +16,26 @@ logger = logging.getLogger(__name__)
 
 # ── Konfiguration ───────────────────────────────────────────────────────────
 
-ALLOWED_EXTENSIONS: set[str] = {".jpg", ".jpeg", ".png", ".webp"}
+_EXT_JPG = ".jpg"
+_EXT_JPEG = ".jpeg"
+_EXT_PNG = ".png"
+_EXT_WEBP = ".webp"
+
+ALLOWED_EXTENSIONS: set[str] = {_EXT_JPG, _EXT_JPEG, _EXT_PNG, _EXT_WEBP}
 
 # Magic Bytes zur Validierung des Dateityps
 _MAGIC_BYTES: dict[str, list[bytes]] = {
-    ".jpg": [b"\xff\xd8\xff"],
-    ".jpeg": [b"\xff\xd8\xff"],
-    ".png": [b"\x89PNG\r\n\x1a\n"],
-    ".webp": [b"RIFF"],  # RIFF....WEBP
+    _EXT_JPG: [b"\xff\xd8\xff"],
+    _EXT_JPEG: [b"\xff\xd8\xff"],
+    _EXT_PNG: [b"\x89PNG\r\n\x1a\n"],
+    _EXT_WEBP: [b"RIFF"],  # RIFF....WEBP
 }
+
+# Decompression-Bomb-Schutz: Pillow warnt ab MAX_IMAGE_PIXELS und bricht
+# darunter mit einer ValueError ab, wenn der Wert deutlich überschritten wird.
+# 50 Megapixel reichen für realistische Kamera-Fotos, blockiert aber
+# pathologische Bilder (z. B. 100k × 100k PNG).
+Image.MAX_IMAGE_PIXELS = 50_000_000
 
 _UPLOAD_DIR = Path(settings.UPLOAD_DIR).resolve()
 _THUMBNAIL_DIR = _UPLOAD_DIR / "thumbs"
@@ -44,7 +55,7 @@ def validate_image_magic_bytes(data: bytes, extension: str) -> bool:
     for sig in signatures:
         if data[:len(sig)] == sig:
             # Zusätzliche Prüfung für WEBP: RIFF....WEBP
-            if extension.lower() == ".webp":
+            if extension.lower() == _EXT_WEBP:
                 return len(data) >= 12 and data[8:12] == b"WEBP"
             return True
     return False
@@ -64,8 +75,8 @@ def _sanitize_and_save_image(data: bytes, extension: str) -> tuple[str, str]:
 
     unique_name = uuid.uuid4().hex
     # Einheitlich als JPEG oder WEBP speichern
-    save_ext = ".webp" if extension.lower() == ".webp" else ".jpg"
-    save_format = "WEBP" if save_ext == ".webp" else "JPEG"
+    save_ext = _EXT_WEBP if extension.lower() == _EXT_WEBP else _EXT_JPG
+    save_format = "WEBP" if save_ext == _EXT_WEBP else "JPEG"
 
     main_filename = f"{unique_name}{save_ext}"
     thumb_filename = f"{unique_name}_thumb{save_ext}"
@@ -88,7 +99,7 @@ def _sanitize_and_save_image(data: bytes, extension: str) -> tuple[str, str]:
         # Hauptbild: max Dimension begrenzen
         max_dim = settings.MAX_IMAGE_SIZE
         if img.width > max_dim or img.height > max_dim:
-            img.thumbnail((max_dim, max_dim), Image.LANCZOS)
+            img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
 
         # Speichern ohne EXIF-Daten (Pillow schreibt standardmäßig keine)
         save_kwargs = {"quality": 85, "optimize": True}
@@ -98,7 +109,7 @@ def _sanitize_and_save_image(data: bytes, extension: str) -> tuple[str, str]:
 
         # Thumbnail erzeugen
         thumb_size = settings.THUMBNAIL_SIZE
-        img.thumbnail((thumb_size, thumb_size), Image.LANCZOS)
+        img.thumbnail((thumb_size, thumb_size), Image.Resampling.LANCZOS)
         img.save(str(thumb_path), format=save_format, **save_kwargs)
 
     return str(main_path), str(thumb_path)
@@ -119,7 +130,12 @@ def process_upload(file: UploadFile) -> tuple[str, str] | None:
         logger.warning("Upload abgelehnt: ungültige Erweiterung '%s'", ext)
         return None
 
-    # Datei einlesen
+    # Datei einlesen — Size-Check zuerst, um große Uploads früh abzubrechen.
+    # file.size ist aus dem Content-Length verfügbar (Starlette liest ihn).
+    if file.size is not None and file.size > settings.MAX_UPLOAD_BYTES:
+        logger.warning("Upload abgelehnt: zu groß laut Content-Length (%d bytes)", file.size)
+        return None
+
     data = file.file.read()
     if len(data) > settings.MAX_UPLOAD_BYTES:
         logger.warning("Upload abgelehnt: zu groß (%d bytes)", len(data))
@@ -138,7 +154,7 @@ def process_upload(file: UploadFile) -> tuple[str, str] | None:
     try:
         with Image.open(BytesIO(data)) as test_img:
             test_img.verify()
-    except Exception:
+    except (OSError, Image.UnidentifiedImageError, Image.DecompressionBombError):
         logger.warning("Upload abgelehnt: Pillow konnte Bild nicht verifizieren")
         return None
 
@@ -161,7 +177,7 @@ def save_uploaded_photos(
         result = process_upload(file)
         if result is None:
             continue
-        main_path, thumb_path = result
+        main_path, _thumb_path = result
 
         # Relativen Pfad für DB speichern (relativ zum Projektverzeichnis)
         rel_main = os.path.relpath(main_path, start=".")
@@ -178,21 +194,29 @@ def save_uploaded_photos(
 
 
 def safe_remove(filepath: str) -> None:
-    """Datei sicher entfernen — validiert, dass Pfad innerhalb UPLOAD_DIR liegt."""
+    """Datei sicher entfernen — validiert, dass Pfad innerhalb UPLOAD_DIR liegt.
+
+    Betrachtet den Input als UNVERTRAUENSWÜRDIG: DB-Rows könnten manipuliert
+    sein oder aus alten Code-Pfaden stammen. Wir normalisieren deshalb auf den
+    reinen Dateinamen und ignorieren alle Pfad-Anteile.
+    """
     if not filepath:
         return
-    # Aus dem DB-Pfad den absoluten Pfad rekonstruieren
-    # DB speichert relative Pfade wie "data/uploads/abc.jpg"
-    candidate = Path(filepath)
-    if not candidate.is_absolute():
-        candidate = Path.cwd() / candidate
-    abs_path = candidate.resolve()
 
-    # Sicherheitsprüfung: Pfad muss innerhalb UPLOAD_DIR liegen
+    # 1) Nur den Dateinamen verwenden — Pfad-Traversal (..), absolute Pfade,
+    #    Windows-Drive-Letter und Backslashes werden dadurch eliminiert.
+    filename = os.path.basename(filepath.replace("\\", "/"))
+    if not filename or filename in (".", ".."):
+        logger.warning("safe_remove: Ungültiger Dateiname %r — ignoriert", filepath)
+        return
+
+    # 2) Zielpfad aufbauen und verifizieren, dass er tatsächlich innerhalb
+    #    _UPLOAD_DIR liegt (z. B. gegen Symlink-Tricks).
+    abs_path = (_UPLOAD_DIR / filename).resolve()
     try:
         abs_path.relative_to(_UPLOAD_DIR)
     except ValueError:
-        logger.warning("Versuch, Datei außerhalb von UPLOAD_DIR zu löschen: %s", filepath)
+        logger.warning("safe_remove: Pfad außerhalb UPLOAD_DIR %s", abs_path)
         return
 
     if abs_path.is_file():
@@ -200,6 +224,10 @@ def safe_remove(filepath: str) -> None:
 
     # Auch Thumbnail löschen falls vorhanden
     thumb_name = abs_path.stem + "_thumb" + abs_path.suffix
-    thumb_path = _THUMBNAIL_DIR / thumb_name
+    thumb_path = (_THUMBNAIL_DIR / thumb_name).resolve()
+    try:
+        thumb_path.relative_to(_THUMBNAIL_DIR)
+    except ValueError:
+        return
     if thumb_path.is_file():
         thumb_path.unlink()
