@@ -189,11 +189,11 @@ def toggle_favorite(
     if memory is None:
         raise HTTPException(status_code=404, detail=_NOT_FOUND)
 
-    # Pinning: max 8 erlaubt
+    # Pinning: max 8 erlaubt (versteckte zählen nicht mit)
     if not memory.is_favorite:
         total_pinned: int = (
             db.query(func.count(Memory.id))
-            .filter(Memory.is_favorite == True)
+            .filter(Memory.is_favorite == True, Memory.is_hidden == False)
             .scalar() or 0
         )
         if total_pinned >= 8:
@@ -207,7 +207,7 @@ def toggle_favorite(
 
     total_pinned_after: int = (
         db.query(func.count(Memory.id))
-        .filter(Memory.is_favorite == True)
+        .filter(Memory.is_favorite == True, Memory.is_hidden == False)
         .scalar() or 0
     )
 
@@ -216,6 +216,42 @@ def toggle_favorite(
         memory.id, memory.is_favorite, current_user.id, total_pinned_after,
     )
     return JSONResponse({"is_favorite": memory.is_favorite, "total_pinned": total_pinned_after})
+
+
+@router.post(
+    "/{memory_id}/toggle-hidden",
+    response_model=None,
+    responses={404: {"description": _NOT_FOUND}},
+)
+def toggle_hidden(
+    memory_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> JSONResponse:
+    """Sichtbarkeit einer Erinnerung umschalten.
+
+    Versteckte Erinnerungen erscheinen nirgendwo in der App, außer im
+    Verwaltungsbereich auf der Einstellungsseite. Wird eine Erinnerung
+    versteckt, wird sie zusätzlich automatisch vom Baum entpinnt.
+    """
+    memory: Memory | None = db.query(Memory).filter(Memory.id == memory_id).first()
+    if memory is None:
+        raise HTTPException(status_code=404, detail=_NOT_FOUND)
+
+    memory.is_hidden = not memory.is_hidden
+    if memory.is_hidden and memory.is_favorite:
+        memory.is_favorite = False
+
+    db.commit()
+
+    logger.info(
+        "Erinnerung #%d is_hidden=%s is_favorite=%s von User #%d",
+        memory.id, memory.is_hidden, memory.is_favorite, current_user.id,
+    )
+    return JSONResponse({
+        "is_hidden": memory.is_hidden,
+        "is_favorite": memory.is_favorite,
+    })
 
 
 @router.post(
@@ -346,8 +382,8 @@ def list_memories(
     year: int | None = None,
     favorites_only: bool = False,
 ) -> list[Memory]:
-    """Alle Erinnerungen abfragen, optional nach Kategorie, Jahr und Favoriten gefiltert."""
-    query = db.query(Memory)
+    """Alle sichtbaren Erinnerungen abfragen, optional nach Kategorie, Jahr und Favoriten gefiltert."""
+    query = db.query(Memory).filter(Memory.is_hidden == False)
 
     if category is not None:
         query = query.filter(Memory.category == category)

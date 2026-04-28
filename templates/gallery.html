@@ -103,7 +103,7 @@
   <div id="gallery-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
     {% for photo in photos %}
     {% set mem = photo.memory %}
-    <div class="gallery-item rounded-xl bg-white shadow-md relative cursor-pointer aspect-square"
+    <div class="gallery-item group rounded-xl bg-white shadow-md relative cursor-pointer aspect-square"
          data-year="{{ mem.date.year if mem else '' }}"
          data-category="{{ mem.category if mem else '' }}"
          data-lightbox-src="{{ photo.filepath|upload_url }}"
@@ -114,6 +114,23 @@
       {% set img_alt = (photo.caption or (mem.title if mem else 'Bild'))|e %}
       <img src="{{ photo.filepath|upload_url }}" alt="{{ img_alt }}"
            class="w-full h-full object-cover rounded-xl" loading="lazy">
+
+      {# Verstecken-Button (nur bei Hover sichtbar, stoppt Lightbox-Klick) #}
+      {% if mem %}
+      <button type="button"
+              onclick="event.stopPropagation(); toggleHidden({{ mem.id }}, this);"
+              class="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 hover:bg-black/70
+                     text-white opacity-0 group-hover:opacity-100 hover:opacity-100
+                     transition-opacity"
+              title="Erinnerung verstecken">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+        </svg>
+      </button>
+      {% endif %}
 
       {# Hover Overlay #}
       <div class="gallery-overlay absolute inset-0 rounded-xl bg-gradient-to-t from-black/70 via-black/10 to-transparent flex flex-col justify-end p-3">

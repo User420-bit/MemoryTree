@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>{% block title %}Memory Tree{% endblock %} | 🌳 Memory Tree</title>
 
   <!-- Tailwind CSS -->
@@ -38,7 +38,10 @@
   {# ── Navbar ─────────────────────────────────────────────────────────────── #}
   {% block navbar %}
   {% set current_path = request.url.path %}
-  <nav class="fixed top-0 left-0 right-0 z-50 bg-emerald-800 text-white shadow-lg">
+  {# z-[1100] hebt die Navbar (inkl. Burger & Mobile-Menü) über Leaflet-
+     Controls (z-index 1000) und Map-Panes — sonst ist der Burger-Button
+     auf der Karten-Seite nicht klickbar. #}
+  <nav class="fixed top-0 left-0 right-0 z-[1100] bg-emerald-800 text-white shadow-lg">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex items-center justify-between h-16 gap-2">
 
@@ -200,5 +203,8 @@
   </script>
 
   {% block extra_scripts %}{% endblock %}
+
+  {# ── Hide/Unhide Memories (auf allen Seiten verfügbar) ────────────── #}
+  <script src="/static/js/hide-memory.js"></script>
 </body>
 </html>

@@ -49,13 +49,16 @@
       </div>
 
       {# Zusammen-seit-Datum #}
-      <div class="mt-6">
+      <div class="mt-6 min-w-0">
         <label for="partner_since" class="block text-sm font-medium text-stone-600 mb-1">
           ❤️ Zusammen seit
         </label>
-        <input type="date" id="partner_since" name="partner_since"
-               value="{{ couple.partner_since.isoformat() if couple.partner_since else '' }}"
-               class="w-full md:w-1/2 px-4 py-2.5 rounded-lg border border-stone-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
+        <div class="w-full md:w-1/2 max-w-full">
+          <input type="date" id="partner_since" name="partner_since"
+                 value="{{ couple.partner_since.isoformat() if couple.partner_since else '' }}"
+                 style="box-sizing: border-box; max-width: 100%;"
+                 class="block w-full max-w-full box-border min-w-0 px-4 py-2.5 rounded-lg border border-stone-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
+        </div>
         <p class="text-xs text-stone-400 mt-1">Das gemeinsame Startdatum eurer Beziehung</p>
       </div>
 
@@ -118,5 +121,184 @@
     </div>
 
   </form>
+
+  {# ── Abschnitt: Login-Daten ändern ────────────────────────────────────── #}
+  <section class="bg-white rounded-2xl shadow-md p-6 mt-8">
+    <h2 class="text-xl font-semibold text-stone-700 mb-1 flex items-center gap-2">
+      🔐 Login-Daten
+    </h2>
+    <p class="text-sm text-stone-500 mb-6">
+      Angemeldet als <span class="font-medium">{{ user.username }}</span>
+    </p>
+
+    {% if account_success == "username" %}
+    <div class="bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl p-3 mb-4 text-sm">
+      ✅ Benutzername erfolgreich geändert.
+    </div>
+    {% elif account_success == "password" %}
+    <div class="bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl p-3 mb-4 text-sm">
+      ✅ Passwort erfolgreich geändert.
+    </div>
+    {% endif %}
+
+    {% if account_error %}
+    <div class="bg-red-50 border border-red-300 text-red-800 rounded-xl p-3 mb-4 text-sm">
+      ⚠️ {{ account_error }}
+    </div>
+    {% endif %}
+
+    {# ── Benutzername ändern ─────────────────────────────────────────────── #}
+    <form method="post" action="/settings/change-username" class="space-y-4 mb-8">
+      <input type="hidden" name="csrf_token" value="{{ get_csrf_token(request) }}">
+
+      <h3 class="text-base font-semibold text-stone-700">Benutzername ändern</h3>
+
+      <div class="min-w-0">
+        <label for="new_username" class="block text-sm font-medium text-stone-600 mb-1">
+          Neuer Benutzername
+        </label>
+        <input type="text" id="new_username" name="new_username"
+               required minlength="3" maxlength="50"
+               autocomplete="username"
+               pattern="[A-Za-z0-9_.\-]+"
+               title="Nur Buchstaben, Zahlen, _ . und -"
+               class="block w-full max-w-full box-border min-w-0 px-4 py-2.5 rounded-lg border border-stone-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
+      </div>
+
+      <div class="min-w-0">
+        <label for="current_password_username" class="block text-sm font-medium text-stone-600 mb-1">
+          Aktuelles Passwort (zur Bestätigung)
+        </label>
+        <input type="password" id="current_password_username" name="current_password"
+               required autocomplete="current-password"
+               class="block w-full max-w-full box-border min-w-0 px-4 py-2.5 rounded-lg border border-stone-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
+      </div>
+
+      <div class="flex justify-end">
+        <button type="submit"
+                class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 px-6 rounded-lg shadow transition">
+          Benutzername speichern
+        </button>
+      </div>
+    </form>
+
+    <hr class="border-stone-200 my-6">
+
+    {# ── Passwort ändern ─────────────────────────────────────────────────── #}
+    <form method="post" action="/settings/change-password" class="space-y-4">
+      <input type="hidden" name="csrf_token" value="{{ get_csrf_token(request) }}">
+
+      <h3 class="text-base font-semibold text-stone-700">Passwort ändern</h3>
+
+      <div class="min-w-0">
+        <label for="current_password_pw" class="block text-sm font-medium text-stone-600 mb-1">
+          Aktuelles Passwort
+        </label>
+        <input type="password" id="current_password_pw" name="current_password"
+               required autocomplete="current-password"
+               class="block w-full max-w-full box-border min-w-0 px-4 py-2.5 rounded-lg border border-stone-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
+      </div>
+
+      <div class="min-w-0">
+        <label for="new_password" class="block text-sm font-medium text-stone-600 mb-1">
+          Neues Passwort
+        </label>
+        <input type="password" id="new_password" name="new_password"
+               required minlength="8" maxlength="128"
+               autocomplete="new-password"
+               class="block w-full max-w-full box-border min-w-0 px-4 py-2.5 rounded-lg border border-stone-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
+        <p class="text-xs text-stone-400 mt-1">Mindestens 8 Zeichen</p>
+      </div>
+
+      <div class="min-w-0">
+        <label for="new_password_repeat" class="block text-sm font-medium text-stone-600 mb-1">
+          Neues Passwort wiederholen
+        </label>
+        <input type="password" id="new_password_repeat" name="new_password_repeat"
+               required minlength="8" maxlength="128"
+               autocomplete="new-password"
+               class="block w-full max-w-full box-border min-w-0 px-4 py-2.5 rounded-lg border border-stone-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
+      </div>
+
+      <div class="flex justify-end">
+        <button type="submit"
+                class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 px-6 rounded-lg shadow transition">
+          Passwort speichern
+        </button>
+      </div>
+    </form>
+  </section>
+
+  {# ── Abschnitt: Versteckte Erinnerungen ───────────────────────────────── #}
+  <section class="bg-white rounded-2xl shadow-md p-6 mt-8">
+    <h2 class="text-xl font-semibold text-stone-700 mb-1 flex items-center gap-2">
+      🙈 Versteckte Erinnerungen
+    </h2>
+    <p id="hidden-count-text" class="text-sm text-stone-500 mb-4">
+      {% if hidden_count and hidden_count > 0 %}
+        {{ hidden_count }} Erinnerung{{ 'en' if hidden_count != 1 else '' }} versteckt
+      {% else %}
+        Keine versteckten Erinnerungen
+      {% endif %}
+    </p>
+
+    {% if hidden_memories %}
+    <div id="hidden-memories-list" class="space-y-3">
+      {% for memory in hidden_memories %}
+      <div id="hidden-{{ memory.id }}"
+           class="hidden-memory-card flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-stone-50 rounded-xl border border-stone-100"
+           data-memory-id="{{ memory.id }}">
+
+        <div class="flex items-center gap-3 min-w-0 flex-1 w-full">
+          {% if memory.photos and memory.photos|length > 0 %}
+          <img src="{{ memory.photos[0].filepath|upload_url }}"
+               alt="{{ memory.title|e }}"
+               class="w-10 h-10 rounded-lg object-cover shrink-0 opacity-60">
+          {% else %}
+          <div class="w-10 h-10 rounded-lg bg-stone-200 flex items-center justify-center text-lg shrink-0 opacity-60">
+            📝
+          </div>
+          {% endif %}
+
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium text-stone-700 truncate" style="overflow-wrap: normal; word-break: normal;">{{ memory.title }}</p>
+            <p class="text-xs text-stone-400 truncate" style="overflow-wrap: normal; word-break: normal;">
+              {{ memory.date.strftime('%d.%m.%Y') }}{% if memory.location %} · 📍 {{ memory.location }}{% endif %}
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+          <button type="button"
+                  onclick="restoreHidden({{ memory.id }}, this)"
+                  class="text-sm text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition font-medium whitespace-nowrap">
+            Einblenden
+          </button>
+          <a href="/memories/{{ memory.id }}"
+             class="text-sm text-stone-500 hover:text-stone-700 hover:bg-stone-100 px-3 py-1.5 rounded-lg transition whitespace-nowrap">
+            Ansehen
+          </a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </section>
+
 </div>
+
+<script>
+  // Live-Aktualisierung des Zählers nach Einblenden
+  window.updateHiddenCount = function () {
+    var remaining = document.querySelectorAll(".hidden-memory-card").length;
+    var el = document.getElementById("hidden-count-text");
+    if (!el) return;
+    if (remaining === 0) {
+      el.textContent = "Keine versteckten Erinnerungen";
+    } else {
+      el.textContent =
+        remaining + " Erinnerung" + (remaining !== 1 ? "en" : "") + " versteckt";
+    }
+  };
+</script>
 {% endblock %}

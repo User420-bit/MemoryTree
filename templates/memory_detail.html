@@ -137,6 +137,13 @@
       ✏️ Bearbeiten
     </a>
 
+    <button type="button"
+            onclick="toggleHidden({{ memory.id }}, this); setTimeout(function(){window.location.href='/';}, 1200);"
+            class="bg-amber-100 hover:bg-amber-200 text-amber-800 font-semibold
+                   py-2.5 px-6 rounded-xl shadow-md hover:shadow-lg transition flex items-center gap-2">
+      🙈 Verstecken
+    </button>
+
     <button type="button" id="delete-btn"
             class="bg-red-500 hover:bg-red-600 text-white font-semibold
                    py-2.5 px-6 rounded-xl shadow-md hover:shadow-lg transition flex items-center gap-2">

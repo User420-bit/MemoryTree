@@ -133,6 +133,23 @@
   .memory-popup-link:hover {
     color: #b45309;
   }
+  .memory-popup-hide {
+    display: block;
+    margin-top: 8px;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: #78716c;
+    background: transparent;
+    border: 1px solid #e7e5e4;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .memory-popup-hide:hover {
+    background: #fef3c7;
+    color: #92400e;
+    border-color: #fde68a;
+  }
 </style>
 {% endblock %}
 
@@ -291,6 +308,9 @@ document.addEventListener("DOMContentLoaded", function () {
     if (m.location) popupHtml += ' · ' + escapeHtml(m.location);
     popupHtml += '</div>';
     popupHtml += '<a class="memory-popup-link" href="/memories/' + m.id + '">Details ansehen →</a>';
+    popupHtml += '<button type="button" onclick="toggleHidden(' + m.id + ', this)" ' +
+                 'class="memory-popup-hide" ' +
+                 'title="Erinnerung verstecken">🙈 Verstecken</button>';
     popupHtml += '</div>';
 
     marker.bindPopup(popupHtml, { maxWidth: 280, className: "" });

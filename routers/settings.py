@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 from datetime import date as date_cls
 from typing import Annotated
 
@@ -9,15 +10,23 @@ from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
 
-from auth import get_current_user
+from auth import (
+    clear_auth_cookies,
+    get_current_user,
+    hash_password,
+    set_auth_cookies,
+    verify_password,
+)
 from database import get_db
-from models import CoupleSettings, User
+from models import CoupleSettings, Memory, User
 from template_engine import templates
 from uploads import process_upload, safe_remove
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Einstellungen"])
+
+_USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_.\-]{3,50}$")
 
 
 def _get_or_create_couple_settings(db: Session) -> CoupleSettings:
@@ -65,17 +74,13 @@ def _sync_partner_names(
 ) -> None:
     """User-Tabelle mit den aktuellen Namen synchronisieren.
 
-    SCHUTZLOGIK: Synchronisiert NUR die Namen, NICHT partner_since.
-    partner_since wird ausschließlich in couple_settings gespeichert
-    und von dort gelesen. Die User-Tabelle wird nicht angefasst.
+    Stabil per User-ID: Erster User (kleinste ID) = Partner A,
+    zweiter User = Partner B. Der Login-Username darf vom Nutzer
+    geändert werden, ohne dass die Zuordnung bricht.
     """
-    for username, name in [
-        ("partner_a", cs.partner_a_name),
-        ("partner_b", cs.partner_b_name),
-    ]:
-        user: User | None = db.query(User).filter(User.username == username).first()
-        if user is None:
-            continue
+    users: list[User] = db.query(User).order_by(User.id.asc()).limit(2).all()
+    names = [cs.partner_a_name, cs.partner_b_name]
+    for user, name in zip(users, names):
         user.name = name
 
 
@@ -110,6 +115,14 @@ def settings_page(
         partner_a: User | None = db.query(User).filter(User.username == "partner_a").first()
         partner_b: User | None = db.query(User).filter(User.username == "partner_b").first()
 
+        # Versteckte Erinnerungen — NUR hier laden (überall sonst ausgefiltert)
+        hidden_memories: list[Memory] = (
+            db.query(Memory)
+            .filter(Memory.is_hidden == True)
+            .order_by(Memory.date.desc())
+            .all()
+        )
+
         return templates.TemplateResponse(
             "settings.html",
             {
@@ -118,7 +131,11 @@ def settings_page(
                 "couple": cs,
                 "partner_a": partner_a,
                 "partner_b": partner_b,
+                "hidden_memories": hidden_memories,
+                "hidden_count": len(hidden_memories),
                 "success": request.query_params.get("success"),
+                "account_success": request.query_params.get("account"),
+                "account_error": request.query_params.get("account_error"),
             },
         )
     except Exception:
@@ -165,5 +182,100 @@ def save_settings(
         return RedirectResponse(url="/settings?success=1", status_code=303)
     except Exception:
         logger.exception("Fehler beim Speichern der Einstellungen")
+        db.rollback()
+        raise
+
+
+# ── Login-Daten ändern ──────────────────────────────────────────────────────
+
+def _redirect_account_error(message: str) -> RedirectResponse:
+    """Redirect zur Settings-Seite mit URL-encoded Fehlermeldung."""
+    from urllib.parse import quote
+    return RedirectResponse(
+        url=f"/settings?account_error={quote(message)}",
+        status_code=303,
+    )
+
+
+@router.post("/settings/change-username")
+def change_username(
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    new_username: Annotated[str, Form()],
+    current_password: Annotated[str, Form()],
+) -> Response:
+    """Login-Username ändern. Aktuelles Passwort wird verifiziert."""
+    try:
+        new_username_clean = new_username.strip()
+
+        if not _USERNAME_PATTERN.match(new_username_clean):
+            return _redirect_account_error(
+                "Ungültiger Benutzername (3–50 Zeichen, nur A–Z, 0–9, _ . -)."
+            )
+
+        if not verify_password(current_password, current_user.hashed_password):
+            logger.warning("Falsches Passwort bei Username-Änderung (User %s)", current_user.id)
+            return _redirect_account_error("Aktuelles Passwort ist falsch.")
+
+        if new_username_clean == current_user.username:
+            return _redirect_account_error("Neuer Benutzername entspricht dem aktuellen.")
+
+        # Eindeutigkeit prüfen
+        existing = db.query(User).filter(User.username == new_username_clean).first()
+        if existing is not None and existing.id != current_user.id:
+            return _redirect_account_error("Dieser Benutzername ist bereits vergeben.")
+
+        old_username = current_user.username
+        current_user.username = new_username_clean
+        db.commit()
+        logger.info("Username geändert: %s → %s (User %s)", old_username, new_username_clean, current_user.id)
+
+        # Cookies neu setzen — JWT 'sub' enthält den Username.
+        response = RedirectResponse(url="/settings?account=username", status_code=303)
+        set_auth_cookies(response, new_username_clean)
+        return response
+    except Exception:
+        logger.exception("Fehler beim Ändern des Benutzernamens")
+        db.rollback()
+        raise
+
+
+@router.post("/settings/change-password")
+def change_password(
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    current_password: Annotated[str, Form()],
+    new_password: Annotated[str, Form()],
+    new_password_repeat: Annotated[str, Form()],
+) -> Response:
+    """Passwort ändern. Aktuelles Passwort wird verifiziert."""
+    try:
+        if not verify_password(current_password, current_user.hashed_password):
+            logger.warning("Falsches Passwort bei Passwort-Änderung (User %s)", current_user.id)
+            return _redirect_account_error("Aktuelles Passwort ist falsch.")
+
+        if new_password != new_password_repeat:
+            return _redirect_account_error("Die neuen Passwörter stimmen nicht überein.")
+
+        if len(new_password) < 8 or len(new_password) > 128:
+            return _redirect_account_error("Neues Passwort muss 8–128 Zeichen lang sein.")
+
+        if new_password == current_password:
+            return _redirect_account_error("Das neue Passwort muss sich vom alten unterscheiden.")
+
+        current_user.hashed_password = hash_password(new_password)
+        db.commit()
+        logger.info("Passwort geändert (User %s)", current_user.id)
+
+        # Cookies erneuern, damit alte Sessions ungültig wirken können
+        # (Token bleibt zwar gültig bis exp, aber wir rotieren proaktiv).
+        response = RedirectResponse(url="/settings?account=password", status_code=303)
+        clear_auth_cookies(response)
+        set_auth_cookies(response, current_user.username)
+        return response
+    except Exception:
+        logger.exception("Fehler beim Ändern des Passworts")
         db.rollback()
         raise

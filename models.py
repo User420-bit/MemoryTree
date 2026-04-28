@@ -64,6 +64,7 @@ class Memory(Base):
     mood: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     category: Mapped[str] = mapped_column(String(50), nullable=False, default=CategoryEnum.alltag.value)
     is_favorite: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_hidden: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     tree_pos_top: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     tree_pos_left: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     created_by: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
