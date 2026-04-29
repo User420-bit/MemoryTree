@@ -30,6 +30,55 @@ Ab dem zweiten Start reicht: `./start.sh`
 
 ---
 
+## Starten unter Windows (Docker)
+
+Unter Windows läuft Memory Tree am einfachsten in einem Docker-Container —
+keine Python-Installation, kein venv, keine Pfad-Probleme.
+
+### Voraussetzung
+
+- **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** installiert und gestartet
+
+### Starten
+
+```powershell
+# 1. Konfiguration anlegen (einmalig)
+copy .env.example .env
+
+# 2. SECRET_KEY in .env eintragen — sicheren Wert generieren mit:
+docker run --rm python:3.11-slim python -c "import secrets; print(secrets.token_urlsafe(64))"
+
+# 3. App bauen und starten
+docker compose -f docker-compose.yml up --build
+```
+
+Anschließend `http://localhost:8000` im Browser öffnen.
+
+### Erster Login (User anlegen)
+
+```powershell
+# In einem zweiten Terminal, während die App läuft:
+docker compose -f docker-compose.yml exec app python scripts/create_users.py
+```
+
+### Stoppen
+
+```powershell
+# Im laufenden Terminal: Ctrl+C
+# Oder aus einem anderen Terminal:
+docker compose -f docker-compose.yml down
+```
+
+Die SQLite-Datenbank und alle hochgeladenen Bilder bleiben im Ordner
+`./data/` auf dem Host erhalten und überstehen jeden Container-Rebuild.
+
+> Hinweis: Die Datei `compose.yaml` ist die Production-Variante für den
+> Raspberry Pi (mit Caddy als Reverse-Proxy). Für lokale Entwicklung
+> unter Windows/macOS/Linux immer `docker-compose.yml` mit dem `-f`-Flag
+> verwenden.
+
+---
+
 ## App stoppen
 
 ```bash

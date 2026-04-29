@@ -14,7 +14,7 @@ from config import settings
 from database import get_db
 from models import Memory, Photo, Place, User
 from schemas import MemoryCreate, MemoryRead, MemoryUpdate
-from template_engine import templates
+from template_engine import templates, safe_internal_url
 from uploads import safe_remove, save_uploaded_photos
 
 logger = logging.getLogger(__name__)
@@ -111,9 +111,14 @@ def memory_form_edit(
     if memory is None:
         raise HTTPException(status_code=404, detail=_NOT_FOUND)
 
+    return_to = safe_internal_url(
+        request.query_params.get("from"),
+        default=f"/memories/{int(memory.id)}",
+    )
     return templates.TemplateResponse(
         _MEMORY_FORM_TEMPLATE,
-        {"request": request, "user": current_user, "memory": memory, "error": None},
+        {"request": request, "user": current_user, "memory": memory,
+         "error": None, "return_to": return_to},
     )
 
 
@@ -136,6 +141,7 @@ def memory_form_update(
     lat: Annotated[str, Form()] = "",
     lng: Annotated[str, Form()] = "",
     description: Annotated[str, Form()] = "",
+    return_to: Annotated[str, Form(alias="return_to")] = "",
     photos: Annotated[List[UploadFile], File()] = [],
 ) -> HTMLResponse | RedirectResponse:
     """Bestehende Erinnerung über das HTML-Formular aktualisieren."""
@@ -168,8 +174,12 @@ def memory_form_update(
 
     db.commit()
     logger.info("Erinnerung #%d aktualisiert von User #%d", memory.id, current_user.id)
-    redirect_url = f"/memories/{int(memory.id)}?success=updated"
-    return RedirectResponse(url=redirect_url, status_code=303)
+    # Validierter return_to → dorthin springen, sonst Detailseite
+    target = safe_internal_url(
+        return_to or None,
+        default=f"/memories/{int(memory.id)}?success=updated",
+    )
+    return RedirectResponse(url=target, status_code=303)
 
 
 @router.post(
@@ -451,9 +461,20 @@ def memory_detail(
 
     creator: User | None = db.query(User).filter(User.id == memory.created_by).first()
 
+    # Navigationskontext: explizites ?from= hat Vorrang vor Referer-Heuristik.
+    # Versteckte Erinnerungen kommen i. d. R. aus den Einstellungen.
+    from_param = request.query_params.get("from")
+    if from_param:
+        return_to = safe_internal_url(from_param, default="/")
+    elif memory.is_hidden:
+        return_to = "/settings#hidden-memories"
+    else:
+        return_to = ""  # Template fällt auf Referer-Heuristik zurück
+
     return templates.TemplateResponse(
         "memory_detail.html",
-        {"request": request, "user": current_user, "memory": memory, "creator": creator},
+        {"request": request, "user": current_user, "memory": memory,
+         "creator": creator, "return_to": return_to},
     )
 
 

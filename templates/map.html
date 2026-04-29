@@ -23,7 +23,11 @@
 <style>
   /* Map-Seite: kein Scrollen, Karte füllt den Viewport */
   #map-container {
-    height: calc(100vh - 4rem); /* 4rem = Navbar h-16 */
+    /* 100dvh statt 100vh: Auf iOS Safari ist 100vh größer als sichtbar
+       (Adressleiste fließt mit ein), wodurch unter der Karte eine beige
+       Body-Restfläche entstand. 100dvh = aktueller sichtbarer Viewport. */
+    height: calc(100dvh - 4rem); /* 4rem = Navbar h-16 */
+    min-height: calc(100vh - 4rem); /* Fallback für Browser ohne dvh */
     position: relative;
     overflow: hidden;
   }
@@ -307,7 +311,7 @@ document.addEventListener("DOMContentLoaded", function () {
     popupHtml += '<div class="memory-popup-meta">' + m.date;
     if (m.location) popupHtml += ' · ' + escapeHtml(m.location);
     popupHtml += '</div>';
-    popupHtml += '<a class="memory-popup-link" href="/memories/' + m.id + '">Details ansehen →</a>';
+    popupHtml += '<a class="memory-popup-link" href="/memories/' + m.id + '?from=%2Fmap">Details ansehen →</a>';
     popupHtml += '<button type="button" onclick="toggleHidden(' + m.id + ', this)" ' +
                  'class="memory-popup-hide" ' +
                  'title="Erinnerung verstecken">🙈 Verstecken</button>';

@@ -28,6 +28,7 @@
   }
   /* Keep interactive elements above the stretched link */
   .timeline-card .pin-btn,
+  .timeline-card .hide-btn,
   .timeline-card .drag-handle {
     position: relative;
     z-index: 2;
@@ -200,7 +201,7 @@
               </div>
 
               {# Titel (stretched-link: macht ganze Karte klickbar) #}
-              <a href="/memories/{{ memory.id }}" class="group stretched-link">
+              <a href="/memories/{{ memory.id }}?from=%2Ftimeline" class="group stretched-link">
                 <h3 class="text-lg font-semibold text-stone-800 group-hover:text-emerald-700 transition">
                   {{ memory.title }}
                 </h3>

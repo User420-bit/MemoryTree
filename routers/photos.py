@@ -1,7 +1,6 @@
 # Foto-Upload und -Verwaltung
 
 import logging
-import os
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -11,7 +10,7 @@ from auth import get_current_user
 from database import get_db
 from models import Memory, Photo, User
 from schemas import PhotoRead
-from uploads import process_upload, safe_remove
+from uploads import _to_posix_relpath, process_upload, safe_remove
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +48,7 @@ def upload_photo(
         )
 
     main_path, thumb_path = result
-    rel_path = os.path.relpath(main_path, start=".")
+    rel_path = _to_posix_relpath(main_path)
 
     # Datenbank-Eintrag erstellen
     photo = Photo(

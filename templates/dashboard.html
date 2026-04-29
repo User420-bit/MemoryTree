@@ -87,7 +87,7 @@
 
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
     {% for memory in an_diesem_tag %}
-    <a href="/memories/{{ memory.id }}"
+    <a href="/memories/{{ memory.id }}?from=%2F"
        class="block bg-amber-100 border border-amber-200 rounded-xl p-5 hover:shadow-md transition">
       <div class="flex items-center justify-between mb-2">
         <span class="text-sm text-amber-700 font-medium">{{ memory.date.strftime('%d.%m.%Y') }}</span>
@@ -142,7 +142,7 @@
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     {% for memory in letzte_erinnerungen %}
     <div class="relative bg-white rounded-xl shadow-md hover:shadow-lg transition overflow-hidden group">
-      <a href="/memories/{{ memory.id }}" class="block p-6">
+      <a href="/memories/{{ memory.id }}?from=%2F" class="block p-6">
         <div class="flex items-center justify-between mb-3">
           <span class="text-xs font-medium bg-emerald-100 text-emerald-700 px-2.5 py-0.5 rounded-full">
             {{ memory.category }}

@@ -310,7 +310,7 @@
                       title="Vom Baum entfernen">
                 ✕
               </button>
-              <a href="/memories/{{ memory.id }}" class="block">
+              <a href="/memories/{{ memory.id }}?from=%2Ftree" class="block">
                 <div class="w-20 h-20 rounded-2xl overflow-hidden shadow-lg bg-white
                             group-hover:scale-110 group-hover:shadow-xl transition-all duration-200 flex-shrink-0">
                   {% if memory.photos and memory.photos|length > 0 %}
@@ -350,7 +350,7 @@
         {% if pinned_memories %}
         <div class="grid grid-cols-4 gap-2 max-w-sm mx-auto">
           {% for memory, pos in pinned_memories %}
-          <a href="/memories/{{ memory.id }}" class="group relative block">
+          <a href="/memories/{{ memory.id }}?from=%2Ftree" class="group relative block">
             <div class="aspect-square rounded-lg overflow-hidden shadow-md
                         border-2 border-white/50 bg-white/80
                         active:scale-95 transition-transform">

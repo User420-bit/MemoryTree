@@ -1,9 +1,8 @@
 # Zentrale Upload-Verarbeitung: Validierung, Sicherheit, Bildoptimierung
 
 import logging
-import os
 import uuid
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from fastapi import UploadFile
 from PIL import Image, ImageOps
@@ -39,6 +38,24 @@ Image.MAX_IMAGE_PIXELS = 50_000_000
 
 _UPLOAD_DIR = Path(settings.UPLOAD_DIR).resolve()
 _THUMBNAIL_DIR = _UPLOAD_DIR / "thumbs"
+
+
+def _to_posix_relpath(absolute_path: str | Path) -> str:
+    """Pfad relativ zum Projekt-CWD als POSIX-String (mit '/').
+
+    Wichtig f\u00fcr Cross-Platform: ``os.path.relpath`` liefert auf Windows
+    Backslashes, die dann via DB in URLs landen und alles zerschie\u00dfen.
+    Wir berechnen relativ und erzwingen POSIX-Separatoren.
+    """
+    abs_p = Path(absolute_path).resolve()
+    cwd = Path.cwd().resolve()
+    try:
+        rel = abs_p.relative_to(cwd)
+    except ValueError:
+        # Pfad liegt au\u00dferhalb des Projekt-CWD \u2014 nur Dateinamen behalten,
+        # Aufrufer ist daf\u00fcr verantwortlich, das einzuordnen.
+        return abs_p.name
+    return rel.as_posix()
 
 
 def _ensure_dirs() -> None:
@@ -123,9 +140,8 @@ def process_upload(file: UploadFile) -> tuple[str, str] | None:
     if not file.filename or file.size == 0:
         return None
 
-    # Extension prüfen
-    _, ext = os.path.splitext(file.filename)
-    ext = ext.lower()
+    # Extension prüfen (Path arbeitet plattformunabhängig)
+    ext = Path(file.filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
         logger.warning("Upload abgelehnt: ungültige Erweiterung '%s'", ext)
         return None
@@ -179,8 +195,9 @@ def save_uploaded_photos(
             continue
         main_path, _thumb_path = result
 
-        # Relativen Pfad für DB speichern (relativ zum Projektverzeichnis)
-        rel_main = os.path.relpath(main_path, start=".")
+        # Relativen Pfad für DB speichern — IMMER mit POSIX-Separatoren,
+        # damit Windows-Backslashes (\) nicht in DB-/URL-Pfade gelangen.
+        rel_main = _to_posix_relpath(main_path)
         photo = Photo(
             memory_id=memory_id,
             filepath=rel_main,
@@ -205,7 +222,7 @@ def safe_remove(filepath: str) -> None:
 
     # 1) Nur den Dateinamen verwenden — Pfad-Traversal (..), absolute Pfade,
     #    Windows-Drive-Letter und Backslashes werden dadurch eliminiert.
-    filename = os.path.basename(filepath.replace("\\", "/"))
+    filename = PurePosixPath(filepath.replace("\\", "/")).name
     if not filename or filename in (".", ".."):
         logger.warning("safe_remove: Ungültiger Dateiname %r — ignoriert", filepath)
         return

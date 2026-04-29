@@ -171,11 +171,23 @@ class CSRFMiddleware:
             return
 
         # Body als gepuffertes receive weiterreichen.
-        # Das asyncio.sleep(0) gibt dem Event-Loop einen Tick, sodass
-        # andere Tasks laufen können — und erfüllt gleichzeitig die
-        # Linter-Anforderung, in einer async-Funktion zu awaiten.
+        # Wichtig: nach der ersten Body-Auslieferung darf receive() KEIN
+        # zweites http.request liefern, sonst crasht Starlettes
+        # listen_for_disconnect mit
+        # "RuntimeError: Unexpected message received: http.request".
+        # Wir liefern den Body genau einmal und blockieren danach auf
+        # einem nie-resolvenden Future — so verhält sich der Stream wie
+        # ein offener Connection-Receive, bis die Response abgeschlossen
+        # ist und der Task aufgeräumt wird.
+        body_consumed = False
+
         async def receive_cached() -> Message:
-            await asyncio.sleep(0)
+            nonlocal body_consumed
+            if body_consumed:
+                await asyncio.Future()  # blockiert für immer
+                # unreachable, nur für Typprüfer:
+                return {"type": "http.disconnect"}
+            body_consumed = True
             return {"type": "http.request", "body": body, "more_body": False}
 
         await self.app(scope, receive_cached, send)

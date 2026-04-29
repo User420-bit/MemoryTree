@@ -27,22 +27,47 @@
 <div class="max-w-3xl mx-auto">
 
   {# ── Zurück-Link (intelligent: zurück zur Herkunftsseite) ────────────── #}
-  {% set ref = request.headers.get('referer', '') %}
-  {% if '/timeline' in ref %}
-    {% set back_url = '/timeline' %}
-    {% set back_label = 'Zurück zum Zeitstrahl' %}
-  {% elif '/gallery' in ref %}
-    {% set back_url = '/gallery' %}
-    {% set back_label = 'Zurück zur Galerie' %}
-  {% elif '/map' in ref %}
-    {% set back_url = '/map' %}
-    {% set back_label = 'Zurück zur Karte' %}
-  {% elif '/tree' in ref %}
-    {% set back_url = '/tree' %}
-    {% set back_label = 'Zurück zum Baum' %}
+  {# Priorität: explizites ?from= aus dem Server (return_to) → Referer →
+     Standard. Versteckte Erinnerungen erhalten serverseitig automatisch
+     return_to=/settings#hidden-memories. #}
+  {% if return_to %}
+    {% set back_url = return_to %}
+    {% if return_to.startswith('/settings') %}
+      {% set back_label = 'Zurück zu den versteckten Erinnerungen' %}
+    {% elif return_to.startswith('/timeline') %}
+      {% set back_label = 'Zurück zum Zeitstrahl' %}
+    {% elif return_to.startswith('/gallery') %}
+      {% set back_label = 'Zurück zur Galerie' %}
+    {% elif return_to.startswith('/map') %}
+      {% set back_label = 'Zurück zur Karte' %}
+    {% elif return_to.startswith('/tree') %}
+      {% set back_label = 'Zurück zum Baum' %}
+    {% elif return_to.startswith('/milestones') %}
+      {% set back_label = 'Zurück zu den Meilensteinen' %}
+    {% else %}
+      {% set back_label = 'Zurück' %}
+    {% endif %}
   {% else %}
-    {% set back_url = '/' %}
-    {% set back_label = 'Zurück zum Dashboard' %}
+    {% set ref = request.headers.get('referer', '') %}
+    {% if '/timeline' in ref %}
+      {% set back_url = '/timeline' %}
+      {% set back_label = 'Zurück zum Zeitstrahl' %}
+    {% elif '/gallery' in ref %}
+      {% set back_url = '/gallery' %}
+      {% set back_label = 'Zurück zur Galerie' %}
+    {% elif '/map' in ref %}
+      {% set back_url = '/map' %}
+      {% set back_label = 'Zurück zur Karte' %}
+    {% elif '/tree' in ref %}
+      {% set back_url = '/tree' %}
+      {% set back_label = 'Zurück zum Baum' %}
+    {% elif '/settings' in ref %}
+      {% set back_url = '/settings#hidden-memories' %}
+      {% set back_label = 'Zurück zu den Einstellungen' %}
+    {% else %}
+      {% set back_url = '/' %}
+      {% set back_label = 'Zurück zum Dashboard' %}
+    {% endif %}
   {% endif %}
   <a href="{{ back_url }}" class="inline-flex items-center text-stone-500 hover:text-stone-700 transition mb-6">
     ← {{ back_label }}
@@ -131,14 +156,20 @@
 
   {# ── Aktionen ──────────────────────────────────────────────────────────── #}
   <section class="flex flex-wrap gap-3 mb-12">
-    <a href="/memories/{{ memory.id }}/edit"
+    {# Bearbeiten-Link erhält den aktuellen Rücksprung-Kontext, damit
+       das Formular nach Speichern/Abbrechen genau dorthin zurückkehrt. #}
+    {% set edit_from = back_url %}
+    <a href="/memories/{{ memory.id }}/edit?from={{ edit_from|urlencode }}"
        class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold
               py-2.5 px-6 rounded-xl shadow-md hover:shadow-lg transition flex items-center gap-2">
       ✏️ Bearbeiten
     </a>
 
+    {# Verstecken: Wirkt sofort und springt zur Herkunftsseite zurück.
+       Der Toast (mit Undo) erscheint dort dank sessionStorage-Pickup. #}
     <button type="button"
-            onclick="toggleHidden({{ memory.id }}, this); setTimeout(function(){window.location.href='/';}, 1200);"
+            data-hide-redirect="{{ back_url }}"
+            onclick="hideAndReturn({{ memory.id }}, this)"
             class="bg-amber-100 hover:bg-amber-200 text-amber-800 font-semibold
                    py-2.5 px-6 rounded-xl shadow-md hover:shadow-lg transition flex items-center gap-2">
       🙈 Verstecken

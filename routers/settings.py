@@ -1,7 +1,6 @@
 # Einstellungen-Routen: Paar-Profil und App-Konfiguration
 
 import logging
-import os
 import re
 from datetime import date as date_cls
 from typing import Annotated
@@ -20,7 +19,7 @@ from auth import (
 from database import get_db
 from models import CoupleSettings, Memory, User
 from template_engine import templates
-from uploads import process_upload, safe_remove
+from uploads import _to_posix_relpath, process_upload, safe_remove
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +93,7 @@ def _handle_avatar_upload(
         return
 
     main_path, _ = result
-    rel_path = os.path.relpath(main_path, start=".")
+    rel_path = _to_posix_relpath(main_path)
 
     if current_user.avatar_path:
         safe_remove(current_user.avatar_path)

@@ -288,7 +288,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     var mid = item.dataset.lightboxId;
     if (mid) {
-      lbLink.href = "/memories/" + mid;
+      lbLink.href = "/memories/" + mid + "?from=%2Fgallery";
       lbLink.style.display = "";
     } else {
       lbLink.style.display = "none";

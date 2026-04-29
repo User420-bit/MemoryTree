@@ -1,0 +1,37 @@
+# Memory Tree — Docker Compose (Windows / Cross-Platform Dev-Setup)
+#
+# Einfaches Single-Service-Setup ohne Caddy. Geeignet f\u00fcr lokale
+# Entwicklung unter Windows (Docker Desktop) und Linux/macOS.
+#
+# Hinweis: Auf dem Raspberry Pi (Production) wird stattdessen die
+# Datei "compose.yaml" verwendet, die zus\u00e4tzlich Caddy als
+# Reverse-Proxy einbindet. Compose w\u00e4hlt "compose.yaml" als Default,
+# daher hier explizit ausw\u00e4hlen:
+#
+#   docker compose -f docker-compose.yml up --build
+#
+# Beim ersten Start die User anlegen:
+#   docker compose -f docker-compose.yml exec app python scripts/create_users.py
+#
+# Stoppen:
+#   docker compose -f docker-compose.yml down
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: memory-tree-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Innerhalb des Containers liegen DB und Uploads unter /app/data
+      - APP_ENV=production
+      - DATABASE_URL=sqlite:///./data/memory_tree.db
+      - UPLOAD_DIR=data/uploads
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persistente Daten via Bind-Mount: SQLite-DB + Uploads bleiben
+      # auf dem Host erhalten, auch wenn der Container neu gebaut wird.
+      - ./data:/app/data

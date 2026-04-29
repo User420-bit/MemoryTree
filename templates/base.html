@@ -20,8 +20,18 @@
 
     /* ── Globale Responsive-Sicherheitsnetze ─────────────────────────────
        Verhindern horizontales Scrollen durch abs. positionierte Dekor-
-       Elemente und breche lange Wörter (lange Titel/Ortsnamen) sauber um. */
-    html, body { overflow-x: hidden; max-width: 100%; }
+       Elemente und breche lange Wörter (lange Titel/Ortsnamen) sauber um.
+       Dynamic viewport height: Auf iOS Safari ist 100vh größer als der
+       sichtbar nutzbare Bereich (Adressleiste rechnet mit ein), wodurch
+       unten eine beige Restfläche des Body-Hintergrunds sichtbar wird.
+       100dvh passt sich der tatsächlich sichtbaren Viewport-Höhe an. */
+    html, body {
+      overflow-x: hidden;
+      max-width: 100%;
+      min-height: 100vh;     /* Fallback */
+      min-height: 100dvh;
+    }
+    body { background-color: #fffbeb; }
     img { max-width: 100%; height: auto; }
     /* Leaflet-Kachel-Bilder in tile-panes dürfen NICHT durch den globalen
        max-width beschnitten werden, sonst verschieben sich die Kacheln. */
@@ -29,11 +39,49 @@
     .leaflet-container .leaflet-tile { max-width: none !important; }
     /* Lange Wörter (Ortsnamen, URLs) brechen in Text-Blöcken um. */
     h1, h2, h3, h4, p, span, a, li, td, th, label { overflow-wrap: anywhere; }
+
+    /* ── Form-Controls: einheitliche Box-Sizing-Garantie ─────────────────
+       Browser (insb. iOS Safari) geben input[type=date] / type=time /
+       type=number etc. eine intrinsische min-content-Breite, die sich aus
+       dem nativen Picker-Indikator + dem Wert-Pseudoelement ergibt. Ohne
+       Reset überfüllen diese Felder Card-Container auf schmalen Viewports.
+       Außerdem sorgt -webkit-appearance:none dafür, dass die Felder das
+       gewünschte Padding/Border auch auf iOS respektieren. */
+    input, select, textarea, button {
+      box-sizing: border-box;
+      max-width: 100%;
+    }
+    input[type="date"],
+    input[type="time"],
+    input[type="datetime-local"],
+    input[type="month"],
+    input[type="week"],
+    input[type="number"] {
+      -webkit-appearance: none;
+      -moz-appearance: textfield;
+      appearance: none;
+      min-width: 0;
+    }
+    /* iOS: Wert-Pseudoelement darf das Feld nicht aufblähen. */
+    input[type="date"]::-webkit-date-and-time-value,
+    input[type="time"]::-webkit-date-and-time-value,
+    input[type="datetime-local"]::-webkit-date-and-time-value {
+      text-align: left;
+      min-width: 0;
+      min-height: 1.5em; /* sonst kollabiert die Höhe nach appearance:none */
+    }
+    /* iOS Safari skaliert Inputs unter 16px font-size mit Auto-Zoom hoch
+       und kann dabei die Breite verzerren – deshalb mind. 16px. */
+    @supports (-webkit-touch-callout: none) {
+      input, select, textarea {
+        font-size: max(16px, 1rem);
+      }
+    }
   </style>
 
   {% block extra_head %}{% endblock %}
 </head>
-<body class="bg-amber-50 text-stone-800 min-h-screen flex flex-col">
+<body class="bg-amber-50 text-stone-800 min-h-[100dvh] flex flex-col">
 
   {# ── Navbar ─────────────────────────────────────────────────────────────── #}
   {% block navbar %}
@@ -134,7 +182,7 @@
 
   {# ── Footer ─────────────────────────────────────────────────────────────── #}
   {% block footer %}
-  <footer class="bg-stone-100 border-t border-stone-200 text-center text-stone-500 text-sm py-6">
+  <footer class="bg-amber-50 border-t border-amber-200/60 text-center text-stone-500 text-sm py-6">
     <p>🌳 Memory Tree — Euer gemeinsames Erinnerungsbuch</p>
     <p class="mt-1">&copy; {{ now().year if now is defined else "2026" }}</p>
   </footer>
@@ -205,6 +253,6 @@
   {% block extra_scripts %}{% endblock %}
 
   {# ── Hide/Unhide Memories (auf allen Seiten verfügbar) ────────────── #}
-  <script src="/static/js/hide-memory.js"></script>
+  <script src="/static/js/hide-memory.js?v=2"></script>
 </body>
 </html>
