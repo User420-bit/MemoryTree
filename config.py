@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     SECRET_KEY: str = ""
     ALLOWED_HOSTS: str = "*"
 
+    # X-Forwarded-For nur auswerten, wenn die App hinter einem
+    # vertrauenswürdigen Reverse Proxy läuft (Caddy/Traefik). Bei direkter
+    # Erreichbarkeit kann der Header sonst gespooft werden und hebelt das
+    # Login-Rate-Limit aus (jeder Request = neue "IP").
+    TRUST_PROXY_HEADERS: bool = False
+
     # ── JWT-Konfiguration ────────────────────────────────────────────────
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
@@ -48,6 +54,11 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.APP_ENV == "production"
+
+    @property
+    def allowed_hosts_list(self) -> list[str]:
+        """ALLOWED_HOSTS als Liste für die TrustedHostMiddleware."""
+        return [h.strip() for h in self.ALLOWED_HOSTS.split(",") if h.strip()] or ["*"]
 
     @property
     def use_secure_cookies(self) -> bool:

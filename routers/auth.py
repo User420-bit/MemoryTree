@@ -16,6 +16,7 @@ from auth import (
     set_auth_cookies,
     verify_password,
 )
+from config import settings
 from database import get_db
 from models import User
 from template_engine import templates
@@ -42,10 +43,17 @@ _DEFAULT_NEXT_URL = "/"
 
 
 def _get_client_ip(request: Request) -> str:
-    """Client-IP ermitteln (hinter Reverse Proxy: X-Forwarded-For)."""
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    """Client-IP ermitteln.
+
+    X-Forwarded-For wird NUR ausgewertet, wenn TRUST_PROXY_HEADERS=true
+    (App läuft hinter vertrauenswürdigem Reverse Proxy). Bei direkter
+    Erreichbarkeit könnte der Header sonst pro Request gespooft werden
+    und das Login-Rate-Limit aushebeln.
+    """
+    if settings.TRUST_PROXY_HEADERS:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
 
 

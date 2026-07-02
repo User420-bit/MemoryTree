@@ -420,3 +420,36 @@ docker system prune -f
 # SQLite-Integrität prüfen
 sqlite3 data/memory_tree.db "PRAGMA integrity_check;"
 ```
+
+---
+
+## 11. Sicherheits-Notizen (Audit Juli 2026)
+
+### 11.1 /uploads ist bewusst ohne Auth erreichbar — Revisit-Pflicht
+
+Der Static-Mount `/uploads` liefert Fotos ohne Login aus. Das ist eine
+**bewusste Entscheidung** für den aktuellen Betrieb (nur LAN/Tailscale,
+nicht öffentlich erreichbar), abgesichert durch nicht erratbare
+UUID-Dateinamen.
+
+**MUSS neu bewertet werden, sobald sich das Deployment-Modell ändert** —
+z. B. öffentlicher Server (Hetzner o. ä.), Portfreigabe oder Cloudflare
+Tunnel. Dann: auth-geschützte FileResponse-Route statt Static-Mount.
+
+### 11.2 Nach dem Git-History-Rewrite (Juli 2026)
+
+Private Fotos und SQLite-WAL-Dateien lagen bis Juli 2026 in der
+Git-History und wurden per `git filter-repo` entfernt (Force-Push nötig).
+Als Defense-in-Depth danach:
+
+1. **Beide Partner ändern ihr Passwort** über Einstellungen → Konto
+   (die bcrypt-Hashes waren in der WAL-Datei im Repo).
+2. Alte Clones des Repos (andere Rechner) löschen und frisch klonen —
+   sie enthalten die alte History weiterhin.
+
+### 11.3 Proxy-Header
+
+`TRUST_PROXY_HEADERS` in `.env` nur auf `true` setzen, wenn die App
+hinter einem vertrauenswürdigen Reverse Proxy (Caddy/Traefik) läuft.
+Direkt erreichbar → `false`, sonst ist das Login-Rate-Limit per
+gespooftem `X-Forwarded-For` umgehbar.

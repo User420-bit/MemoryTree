@@ -33,6 +33,16 @@ def _check_rate_limit(client_ip: str) -> None:
     max_attempts = settings.LOGIN_RATE_LIMIT_MAX
 
     with _rate_lock:
+        # Sweep: komplett abgelaufene IPs entfernen, damit das Dict bei
+        # vielen verschiedenen Client-IPs nicht unbegrenzt wächst.
+        if len(_login_attempts) > 256:
+            stale = [
+                ip for ip, ts in _login_attempts.items()
+                if not ts or now - ts[-1] >= window
+            ]
+            for ip in stale:
+                del _login_attempts[ip]
+
         attempts = _login_attempts[client_ip]
         # Alte Einträge entfernen
         _login_attempts[client_ip] = [t for t in attempts if now - t < window]

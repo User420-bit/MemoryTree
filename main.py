@@ -12,6 +12,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy import extract, func, inspect as sa_inspect, text
 from sqlalchemy.orm import Session
 
@@ -236,12 +237,20 @@ app.add_middleware(RequestIDMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(CSRFMiddleware)
 app.add_middleware(TokenRefreshMiddleware)
+# Äußerste Schicht: Host-Header-Validierung. Setzt ALLOWED_HOSTS aus .env
+# durch (vorher deklariert, aber nie enforced). Stärkt zugleich den
+# Origin/Referer-CSRF-Check, der gegen den Host-Header vergleicht.
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts_list)
 
 # ── Statische Dateien & Templates ───────────────────────────────────────────
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Uploads separat mounten (data/uploads → /uploads/)
+# BEWUSSTE ENTSCHEIDUNG (Audit 2026-07): kein Auth auf diesem Mount.
+# Schutz: nicht erratbare UUID-Dateinamen + Betrieb ausschließlich im
+# privaten LAN/Tailscale. MUSS überdacht werden, sobald die App jemals
+# öffentlich erreichbar wird (dann: auth-geschützte FileResponse-Route).
 _upload_path = Path(settings.UPLOAD_DIR)
 _upload_path.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(_upload_path)), name="uploads")
