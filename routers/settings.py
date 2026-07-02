@@ -123,6 +123,7 @@ def settings_page(
         )
 
         return templates.TemplateResponse(
+            request,
             "settings.html",
             {
                 "request": request,

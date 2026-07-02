@@ -397,6 +397,7 @@ def dashboard(
     )
 
     return templates.TemplateResponse(
+        request,
         "dashboard.html",
         {
             "request": request,
@@ -459,6 +460,7 @@ def tree_page(
         partner_since_display = partner_since.strftime("%d.%m.%Y")
 
     return templates.TemplateResponse(
+        request,
         "tree.html",
         {
             "request": request,
@@ -510,6 +512,7 @@ def timeline_page(
     category_config = CATEGORY_CONFIG
 
     return templates.TemplateResponse(
+        request,
         "timeline.html",
         {
             "request": request,
@@ -553,6 +556,7 @@ def milestones_page(
         }
 
     return templates.TemplateResponse(
+        request,
         "milestones.html",
         {
             "request": request,
@@ -591,6 +595,7 @@ def gallery_page(
     )
 
     return templates.TemplateResponse(
+        request,
         "gallery.html",
         {
             "request": request,
@@ -642,6 +647,7 @@ def map_page(
     category_config = CATEGORY_CONFIG
 
     return templates.TemplateResponse(
+        request,
         "map.html",
         {
             "request": request,

@@ -52,7 +52,7 @@ def _get_client_ip(request: Request) -> str:
 @router.get("/login")
 def login_page(request: Request) -> Response:
     """Login-Seite anzeigen."""
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse(request, "login.html", {"request": request})
 
 
 @router.post("/login")
@@ -75,6 +75,7 @@ def login(
         # Username absichtlich NICHT loggen — verhindert Enumeration via Logs.
         logger.warning("Fehlgeschlagener Login-Versuch von %s", client_ip)
         return templates.TemplateResponse(
+            request,
             "login.html",
             {"request": request, "error": "Ungültige Anmeldedaten"},
             status_code=401,

@@ -33,6 +33,7 @@ def memory_form_new(
 ) -> HTMLResponse:
     """Leeres Formular für eine neue Erinnerung anzeigen."""
     return templates.TemplateResponse(
+        request,
         _MEMORY_FORM_TEMPLATE,
         {"request": request, "user": current_user, "memory": None, "error": None},
     )
@@ -58,6 +59,7 @@ def memory_form_create(
         parsed_date = date.fromisoformat(date_field)
     except (ValueError, TypeError):
         return templates.TemplateResponse(
+            request,
             _MEMORY_FORM_TEMPLATE,
             {"request": request, "user": current_user, "memory": None,
              "error": "Ungültiges Datum."},
@@ -116,6 +118,7 @@ def memory_form_edit(
         default=f"/memories/{int(memory.id)}",
     )
     return templates.TemplateResponse(
+        request,
         _MEMORY_FORM_TEMPLATE,
         {"request": request, "user": current_user, "memory": memory,
          "error": None, "return_to": return_to},
@@ -153,6 +156,7 @@ def memory_form_update(
         parsed_date = date.fromisoformat(date_field)
     except (ValueError, TypeError):
         return templates.TemplateResponse(
+            request,
             _MEMORY_FORM_TEMPLATE,
             {"request": request, "user": current_user, "memory": memory,
              "error": "Ungültiges Datum."},
@@ -472,6 +476,7 @@ def memory_detail(
         return_to = ""  # Template fällt auf Referer-Heuristik zurück
 
     return templates.TemplateResponse(
+        request,
         "memory_detail.html",
         {"request": request, "user": current_user, "memory": memory,
          "creator": creator, "return_to": return_to},
