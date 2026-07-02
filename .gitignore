@@ -8,8 +8,13 @@ venv/
 # Umgebung
 .env
 
-# Datenbank
+# Datenbank (inkl. SQLite WAL/SHM-Sidecar-Dateien)
 *.db
+*.db-wal
+*.db-shm
+
+# Nutzdaten: Datenbank + hochgeladene Fotos — dürfen NIE ins Repo
+data/
 
 # Uploads (Bilder werden lokal gespeichert)
 static/uploads/*
