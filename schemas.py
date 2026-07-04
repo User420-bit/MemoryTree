@@ -99,7 +99,6 @@ class MemoryUpdate(BaseModel):
     lng: float | None = Field(None, ge=-180.0, le=180.0)
     mood: str | None = Field(None, max_length=50)
     category: str | None = Field(None, max_length=50)
-    is_favorite: bool | None = None
 
     @field_validator("category")
     @classmethod

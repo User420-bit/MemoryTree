@@ -24,6 +24,14 @@ router = APIRouter(prefix="/memories", tags=["Erinnerungen"])
 _NOT_FOUND = "Erinnerung nicht gefunden"
 _MEMORY_FORM_TEMPLATE = "memory_form.html"
 
+# Felder, die ausschließlich über dedizierte Endpunkte verwaltet werden dürfen
+# (Toggle-Favorit, Toggle-Hidden, Tree-Position) — niemals über das generische
+# Update. Als Modul-Konstante, damit sie bei künftigen Erweiterungen von
+# MemoryUpdate sichtbar bleibt.
+_GESCHUETZTE_FELDER: frozenset[str] = frozenset({
+    "is_favorite", "tree_pos_top", "tree_pos_left", "is_hidden"
+})
+
 
 
 @router.get("/new", response_class=HTMLResponse)
@@ -217,6 +225,11 @@ def toggle_favorite(
             )
 
     memory.is_favorite = not memory.is_favorite
+    # Redundant seit Property-Setter in models.py — bleibt als explizite
+    # Dokumentation der Absicht stehen.
+    if not memory.is_favorite:
+        memory.tree_pos_top = None
+        memory.tree_pos_left = None
     db.commit()
 
     total_pinned_after: int = (
@@ -255,6 +268,10 @@ def toggle_hidden(
     memory.is_hidden = not memory.is_hidden
     if memory.is_hidden and memory.is_favorite:
         memory.is_favorite = False
+        # Redundant seit Property-Setter in models.py — bleibt als explizite
+        # Dokumentation der Absicht stehen.
+        memory.tree_pos_top = None
+        memory.tree_pos_left = None
 
     db.commit()
 
@@ -497,6 +514,13 @@ def update_memory(
 
     update_data: dict = payload.model_dump(exclude_unset=True)
     for field, value in update_data.items():
+        if field in _GESCHUETZTE_FELDER:
+            logger.warning(
+                "Versuch, geschütztes Feld '%s' über generisches Update zu setzen "
+                "— ignoriert (Memory #%d, User #%d)",
+                field, memory.id, current_user.id,
+            )
+            continue
         setattr(memory, field, value)
 
     db.commit()

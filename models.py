@@ -63,7 +63,9 @@ class Memory(Base):
     lng: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     mood: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     category: Mapped[str] = mapped_column(String(50), nullable=False, default=CategoryEnum.alltag.value)
-    is_favorite: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    _is_favorite: Mapped[bool] = mapped_column(
+        "is_favorite", Boolean, default=False, nullable=False
+    )
     is_hidden: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     tree_pos_top: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     tree_pos_left: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
@@ -74,6 +76,25 @@ class Memory(Base):
     creator: Mapped["User"] = relationship("User", back_populates="memories")
     photos: Mapped[List["Photo"]] = relationship("Photo", back_populates="memory", cascade="all, delete-orphan")
     places: Mapped[List["Place"]] = relationship("Place", back_populates="memory", cascade="all, delete-orphan")
+
+    @property
+    def is_favorite(self) -> bool:
+        return self._is_favorite
+
+    @is_favorite.setter
+    def is_favorite(self, value: bool) -> None:
+        """Setzt is_favorite und bereinigt tree_pos bei Entfavorisierung automatisch.
+
+        Invariante: eine Erinnerung ohne Favorit-Status darf keine
+        Tree-Position mehr besitzen — sonst hängen verwaiste Positions-
+        werte in der DB, die beim erneuten Favorisieren falsch wieder
+        auftauchen würden. Diese Property fasst die Invariante an einer
+        Stelle zusammen, statt sie an jeder Schreibstelle zu wiederholen.
+        """
+        if self._is_favorite and not value:
+            self.tree_pos_top = None
+            self.tree_pos_left = None
+        self._is_favorite = value
 
 
 class Photo(Base):
