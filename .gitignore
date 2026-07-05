@@ -32,4 +32,4 @@ static/uploads/*
 .DS_Store
 ._*
 .AppleDouble
-.LSOverride
+.LSOverride.claude/
