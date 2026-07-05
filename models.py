@@ -14,6 +14,7 @@ from sqlalchemy import (
     String,
     Text,
 )
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -77,7 +78,7 @@ class Memory(Base):
     photos: Mapped[List["Photo"]] = relationship("Photo", back_populates="memory", cascade="all, delete-orphan")
     places: Mapped[List["Place"]] = relationship("Place", back_populates="memory", cascade="all, delete-orphan")
 
-    @property
+    @hybrid_property
     def is_favorite(self) -> bool:
         return self._is_favorite
 
