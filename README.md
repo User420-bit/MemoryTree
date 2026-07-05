@@ -2,6 +2,8 @@
 
 **Euer privates digitales Erinnerungsbuch** — eine Web-App für Paare, um gemeinsame Erinnerungen, Fotos und Meilensteine festzuhalten, visualisiert als wachsender interaktiver Baum.
 
+> Dieses Projekt ist für den privaten Gebrauch als Zwei-Personen-App konzipiert — es gibt bewusst kein Multi-Tenant- oder Registrierungssystem, sondern genau zwei feste Accounts (`partner_a` / `partner_b`).
+
 ---
 
 ## Schnellstart
@@ -9,10 +11,14 @@
 ### Voraussetzung
 
 - **Python 3.11+** muss installiert sein → [python.org/downloads](https://www.python.org/downloads/)
+- Keine weiteren externen Abhängigkeiten (kein Docker, keine Datenbank-Installation nötig — SQLite ist eingebettet)
 
-### Starten (2 Schritte)
+### Starten
 
 ```bash
+git clone https://github.com/User420-bit/MemoryTree.git
+cd MemoryTree
+
 # 1. Einmalig: Skript ausführbar machen
 chmod +x start.sh stop.sh
 
@@ -104,6 +110,20 @@ Nach dem Start öffnet sich automatisch `http://localhost:8000`.
 
 ---
 
+## Demo-Daten laden (optional)
+
+Für einen frischen Klon lassen sich fiktive, anonyme Demo-Erinnerungen und
+-Meilensteine einspielen, um die App direkt vollständig auszuprobieren:
+
+```bash
+python scripts/seed_demo_data.py
+```
+
+> ⚠️ Das Skript löscht alle bestehenden Erinnerungen, Meilensteine und Fotos
+> und ersetzt sie durch Demo-Daten. Nur in Entwicklungsumgebungen ausführen.
+
+---
+
 ## VS Code Integration
 
 ### Per Shortcut starten
@@ -165,3 +185,13 @@ Die App wird über die `.env`-Datei konfiguriert:
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Session-Dauer in Minuten | `480` |
 | `UPLOAD_DIR` | Verzeichnis für Foto-Uploads | `static/uploads` |
 | `MAX_IMAGE_SIZE` | Max. Bildbreite/-höhe in Pixeln | `1920` |
+
+Vollständige Vorlage mit allen Pflichtfeldern und Erklärungen: [`.env.example`](.env.example).
+Zwingend anzupassen ist mindestens `SECRET_KEY` — ohne einen sicheren,
+mindestens 32 Zeichen langen Wert startet die App im Production-Modus nicht.
+
+---
+
+## Lizenz
+
+Dieses Projekt steht unter der [MIT-Lizenz](LICENSE).
