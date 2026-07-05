@@ -30,7 +30,9 @@ Das Skript richtet beim ersten Start **alles automatisch** ein:
 - Erstellt eine virtuelle Umgebung (`.venv`)
 - Installiert alle Abhängigkeiten
 - Erstellt die `.env`-Konfiguration
-- Startet den Server und öffnet den Browser
+- Startet den Server
+
+Auf macOS öffnet sich `http://localhost:8000` automatisch im Browser. Auf Linux/Windows den Link manuell aufrufen.
 
 Ab dem zweiten Start reicht: `./start.sh`
 
@@ -99,14 +101,16 @@ CTRL+C
 
 ## Erster Login
 
-Nach dem Start öffnet sich automatisch `http://localhost:8000`.
+Nach dem Start `http://localhost:8000` im Browser öffnen.
 
-| Benutzer | Passwort |
+| Benutzername | Passwort |
 |---|---|
 | `partner_a` | `test1234` |
 | `partner_b` | `test1234` |
 
-> ⚠️ **Wichtig:** Ändere den `SECRET_KEY` in der `.env`-Datei, bevor du die App produktiv nutzt.
+> ⚠️ Diese Zugangsdaten gelten **nur** wenn `DEBUG=true` in der `.env` gesetzt ist (Standard nach Erstinstallation).  
+> In Production (`DEBUG=false`) werden diese Accounts **nicht** automatisch angelegt — eigene Accounts über `python scripts/create_users.py` anlegen.  
+> Den `SECRET_KEY` in der `.env`-Datei **vor dem produktiven Einsatz** ändern.
 
 ---
 
@@ -180,13 +184,13 @@ Die App wird über die `.env`-Datei konfiguriert:
 
 | Variable | Beschreibung | Standard |
 |---|---|---|
-| `SECRET_KEY` | JWT-Signaturschlüssel | `dein-geheimer-schluessel-hier-aendern` |
-| `DATABASE_URL` | SQLite-Datenbankpfad | `sqlite:///./memory_tree.db` |
+| `SECRET_KEY` | JWT-Signaturschlüssel — **zwingend ändern** | `dein-geheimer-schluessel-hier-aendern` |
+| `DATABASE_URL` | SQLite-Datenbankpfad | `sqlite:///./data/memory_tree.db` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Session-Dauer in Minuten | `480` |
-| `UPLOAD_DIR` | Verzeichnis für Foto-Uploads | `static/uploads` |
+| `UPLOAD_DIR` | Verzeichnis für Foto-Uploads | `data/uploads` |
 | `MAX_IMAGE_SIZE` | Max. Bildbreite/-höhe in Pixeln | `1920` |
 
-Vollständige Vorlage mit allen Pflichtfeldern und Erklärungen: [`.env.example`](.env.example).
+Vollständige Vorlage mit allen Pflichtfeldern und Erklärungen: [`.env.example`](.env.example).  
 Zwingend anzupassen ist mindestens `SECRET_KEY` — ohne einen sicheren,
 mindestens 32 Zeichen langen Wert startet die App im Production-Modus nicht.
 
