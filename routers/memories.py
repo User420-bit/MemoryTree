@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from auth import get_current_user
 from config import settings
 from database import get_db
+from i18n import t
 from models import Memory, Photo, Place, User
 from schemas import MemoryCreate, MemoryRead, MemoryUpdate
 from template_engine import templates, safe_internal_url
@@ -70,7 +71,7 @@ def memory_form_create(
             request,
             _MEMORY_FORM_TEMPLATE,
             {"request": request, "user": current_user, "memory": None,
-             "error": "Ungültiges Datum."},
+             "error": t(request, "backend.invalid_date")},
             status_code=422,
         )
 
@@ -167,7 +168,7 @@ def memory_form_update(
             request,
             _MEMORY_FORM_TEMPLATE,
             {"request": request, "user": current_user, "memory": memory,
-             "error": "Ungültiges Datum."},
+             "error": t(request, "backend.invalid_date")},
             status_code=422,
         )
 

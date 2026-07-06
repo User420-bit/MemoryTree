@@ -22,6 +22,7 @@ from geo_utils import country_from_coords
 from database import Base, SessionLocal, engine, get_db
 from middleware import (
     CSRFMiddleware,
+    LanguageMiddleware,
     RequestIDMiddleware,
     SecurityHeadersMiddleware,
     TokenRefreshMiddleware,
@@ -164,6 +165,16 @@ def _init_database() -> None:
             conn.execute(text("ALTER TABLE memories ADD COLUMN is_hidden BOOLEAN DEFAULT 0 NOT NULL"))
         logger.info("Spalte 'is_hidden' zu memories hinzugefügt")
 
+    try:
+        couple_columns = [c["name"] for c in inspector.get_columns("couple_settings")]
+    except Exception:
+        couple_columns = []
+
+    if couple_columns and "language" not in couple_columns:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE couple_settings ADD COLUMN language VARCHAR(10) DEFAULT 'de' NOT NULL"))
+        logger.info("Spalte 'language' zu couple_settings hinzugefügt")
+
     # Initiale Benutzer nur in Development erstellen.
     # Doppel-Gate: zusätzlich DEBUG=True, damit ein fehlkonfiguriertes
     # APP_ENV allein nicht reicht, um Dev-Passwörter zu aktivieren.
@@ -237,6 +248,7 @@ app.add_middleware(RequestIDMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(CSRFMiddleware)
 app.add_middleware(TokenRefreshMiddleware)
+app.add_middleware(LanguageMiddleware)
 # Äußerste Schicht: Host-Header-Validierung. Setzt ALLOWED_HOSTS aus .env
 # durch (vorher deklariert, aber nie enforced). Stärkt zugleich den
 # Origin/Referer-CSRF-Check, der gegen den Host-Header vergleicht.

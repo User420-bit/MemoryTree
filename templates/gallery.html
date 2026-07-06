@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Galerie{% endblock %}
+{% block title %}{{ t(request, 'gallery.title') }}{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -57,8 +57,14 @@
 
   {# ── Header ──────────────────────────────────────────────────────────── #}
   <div class="mb-6">
-    <h1 class="text-2xl md:text-3xl font-bold text-stone-800">📸 Eure Galerie</h1>
-    <p class="text-sm text-stone-500 mt-1">{{ photos|length }} Fotos aus euren gemeinsamen Erinnerungen</p>
+    <h1 class="text-2xl md:text-3xl font-bold text-stone-800">{{ t(request, 'gallery.heading') }}</h1>
+    <p class="text-sm text-stone-500 mt-1">
+      {% if photos|length == 1 %}
+      {{ t(request, 'gallery.photos_count_singular', count=photos|length) }}
+      {% else %}
+      {{ t(request, 'gallery.photos_count_plural', count=photos|length) }}
+      {% endif %}
+    </p>
   </div>
 
   {# ── Filter-Bar ─────────────────────────────────────────────────────── #}
@@ -66,14 +72,14 @@
   <div class="sticky top-16 z-30 bg-amber-50/95 backdrop-blur-sm border-b border-amber-200 py-3
               -mx-4 px-4 mb-6">
     <div class="flex flex-wrap gap-2 items-center max-w-7xl mx-auto">
-      <span class="text-xs text-stone-400 font-medium uppercase tracking-wide mr-1">Filter:</span>
+      <span class="text-xs text-stone-400 font-medium uppercase tracking-wide mr-1">{{ t(request, 'gallery.filter_label') }}</span>
 
       {# Alle-Chip #}
       <button type="button"
               class="filter-chip active px-3 py-1.5 rounded-full text-xs font-medium
                      bg-stone-800 text-white"
               data-filter="all">
-        Alle
+        {{ t(request, 'gallery.filter_all') }}
       </button>
 
       {# Jahr-Chips #}
@@ -93,7 +99,7 @@
                      bg-white border border-stone-200 hover:border-stone-400"
               data-filter-category="{{ cat }}"
               data-color="{{ cfg.color }}">
-        {{ cfg.emoji }} {{ cat }}
+        {{ cfg.emoji }} {{ category_label(request, cat) }}
       </button>
       {% endfor %}
     </div>
@@ -111,7 +117,7 @@
          data-lightbox-title="{{ mem.title if mem else '' }}"
          data-lightbox-date="{{ mem.date.strftime('%d.%m.%Y') if mem else '' }}"
          data-lightbox-id="{{ mem.id if mem else '' }}">
-      {% set img_alt = (photo.caption or (mem.title if mem else 'Bild'))|e %}
+      {% set img_alt = (photo.caption or (mem.title if mem else t(request, 'gallery.image_alt_fallback')))|e %}
       <img src="{{ photo.filepath|upload_url }}" alt="{{ img_alt }}"
            class="w-full h-full object-cover rounded-xl" loading="lazy">
 
@@ -122,7 +128,7 @@
               class="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 hover:bg-black/70
                      text-white opacity-0 group-hover:opacity-100 hover:opacity-100
                      transition-opacity"
-              title="Erinnerung verstecken">
+              title="{{ t(request, 'gallery.hide_memory_title') }}">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round"
                 d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -140,7 +146,7 @@
         {% if mem.category %}
         <span class="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium text-white/90"
               data-bg-color="{{ category_config.get(mem.category, {}).get('color', '#6b7280') }}">
-          {{ category_config.get(mem.category, {}).get('emoji', '') }} {{ mem.category }}
+          {{ category_config.get(mem.category, {}).get('emoji', '') }} {{ category_label(request, mem.category) }}
         </span>
         {% endif %}
         {% endif %}
@@ -155,19 +161,19 @@
   {# ── Keine Ergebnisse (unsichtbar, per JS eingeblendet) ─────────── #}
   <div id="no-results" class="hidden text-center py-16">
     <div class="text-5xl mb-3">🔍</div>
-    <h3 class="text-lg font-semibold text-stone-600">Keine Fotos für diesen Filter</h3>
-    <p class="text-stone-400 text-sm mt-1">Wähle einen anderen Filter oder zeige alle an.</p>
+    <h3 class="text-lg font-semibold text-stone-600">{{ t(request, 'gallery.no_results_heading') }}</h3>
+    <p class="text-stone-400 text-sm mt-1">{{ t(request, 'gallery.no_results_text') }}</p>
   </div>
 
   {% else %}
   {# ── Leerer Zustand ─────────────────────────────────────────────── #}
   <div class="text-center py-20">
     <div class="text-6xl mb-4">📷</div>
-    <h2 class="text-xl font-bold text-stone-600 mb-2">Noch keine Fotos</h2>
-    <p class="text-stone-400 mb-6">Fügt Fotos zu euren Erinnerungen hinzu!</p>
+    <h2 class="text-xl font-bold text-stone-600 mb-2">{{ t(request, 'gallery.empty_heading') }}</h2>
+    <p class="text-stone-400 mb-6">{{ t(request, 'gallery.empty_text') }}</p>
     <a href="/timeline"
        class="inline-block bg-amber-600 hover:bg-amber-700 text-white font-semibold py-3 px-8 rounded-xl shadow-md hover:shadow-lg transition">
-      Zum Zeitstrahl →
+      {{ t(request, 'gallery.empty_timeline_cta') }}
     </a>
   </div>
   {% endif %}
@@ -178,15 +184,15 @@
   {# Schließen-Button #}
   <button id="lb-close" type="button"
           class="absolute top-4 right-4 text-white/70 hover:text-white text-3xl font-light transition z-10"
-          aria-label="Schließen">&times;</button>
+          aria-label="{{ t(request, 'gallery.lightbox_close') }}">&times;</button>
 
   {# Navigations-Pfeile #}
   <button id="lb-prev" type="button"
           class="absolute left-3 md:left-6 text-white/50 hover:text-white text-5xl font-light transition z-10 select-none"
-          aria-label="Vorheriges Foto">&#8249;</button>
+          aria-label="{{ t(request, 'gallery.lightbox_prev') }}">&#8249;</button>
   <button id="lb-next" type="button"
           class="absolute right-3 md:right-6 text-white/50 hover:text-white text-5xl font-light transition z-10 select-none"
-          aria-label="Nächstes Foto">&#8250;</button>
+          aria-label="{{ t(request, 'gallery.lightbox_next') }}">&#8250;</button>
 
   {# Bild + Infos (pb-16 to avoid collision with thumbnail strip) #}
   <div class="text-center max-h-[calc(100vh-5rem)] flex flex-col items-center pb-16">
@@ -196,7 +202,7 @@
       <p id="lb-date" class="text-sm text-white/60 mt-0.5"></p>
       <p id="lb-caption" class="text-sm text-white/50 italic mt-1"></p>
       <a id="lb-link" href="#" class="inline-block mt-2 text-xs text-amber-400 hover:text-amber-300 transition">
-        Zur Erinnerung →
+        {{ t(request, 'gallery.lightbox_view_memory') }}
       </a>
     </div>
   </div>
@@ -210,6 +216,10 @@
 {% block extra_scripts %}
 <script>
 document.addEventListener("DOMContentLoaded", function () {
+  var STR = {
+    photoFallback: {{ t(request, 'gallery.lightbox_photo_fallback') | tojson }}
+  };
+
   // ── Daten-Attribute anwenden ──────────────────────────────────────
   document.querySelectorAll("[data-color]").forEach(function (el) {
     el.style.color = el.dataset.color;
@@ -281,7 +291,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var item = vis[index];
 
     lbImg.src = item.dataset.lightboxSrc;
-    lbImg.alt = item.dataset.lightboxCaption || item.dataset.lightboxTitle || "Foto";
+    lbImg.alt = item.dataset.lightboxCaption || item.dataset.lightboxTitle || STR.photoFallback;
     lbTitle.textContent = item.dataset.lightboxTitle || "";
     lbDate.textContent = item.dataset.lightboxDate || "";
     lbCaption.textContent = item.dataset.lightboxCaption || "";

@@ -6,6 +6,15 @@
 (function () {
   "use strict";
 
+  // Übersetzte Strings: von tree.html/timeline.html per window.PIN_STR
+  // injiziert (diese Datei ist statisch, kann kein Jinja rendern).
+  var STR = window.PIN_STR || {
+    pinToTree: "An den Baum pinnen",
+    unpinFromTree: "Vom Baum lösen",
+    maxPinnedAlert: "Maximal 8 Erinnerungen können an den Baum gepinnt werden.",
+    emptyTreeHint: "Pinne Erinnerungen im Zeitstrahl um sie hier zu sehen 🌿"
+  };
+
   // === STATE: prevent double-clicks and parallel animations ===
   var activeAnimations = {};
 
@@ -209,7 +218,7 @@
         var parts = counterEl.textContent.trim().split("/");
         var current = parseInt(parts[0], 10);
         if (current >= 8) {
-          showNotification("Maximal 8 Erinnerungen können an den Baum gepinnt werden.");
+          showNotification(STR.maxPinnedAlert);
           return;
         }
       }
@@ -231,7 +240,7 @@
     })
     .then(function (data) {
       if (data.error === "max_reached") {
-        showNotification("Maximal 8 Erinnerungen können an den Baum gepinnt werden.");
+        showNotification(STR.maxPinnedAlert);
         unlock();
         return;
       }
@@ -241,7 +250,7 @@
 
       // Update button state immediately
       btn.setAttribute("data-is-pinned", nowPinned ? "true" : "false");
-      btn.title = nowPinned ? "Vom Baum lösen" : "An den Baum pinnen";
+      btn.title = nowPinned ? STR.unpinFromTree : STR.pinToTree;
 
       if (nowPinned) {
         btn.classList.remove("bg-stone-100", "text-stone-400", "hover:bg-emerald-50", "hover:text-emerald-600");
@@ -372,7 +381,7 @@
         hint.className = "absolute top-1/3 left-1/2 -translate-x-1/2 pointer-events-none text-center";
         hint.style.opacity = "0";
         hint.style.transition = "opacity 0.5s ease";
-        hint.innerHTML = '<p class="text-sm text-green-700/60">Pinne Erinnerungen im Zeitstrahl um sie hier zu sehen \uD83C\uDF3F</p>';
+        hint.innerHTML = '<p class="text-sm text-green-700/60">' + STR.emptyTreeHint + '</p>';
         container.appendChild(hint);
         forceReflow(hint);
         hint.style.opacity = "1";

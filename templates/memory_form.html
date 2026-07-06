@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ "Erinnerung bearbeiten" if memory else "Neue Erinnerung" }}{% endblock %}
+{% block title %}{{ t(request, 'memory_form.title_edit') if memory else t(request, 'memory_form.title_new') }}{% endblock %}
 {% block leaflet %}
 <!-- Leaflet.js -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -27,7 +27,7 @@
 
   {# ── Überschrift ───────────────────────────────────────────────────────── #}
   <h1 class="text-3xl font-bold text-stone-800 mb-8">
-    {{ "✏️ Erinnerung bearbeiten" if memory else "🌱 Neue Erinnerung" }}
+    {{ t(request, 'memory_form.heading_edit') if memory else t(request, 'memory_form.heading_new') }}
   </h1>
 
   {# ── Fehlermeldung ─────────────────────────────────────────────────────── #}
@@ -52,11 +52,11 @@
       {# Titel #}
       <div>
         <label for="title" class="block text-sm font-medium text-stone-600 mb-1">
-          Titel <span class="text-red-500">*</span>
+          {{ t(request, 'memory_form.title_field_label') }} <span class="text-red-500">*</span>
         </label>
         <input type="text" id="title" name="title" required
                value="{{ memory.title if memory else '' }}"
-               placeholder="z. B. Urlaub in Italien 🇮🇹"
+               placeholder="{{ t(request, 'memory_form.title_field_placeholder') }}"
                class="w-full px-4 py-2.5 rounded-lg border border-stone-300
                       focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
       </div>
@@ -65,7 +65,7 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="min-w-0">
           <label for="date" class="block text-sm font-medium text-stone-600 mb-1">
-            Datum <span class="text-red-500">*</span>
+            {{ t(request, 'memory_form.date_label') }} <span class="text-red-500">*</span>
           </label>
           <input type="date" id="date" name="date" required
                  value="{{ memory.date.isoformat() if memory else '' }}"
@@ -75,23 +75,23 @@
 
         <div class="min-w-0">
           <label for="category" class="block text-sm font-medium text-stone-600 mb-1">
-            Kategorie
+            {{ t(request, 'memory_form.category_field_label') }}
           </label>
           <select id="category" name="category"
                   class="block w-full px-4 py-2.5 rounded-lg border border-stone-300
                          focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
             {% set categories = [
-              ("Urlaub",      "🏖️ Urlaub"),
-              ("Meilenstein", "🌟 Meilenstein"),
-              ("Feier",       "🎉 Feier"),
-              ("Alltag",      "📸 Alltag"),
-              ("Abenteuer",   "🌯 Abenteuer"),
-              ("Besonderes",  "❤️ Besonderes")
+              ("Urlaub", "🏖️"),
+              ("Meilenstein", "🌟"),
+              ("Feier", "🎉"),
+              ("Alltag", "📸"),
+              ("Abenteuer", "🌯"),
+              ("Besonderes", "❤️")
             ] %}
-            {% for value, label in categories %}
+            {% for value, emoji in categories %}
             <option value="{{ value }}"
               {{ 'selected' if memory and memory.category == value else '' }}>
-              {{ label }}
+              {{ emoji }} {{ category_label(request, value) }}
             </option>
             {% endfor %}
           </select>
@@ -100,7 +100,7 @@
 
       {# Stimmung (Emoji-Auswahl) #}
       <div>
-        <label for="mood" class="block text-sm font-medium text-stone-600 mb-2">Stimmung</label>
+        <label for="mood" class="block text-sm font-medium text-stone-600 mb-2">{{ t(request, 'memory_form.mood_label') }}</label>
         <input type="hidden" id="mood" name="mood"
                value="{{ memory.mood if memory and memory.mood else '' }}">
         <div class="flex gap-3 flex-wrap" id="mood-picker">
@@ -116,15 +116,15 @@
 
     {# ── Abschnitt: Ort & Karte ─────────────────────────────────────────── #}
     <section class="bg-white rounded-2xl shadow-md p-6 space-y-4">
-      <h2 class="text-lg font-semibold text-stone-700">📍 Ort</h2>
+      <h2 class="text-lg font-semibold text-stone-700">{{ t(request, 'memory_form.place_heading') }}</h2>
 
       <div class="relative">
         <label for="location" class="block text-sm font-medium text-stone-600 mb-1">
-          Ortsname
+          {{ t(request, 'memory_form.location_name_label') }}
         </label>
         <input type="text" id="location" name="location"
                value="{{ memory.location if memory and memory.location else '' }}"
-               placeholder="z. B. Rom, Italien"
+               placeholder="{{ t(request, 'memory_form.location_placeholder') }}"
                autocomplete="off"
                class="w-full px-4 py-2.5 rounded-lg border border-stone-300
                       focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
@@ -137,7 +137,7 @@
 
       <div class="grid grid-cols-2 gap-4">
         <div class="min-w-0">
-          <label for="lat" class="block text-sm font-medium text-stone-600 mb-1">Breitengrad</label>
+          <label for="lat" class="block text-sm font-medium text-stone-600 mb-1">{{ t(request, 'memory_form.latitude_label') }}</label>
           <input type="number" step="any" id="lat" name="lat"
                  value="{{ memory.lat if memory and memory.lat else '' }}"
                  placeholder="51.1657"
@@ -145,7 +145,7 @@
                         focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition text-sm">
         </div>
         <div class="min-w-0">
-          <label for="lng" class="block text-sm font-medium text-stone-600 mb-1">Längengrad</label>
+          <label for="lng" class="block text-sm font-medium text-stone-600 mb-1">{{ t(request, 'memory_form.longitude_label') }}</label>
           <input type="number" step="any" id="lng" name="lng"
                  value="{{ memory.lng if memory and memory.lng else '' }}"
                  placeholder="10.4515"
@@ -154,31 +154,31 @@
         </div>
       </div>
 
-      <p class="text-xs text-stone-400">Suche eine Adresse über das Suchfeld oder klicke auf die Karte.</p>
+      <p class="text-xs text-stone-400">{{ t(request, 'memory_form.map_hint') }}</p>
       <div id="map-picker"></div>
     </section>
 
     {# ── Abschnitt: Beschreibung ─────────────────────────────────────────── #}
     <section class="bg-white rounded-2xl shadow-md p-6">
       <label for="description" class="block text-sm font-medium text-stone-600 mb-1">
-        📝 Beschreibung
+        {{ t(request, 'memory_form.description_label') }}
       </label>
       <textarea id="description" name="description" rows="5"
-                placeholder="Was habt ihr erlebt? Was macht diese Erinnerung besonders?"
+                placeholder="{{ t(request, 'memory_form.description_placeholder') }}"
                 class="w-full px-4 py-2.5 rounded-lg border border-stone-300
                        focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition resize-y">{{ memory.description if memory and memory.description else '' }}</textarea>
     </section>
 
     {# ── Abschnitt: Fotos ────────────────────────────────────────────────── #}
     <section class="bg-white rounded-2xl shadow-md p-6">
-      <h2 class="text-lg font-semibold text-stone-700 mb-3">📸 Fotos</h2>
+      <h2 class="text-lg font-semibold text-stone-700 mb-3">{{ t(request, 'memory_form.photos_heading') }}</h2>
 
       {# Vorhandene Fotos (nur im Bearbeitungsmodus) #}
       {% if memory and memory.photos %}
       <div class="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-4">
         {% for photo in memory.photos %}
         <div class="relative group">
-          {% set preview_alt = (photo.caption or 'Vorschau der Erinnerung')|e %}
+          {% set preview_alt = (photo.caption or t(request, 'memory_form.photo_preview_alt'))|e %}
           <img src="{{ photo.filepath|upload_url }}" alt="{{ preview_alt }}"
                class="w-full h-24 object-cover rounded-lg">
         </div>
@@ -194,7 +194,7 @@
                       file:text-sm file:font-medium
                       file:bg-emerald-50 file:text-emerald-700
                       hover:file:bg-emerald-100 file:cursor-pointer file:transition">
-        <p class="text-xs text-stone-400 mt-1">JPEG, PNG oder WEBP · max. 10 MB pro Bild · mehrere Dateien möglich</p>
+        <p class="text-xs text-stone-400 mt-1">{{ t(request, 'memory_form.photos_hint') }}</p>
       </div>
 
       {# Vorschau #}
@@ -205,13 +205,13 @@
     <div class="flex justify-between items-center">
       <a href="{{ return_to if return_to else ('/memories/' ~ memory.id if memory else '/') }}"
          class="text-stone-500 hover:text-stone-700 transition font-medium">
-        ← Abbrechen
+        {{ t(request, 'memory_form.cancel_button') }}
       </a>
       <button type="submit"
               class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold
                      py-3 px-8 rounded-xl shadow-md hover:shadow-lg transition-all
                      duration-200 flex items-center gap-2">
-        💾 Speichern
+        {{ t(request, 'memory_form.save_button') }}
       </button>
     </div>
 
@@ -222,6 +222,12 @@
 {% block extra_scripts %}
 <script>
 document.addEventListener("DOMContentLoaded", function () {
+
+  // ── Übersetzte UI-Strings (server-seitig gerendert) ────────────────
+  var STR = {
+    geocoderPlaceholder: {{ t(request, 'memory_form.geocoder_placeholder') | tojson }},
+    geocoderError: {{ t(request, 'memory_form.geocoder_error') | tojson }}
+  };
 
   // ── Emoji-Picker ──────────────────────────────────────────────────────
   var moodInput = document.getElementById("mood");
@@ -245,10 +251,19 @@ document.addEventListener("DOMContentLoaded", function () {
   var initZoom = (latInput.value && lngInput.value) ? 12 : 4;
 
   var map = L.map("map-picker").setView([initLat, initLng], initZoom);
-  L.tileLayer("https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-  }).addTo(map);
+  var mapLanguage = {{ request.state.lang | tojson }};
+  if (mapLanguage === "de") {
+    L.tileLayer("https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende'
+    }).addTo(map);
+  } else {
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+      maxZoom: 19,
+      subdomains: "abcd",
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    }).addTo(map);
+  }
 
   var marker = null;
   if (latInput.value && lngInput.value) {
@@ -262,10 +277,10 @@ document.addEventListener("DOMContentLoaded", function () {
   // ── Geocoder-Suche (Adresseingabe auf der Karte) ──────────────────
   var geocoder = L.Control.geocoder({
     defaultMarkType: "L.marker",
-    placeholder: "Adresse suchen…",
-    errorMessage: "Nichts gefunden.",
+    placeholder: STR.geocoderPlaceholder,
+    errorMessage: STR.geocoderError,
     geocoder: L.Control.Geocoder.nominatim({
-      geocodingQueryParams: { "accept-language": "de" }
+      geocodingQueryParams: { "accept-language": mapLanguage }
     })
   }).on("markgeocode", function (e) {
     var result = e.geocode;
@@ -294,7 +309,7 @@ document.addEventListener("DOMContentLoaded", function () {
       fetch("https://nominatim.openstreetmap.org/reverse?format=json&lat=" +
             e.latlng.lat.toFixed(6) + "&lon=" + e.latlng.lng.toFixed(6) +
             "&zoom=14&addressdetails=1", {
-        headers: { "Accept-Language": "de" }
+        headers: { "Accept-Language": mapLanguage }
       })
       .then(function (r) { return r.json(); })
       .then(function (data) {

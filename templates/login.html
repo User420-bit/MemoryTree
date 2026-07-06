@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="{{ request.state.lang }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Anmelden | 🌳 Memory Tree</title>
+  <title>{{ t(request, 'login.title') }} | 🌳 Memory Tree</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gradient-to-br from-emerald-50 via-amber-50 to-emerald-100 min-h-[100dvh] flex items-center justify-center px-4">
@@ -16,7 +16,7 @@
       <div class="text-center mb-8">
         <div class="text-6xl mb-4">🌳</div>
         <h1 class="text-3xl font-bold text-emerald-800">Memory Tree</h1>
-        <p class="text-stone-500 mt-2">Willkommen zurück!</p>
+        <p class="text-stone-500 mt-2">{{ t(request, 'login.welcome_back') }}</p>
       </div>
 
       {# Fehlermeldung #}
@@ -40,10 +40,10 @@
         {# Benutzername #}
         <div>
           <label for="username" class="block text-sm font-medium text-stone-700 mb-1">
-            Benutzername
+            {{ t(request, 'login.username_label') }}
           </label>
           <input type="text" id="username" name="username" required
-                 placeholder="Benutzername eingeben"
+                 placeholder="{{ t(request, 'login.username_placeholder') }}"
                  class="w-full px-4 py-2.5 border border-stone-300 rounded-lg
                         focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500
                         outline-none transition text-stone-800 placeholder-stone-400">
@@ -52,10 +52,10 @@
         {# Passwort #}
         <div>
           <label for="password" class="block text-sm font-medium text-stone-700 mb-1">
-            Passwort
+            {{ t(request, 'login.password_label') }}
           </label>
           <input type="password" id="password" name="password" required
-                 placeholder="Passwort eingeben"
+                 placeholder="{{ t(request, 'login.password_placeholder') }}"
                  class="w-full px-4 py-2.5 border border-stone-300 rounded-lg
                         focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500
                         outline-none transition text-stone-800 placeholder-stone-400">
@@ -65,14 +65,14 @@
         <button type="submit"
                 class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold
                        py-2.5 rounded-lg transition shadow-md hover:shadow-lg">
-          Anmelden
+          {{ t(request, 'login.submit_button') }}
         </button>
       </form>
     </div>
 
     {# Fußzeile #}
     <p class="text-center text-stone-400 text-xs mt-6">
-      🌳 Memory Tree — Euer gemeinsames Erinnerungsbuch
+      🌳 Memory Tree — {{ t(request, 'login.footer_tagline') }}
     </p>
   </div>
 

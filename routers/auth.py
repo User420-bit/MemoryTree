@@ -18,6 +18,7 @@ from auth import (
 )
 from config import settings
 from database import get_db
+from i18n import t
 from models import User
 from template_engine import templates
 
@@ -85,7 +86,7 @@ def login(
         return templates.TemplateResponse(
             request,
             "login.html",
-            {"request": request, "error": "Ungültige Anmeldedaten"},
+            {"request": request, "error": t(request, "login.invalid_credentials")},
             status_code=401,
         )
 

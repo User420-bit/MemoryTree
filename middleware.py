@@ -47,9 +47,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "default-src 'self'",
             "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com",
             "style-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.tailwindcss.com",
-            "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.tile.openstreetmap.de https://unpkg.com",
+            "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.tile.openstreetmap.de https://*.basemaps.cartocdn.com https://unpkg.com",
             "font-src 'self' data:",
-            "connect-src 'self' https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://*.tile.openstreetmap.de",
+            "connect-src 'self' https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://*.tile.openstreetmap.de https://*.basemaps.cartocdn.com",
             "frame-ancestors 'none'",
             "form-action 'self'",
             "base-uri 'self'",
@@ -354,6 +354,32 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
             )
 
         return response
+
+
+# ── Sprach-Middleware ────────────────────────────────────────────────────────
+
+class LanguageMiddleware(BaseHTTPMiddleware):
+    """Liest die App-Sprache (CoupleSettings.language) einmal pro Request
+    und stellt sie als request.state.lang für t()/category_label() bereit.
+    """
+
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        from database import SessionLocal
+        from models import CoupleSettings
+
+        lang = "de"
+        db = SessionLocal()
+        try:
+            cs = db.query(CoupleSettings).first()
+            if cs is not None and cs.language in ("de", "en"):
+                lang = cs.language
+        except Exception:
+            logger.exception("Sprache konnte nicht geladen werden, Fallback 'de'")
+        finally:
+            db.close()
+
+        request.state.lang = lang
+        return await call_next(request)
 
 
 # ── Token-Refresh Middleware ─────────────────────────────────────────────────

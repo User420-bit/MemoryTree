@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Einstellungen"])
 
 _USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_.\-]{3,50}$")
+_SUPPORTED_LANGUAGES = ("de", "en")
 
 
 def _get_or_create_couple_settings(db: Session) -> CoupleSettings:
@@ -151,6 +152,7 @@ def save_settings(
     partner_a_name: Annotated[str, Form()],
     partner_b_name: Annotated[str, Form()],
     partner_since: Annotated[str | None, Form()] = None,
+    language: Annotated[str | None, Form()] = None,
     avatar: Annotated[UploadFile | None, File()] = None,
 ) -> Response:
     """Einstellungen speichern."""
@@ -159,6 +161,9 @@ def save_settings(
 
         cs.partner_a_name = partner_a_name.strip()
         cs.partner_b_name = partner_b_name.strip()
+
+        if language in _SUPPORTED_LANGUAGES:
+            cs.language = language
 
         # SCHUTZLOGIK: partner_since wird NUR geändert wenn der Nutzer
         # explizit ein gültiges Datum im Formular gesendet hat.
@@ -188,11 +193,14 @@ def save_settings(
 
 # ── Login-Daten ändern ──────────────────────────────────────────────────────
 
-def _redirect_account_error(message: str) -> RedirectResponse:
-    """Redirect zur Settings-Seite mit URL-encoded Fehlermeldung."""
-    from urllib.parse import quote
+def _redirect_account_error(error_key: str) -> RedirectResponse:
+    """Redirect zur Settings-Seite mit einem Fehler-Key (siehe i18n/backend.py).
+
+    Der Key selbst wird übertragen, nicht der übersetzte Text — die
+    Übersetzung passiert erst beim Rendern in settings.html via t().
+    """
     return RedirectResponse(
-        url=f"/settings?account_error={quote(message)}",
+        url=f"/settings?account_error={error_key}",
         status_code=303,
     )
 
@@ -210,21 +218,19 @@ def change_username(
         new_username_clean = new_username.strip()
 
         if not _USERNAME_PATTERN.match(new_username_clean):
-            return _redirect_account_error(
-                "Ungültiger Benutzername (3–50 Zeichen, nur A–Z, 0–9, _ . -)."
-            )
+            return _redirect_account_error("invalid_username")
 
         if not verify_password(current_password, current_user.hashed_password):
             logger.warning("Falsches Passwort bei Username-Änderung (User %s)", current_user.id)
-            return _redirect_account_error("Aktuelles Passwort ist falsch.")
+            return _redirect_account_error("wrong_password")
 
         if new_username_clean == current_user.username:
-            return _redirect_account_error("Neuer Benutzername entspricht dem aktuellen.")
+            return _redirect_account_error("username_unchanged")
 
         # Eindeutigkeit prüfen
         existing = db.query(User).filter(User.username == new_username_clean).first()
         if existing is not None and existing.id != current_user.id:
-            return _redirect_account_error("Dieser Benutzername ist bereits vergeben.")
+            return _redirect_account_error("username_taken")
 
         old_username = current_user.username
         current_user.username = new_username_clean
@@ -254,16 +260,16 @@ def change_password(
     try:
         if not verify_password(current_password, current_user.hashed_password):
             logger.warning("Falsches Passwort bei Passwort-Änderung (User %s)", current_user.id)
-            return _redirect_account_error("Aktuelles Passwort ist falsch.")
+            return _redirect_account_error("wrong_password")
 
         if new_password != new_password_repeat:
-            return _redirect_account_error("Die neuen Passwörter stimmen nicht überein.")
+            return _redirect_account_error("password_mismatch")
 
         if len(new_password) < 8 or len(new_password) > 128:
-            return _redirect_account_error("Neues Passwort muss 8–128 Zeichen lang sein.")
+            return _redirect_account_error("password_length")
 
         if new_password == current_password:
-            return _redirect_account_error("Das neue Passwort muss sich vom alten unterscheiden.")
+            return _redirect_account_error("password_unchanged")
 
         current_user.hashed_password = hash_password(new_password)
         db.commit()

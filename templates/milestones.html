@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Meilensteine{% endblock %}
+{% block title %}{{ t(request, 'milestones.page_title') }}{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -53,17 +53,17 @@
   {# ── Countdown Hero ──────────────────────────────────────────────────── #}
   {% if naechstes_jubilaeum %}
   <section class="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl shadow-md p-6 md:p-8 mb-8 text-center border border-amber-200">
-    <p class="text-amber-600 text-sm font-medium uppercase tracking-wide mb-2">Nächstes Jubiläum</p>
+    <p class="text-amber-600 text-sm font-medium uppercase tracking-wide mb-2">{{ t(request, 'milestones.next_anniversary_label') }}</p>
     <h2 class="text-4xl md:text-5xl font-extrabold text-amber-800 mb-2">
-      {{ naechstes_jubilaeum.jahre }}. Jahrestag
+      {{ t(request, 'milestones.anniversary_heading', years=naechstes_jubilaeum.jahre) }}
     </h2>
     <p class="text-xl text-amber-700">
       {% if naechstes_jubilaeum.tage_bis == 0 %}
-        🎉 Heute ist euer Jahrestag!
+        {{ t(request, 'milestones.today_is_anniversary') }}
       {% elif naechstes_jubilaeum.tage_bis == 1 %}
-        noch <span class="font-bold">1</span> Tag · {{ naechstes_jubilaeum.datum }}
+        {{ t(request, 'milestones.days_until_singular', date=naechstes_jubilaeum.datum) | safe }}
       {% else %}
-        noch <span class="font-bold">{{ naechstes_jubilaeum.tage_bis }}</span> Tage · {{ naechstes_jubilaeum.datum }}
+        {{ t(request, 'milestones.days_until_plural', count=naechstes_jubilaeum.tage_bis, date=naechstes_jubilaeum.datum) | safe }}
       {% endif %}
     </p>
   </section>
@@ -72,33 +72,39 @@
   {# ── Header + Neuer Meilenstein Button ───────────────────────────────── #}
   <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
     <div>
-      <h1 class="text-2xl md:text-3xl font-bold text-stone-800">🌟 Eure Meilensteine</h1>
-      <p class="text-sm text-stone-500 mt-1">{{ milestones|length }} besondere Momente</p>
+      <h1 class="text-2xl md:text-3xl font-bold text-stone-800">{{ t(request, 'milestones.heading') }}</h1>
+      <p class="text-sm text-stone-500 mt-1">
+        {% if milestones|length == 1 %}
+          {{ t(request, 'milestones.count_singular', count=milestones|length) }}
+        {% else %}
+          {{ t(request, 'milestones.count_plural', count=milestones|length) }}
+        {% endif %}
+      </p>
     </div>
     <button type="button" id="btn-new-milestone"
             class="inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white
                    px-5 py-2 rounded-full text-sm font-medium shadow-sm hover:shadow transition
                    whitespace-nowrap self-start sm:self-auto cursor-pointer">
-      + Neuer Meilenstein
+      {{ t(request, 'milestones.new_milestone_button') }}
     </button>
   </div>
 
   {# ── Formular (versteckt, wird per JS eingeblendet) ──────────────────── #}
   <div id="milestone-form-wrapper" class="hidden mb-8">
     <section class="bg-white rounded-2xl shadow-md p-6 border-2 border-amber-200">
-      <h3 class="text-lg font-semibold text-stone-700 mb-4" id="form-title">Neuer Meilenstein</h3>
+      <h3 class="text-lg font-semibold text-stone-700 mb-4" id="form-title">{{ t(request, 'milestones.form_title_new') }}</h3>
       <form id="milestone-form" class="space-y-4">
         <input type="hidden" id="ms-id" value="">
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="min-w-0">
-            <label for="ms-title" class="block text-sm font-medium text-stone-600 mb-1">Titel <span class="text-red-500">*</span></label>
-            <input type="text" id="ms-title" required placeholder="z. B. Erstes Date"
+            <label for="ms-title" class="block text-sm font-medium text-stone-600 mb-1">{{ t(request, 'milestones.label_title') }} <span class="text-red-500">*</span></label>
+            <input type="text" id="ms-title" required placeholder="{{ t(request, 'milestones.placeholder_title') }}"
                    class="block w-full px-4 py-2.5 rounded-lg border border-stone-300
                           focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition">
           </div>
           <div class="min-w-0">
-            <label for="ms-date" class="block text-sm font-medium text-stone-600 mb-1">Datum <span class="text-red-500">*</span></label>
+            <label for="ms-date" class="block text-sm font-medium text-stone-600 mb-1">{{ t(request, 'milestones.label_date') }} <span class="text-red-500">*</span></label>
             <input type="date" id="ms-date" required
                    class="block w-full px-4 py-2.5 rounded-lg border border-stone-300
                           focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition">
@@ -106,15 +112,15 @@
         </div>
 
         <div>
-          <label for="ms-desc" class="block text-sm font-medium text-stone-600 mb-1">Beschreibung</label>
-          <textarea id="ms-desc" rows="2" placeholder="Was macht diesen Moment besonders?"
+          <label for="ms-desc" class="block text-sm font-medium text-stone-600 mb-1">{{ t(request, 'milestones.label_description') }}</label>
+          <textarea id="ms-desc" rows="2" placeholder="{{ t(request, 'milestones.placeholder_description') }}"
                     class="w-full px-4 py-2.5 rounded-lg border border-stone-300
                            focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition resize-y"></textarea>
         </div>
 
         <div class="flex flex-col sm:flex-row gap-4 sm:items-end">
           <div>
-            <label for="ms-icon" class="block text-sm font-medium text-stone-600 mb-2">Icon</label>
+            <label for="ms-icon" class="block text-sm font-medium text-stone-600 mb-2">{{ t(request, 'milestones.label_icon') }}</label>
             <input type="hidden" id="ms-icon" value="🌟">
             <div class="flex gap-2 flex-wrap" id="icon-picker">
               {% set icons = ["🌟", "❤️", "💍", "🏠", "👶", "🎓", "✈️", "🎂", "🥂", "📸", "🐾", "🎯"] %}
@@ -126,26 +132,33 @@
 
           <div class="flex items-center gap-2 sm:ml-auto">
             <input type="checkbox" id="ms-anniversary" class="w-4 h-4 text-amber-600 rounded focus:ring-amber-500">
-            <label for="ms-anniversary" class="text-sm text-stone-600">Ist ein Jahrestag</label>
+            <label for="ms-anniversary" class="text-sm text-stone-600">{{ t(request, 'milestones.label_is_anniversary') }}</label>
           </div>
         </div>
 
         <div class="flex gap-3 pt-2">
           <button type="submit"
                   class="bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2.5 px-6 rounded-xl shadow-md hover:shadow-lg transition">
-            💾 Speichern
+            {{ t(request, 'milestones.save_button') }}
           </button>
           <button type="button" id="btn-cancel-form"
                   class="text-stone-500 hover:text-stone-700 transition font-medium py-2.5 px-4">
-            Abbrechen
+            {{ t(request, 'milestones.cancel_button') }}
           </button>
         </div>
       </form>
     </section>
   </div>
 
-  {# ── Deutsche Monatsnamen ────────────────────────────────────────── #}
-  {% set monatsnamen = {1: 'Januar', 2: 'Februar', 3: 'März', 4: 'April', 5: 'Mai', 6: 'Juni', 7: 'Juli', 8: 'August', 9: 'September', 10: 'Oktober', 11: 'November', 12: 'Dezember'} %}
+  {# ── Monatsnamen (übersetzt) ────────────────────────────────────────── #}
+  {% set monatsnamen = {
+    1: t(request, 'milestones.month_1'), 2: t(request, 'milestones.month_2'),
+    3: t(request, 'milestones.month_3'), 4: t(request, 'milestones.month_4'),
+    5: t(request, 'milestones.month_5'), 6: t(request, 'milestones.month_6'),
+    7: t(request, 'milestones.month_7'), 8: t(request, 'milestones.month_8'),
+    9: t(request, 'milestones.month_9'), 10: t(request, 'milestones.month_10'),
+    11: t(request, 'milestones.month_11'), 12: t(request, 'milestones.month_12')
+  } %}
 
   {# ── Meilenstein-Timeline ────────────────────────────────────────────── #}
   {% if milestones %}
@@ -172,9 +185,9 @@
                   data-id="{{ ms.id }}" data-title="{{ ms.title }}" data-date="{{ ms.date.isoformat() }}"
                   data-icon="{{ ms.icon }}" data-desc="{{ ms.description or '' }}"
                   data-anniversary="{{ 'true' if ms.is_anniversary else 'false' }}"
-                  title="Bearbeiten">✏️</button>
+                  title="{{ t(request, 'milestones.edit_title') }}">✏️</button>
           <button type="button" class="ms-delete-btn text-xs bg-stone-100 hover:bg-red-100 text-stone-500 hover:text-red-600 px-2 py-1 rounded-lg transition"
-                  data-id="{{ ms.id }}" title="Löschen">🗑️</button>
+                  data-id="{{ ms.id }}" title="{{ t(request, 'milestones.delete_title') }}">🗑️</button>
         </div>
 
         <div class="flex items-start gap-3">
@@ -183,18 +196,18 @@
             <h3 class="text-lg font-bold text-stone-800 leading-tight">{{ ms.title }}</h3>
             <p class="text-sm text-stone-500 mt-0.5">
               {{ ms.date.day }}. {{ monatsnamen[ms.date.month] }} {{ ms.date.year }}
-              {% if ms.is_anniversary %}<span class="ml-1 text-amber-600 font-medium">· Jahrestag</span>{% endif %}
+              {% if ms.is_anniversary %}<span class="ml-1 text-amber-600 font-medium">· {{ t(request, 'milestones.anniversary_tag') }}</span>{% endif %}
             </p>
             {% if ms.description %}
             <p class="text-stone-600 mt-2 text-sm leading-relaxed">{{ ms.description }}</p>
             {% endif %}
             <p class="text-xs text-stone-400 mt-2">
               {% if days_ago == 0 %}
-                Heute 🎉
+                {{ t(request, 'milestones.today_tag') }}
               {% elif days_ago > 0 %}
-                vor {{ days_ago }} Tagen
+                {{ t(request, 'milestones.days_ago', days=days_ago) }}
               {% else %}
-                in {{ -days_ago }} Tagen
+                {{ t(request, 'milestones.days_in_future', days=-days_ago) }}
               {% endif %}
             </p>
           </div>
@@ -208,11 +221,11 @@
   {# ── Leerer Zustand ──────────────────────────────────────────────── #}
   <div class="text-center py-16">
     <div class="text-6xl mb-4">🌟</div>
-    <h2 class="text-xl font-bold text-stone-600 mb-2">Noch keine Meilensteine</h2>
-    <p class="text-stone-400 mb-6">Halte eure besonderen Momente fest!</p>
+    <h2 class="text-xl font-bold text-stone-600 mb-2">{{ t(request, 'milestones.empty_heading') }}</h2>
+    <p class="text-stone-400 mb-6">{{ t(request, 'milestones.empty_subtext') }}</p>
     <button type="button" onclick="document.getElementById('btn-new-milestone').click()"
             class="bg-amber-600 hover:bg-amber-700 text-white font-semibold py-3 px-8 rounded-xl shadow-md hover:shadow-lg transition">
-      + Ersten Meilenstein erstellen
+      {{ t(request, 'milestones.empty_create_button') }}
     </button>
   </div>
   {% endif %}
@@ -222,16 +235,16 @@
 {# ── Lösch-Bestätigungsdialog ──────────────────────────────────────────── #}
 <div id="delete-dialog" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50">
   <div class="bg-white rounded-2xl shadow-xl p-6 max-w-sm mx-4">
-    <h3 class="text-lg font-bold text-stone-800 mb-2">Meilenstein löschen?</h3>
-    <p class="text-stone-600 mb-6">Diesen Meilenstein wirklich unwiderruflich löschen?</p>
+    <h3 class="text-lg font-bold text-stone-800 mb-2">{{ t(request, 'milestones.delete_dialog_heading') }}</h3>
+    <p class="text-stone-600 mb-6">{{ t(request, 'milestones.delete_dialog_text') }}</p>
     <div class="flex gap-3 justify-end">
       <button type="button" id="delete-cancel"
               class="px-4 py-2 rounded-lg text-stone-600 hover:bg-stone-100 transition">
-        Abbrechen
+        {{ t(request, 'milestones.delete_cancel') }}
       </button>
       <button type="button" id="delete-confirm"
               class="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded-lg transition">
-        Endgültig löschen
+        {{ t(request, 'milestones.delete_confirm') }}
       </button>
     </div>
   </div>
@@ -241,6 +254,13 @@
 {% block extra_scripts %}
 <script>
 document.addEventListener("DOMContentLoaded", function () {
+  var STR = {
+    formTitleNew: {{ t(request, 'milestones.form_title_new') | tojson }},
+    formTitleEdit: {{ t(request, 'milestones.form_title_edit') | tojson }},
+    errorGeneric: {{ t(request, 'milestones.error_generic') | tojson }},
+    errorNetwork: {{ t(request, 'milestones.error_network') | tojson }},
+    errorDelete: {{ t(request, 'milestones.error_delete') | tojson }}
+  };
   var formWrapper = document.getElementById("milestone-form-wrapper");
   var form = document.getElementById("milestone-form");
   var formTitle = document.getElementById("form-title");
@@ -263,7 +283,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // ── Neuen Meilenstein Formular öffnen ──────────────────────────────
   btnNew.addEventListener("click", function () {
     resetForm();
-    formTitle.textContent = "Neuer Meilenstein";
+    formTitle.textContent = STR.formTitleNew;
     formWrapper.classList.remove("hidden");
     formWrapper.scrollIntoView({ behavior: "smooth", block: "start" });
   });
@@ -307,9 +327,9 @@ document.addEventListener("DOMContentLoaded", function () {
     })
     .then(function (r) {
       if (r.ok) { location.reload(); }
-      else { r.json().then(function (d) { alert(d.detail || "Fehler"); }); }
+      else { r.json().then(function (d) { alert(d.detail || STR.errorGeneric); }); }
     })
-    .catch(function () { alert("Netzwerkfehler"); });
+    .catch(function () { alert(STR.errorNetwork); });
   });
 
   // ── Bearbeiten ────────────────────────────────────────────────────
@@ -324,7 +344,7 @@ document.addEventListener("DOMContentLoaded", function () {
       document.querySelectorAll(".emoji-pick").forEach(function (b) {
         b.classList.toggle("selected", b.dataset.icon === btn.dataset.icon);
       });
-      formTitle.textContent = "Meilenstein bearbeiten";
+      formTitle.textContent = STR.formTitleEdit;
       formWrapper.classList.remove("hidden");
       formWrapper.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -358,9 +378,9 @@ document.addEventListener("DOMContentLoaded", function () {
     })
     .then(function (r) {
       if (r.ok) { location.reload(); }
-      else { alert("Fehler beim Löschen"); }
+      else { alert(STR.errorDelete); }
     })
-    .catch(function () { alert("Netzwerkfehler"); });
+    .catch(function () { alert(STR.errorNetwork); });
   });
 
   // ── Hover-Effekt für Edit/Delete Buttons ──────────────────────────

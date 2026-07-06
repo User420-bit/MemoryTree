@@ -153,3 +153,4 @@ class CoupleSettings(Base):
     partner_since: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     partner_a_name: Mapped[str] = mapped_column(String(100), nullable=False, default="Partner A")
     partner_b_name: Mapped[str] = mapped_column(String(100), nullable=False, default="Partner B")
+    language: Mapped[str] = mapped_column(String(10), nullable=False, default="de")

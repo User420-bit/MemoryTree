@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Memory Tree{% endblock %}
+{% block title %}{{ t(request, 'tree.title') }}{% endblock %}
 {% block leaflet %}{% endblock %}
 
 {% block extra_head %}
@@ -307,7 +307,7 @@
                       class="unpin-btn absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500/80 text-white
                              text-[10px] leading-none flex items-center justify-center
                              hover:bg-red-600 z-20 cursor-pointer shadow-sm"
-                      title="Vom Baum entfernen">
+                      title="{{ t(request, 'tree.unpin_title') }}">
                 ✕
               </button>
               <a href="/memories/{{ memory.id }}?from=%2Ftree" class="block">
@@ -337,7 +337,7 @@
           <div id="empty-tree-hint" class="absolute top-1/3 left-1/2 -translate-x-1/2 pointer-events-none text-center">
             <div class="bg-white/90 backdrop-blur-sm rounded-xl px-6 py-4 shadow-md border border-green-200">
               <p class="text-base text-[#2d6a4f] font-medium">
-                Pinne Erinnerungen im Zeitstrahl um sie hier zu sehen 🌿
+                {{ t(request, 'tree.empty_hint_desktop') }}
               </p>
             </div>
           </div>
@@ -386,7 +386,7 @@
         <div class="text-center py-4">
           <div class="inline-block bg-white/90 backdrop-blur-sm rounded-lg px-4 py-2 shadow-sm border border-green-200">
             <p class="text-sm text-[#2d6a4f] font-medium">
-              Pinne Erinnerungen im Zeitstrahl 🌿
+              {{ t(request, 'tree.empty_hint_mobile') }}
             </p>
           </div>
         </div>
@@ -1130,14 +1130,14 @@
       <div class="relative z-20 w-full bg-[#4a8c54] py-3 flex flex-col items-center gap-2">
         {% if partner_since %}
         <span class="text-xs text-green-100/80 font-medium">
-          Zusammen seit {{ partner_since }}
+          {{ t(request, 'tree.together_since', date=partner_since) }}
         </span>
         {% endif %}
         <a href="/timeline"
            class="group flex items-center gap-2 bg-green-900/60 hover:bg-green-900/80
                   backdrop-blur-sm text-green-50 px-6 py-2.5 rounded-full text-sm font-medium
                   shadow-md transition-all hover:shadow-lg hover:scale-105 border border-green-400/20">
-          🌿 Zum Zeitstrahl
+          {{ t(request, 'tree.to_timeline') }}
         </a>
       </div>
     </div>{# /ground #}
@@ -1147,6 +1147,14 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<script>
+  window.PIN_STR = {
+    pinToTree: {{ t(request, 'common.pin_to_tree_title') | tojson }},
+    unpinFromTree: {{ t(request, 'common.unpin_from_tree_title') | tojson }},
+    maxPinnedAlert: {{ t(request, 'common.max_pinned_alert') | tojson }},
+    emptyTreeHint: {{ t(request, 'tree.empty_hint_desktop') | tojson }}
+  };
+</script>
 <script src="/static/js/pin-animation.js"></script>
 <script>
 /**
