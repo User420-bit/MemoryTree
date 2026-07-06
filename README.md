@@ -6,11 +6,17 @@
 
 ---
 ## Screenshots
+### Dashboard
 ![Dashboard](docs/screenshots/dashboard.png)
+### Tree
 ![Tree](docs/screenshots/tree.png)
+### Timeline
 ![Timeline](docs/screenshots/timeline.png)
+### Map
 ![Map](docs/screenshots/map.png)
+### Gallery
 ![Gallery](docs/screenshots/gallery.png)
+### Milestones
 ![Milestones](docs/screenshots/milestones.png)
 ---
 ## Schnellstart
