@@ -5,7 +5,14 @@
 > Dieses Projekt ist für den privaten Gebrauch als Zwei-Personen-App konzipiert — es gibt bewusst kein Multi-Tenant- oder Registrierungssystem, sondern genau zwei feste Accounts (`partner_a` / `partner_b`).
 
 ---
-
+## Screenshots
+![Dashboard](docs/screenshots/dashboard.png)
+![Tree](docs/screenshots/tree.png)
+![Timeline](docs/screenshots/timeline.png)
+![Map](docs/screenshots/map.png)
+![Gallery](docs/screenshots/gallery.png)
+![Milestones](docs/screenshots/milestones.png)
+---
 ## Schnellstart
 
 ### Voraussetzung
