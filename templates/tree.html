@@ -168,111 +168,240 @@
       <svg viewBox="-20 -10 580 500" class="w-full h-auto" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id="trunk-gradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#795548"/>
-            <stop offset="40%" stop-color="#5D4037"/>
+            <stop offset="0%" stop-color="#8a6f5c"/>
+            <stop offset="35%" stop-color="#6b4c3a"/>
             <stop offset="100%" stop-color="#4E342E"/>
           </linearGradient>
           {# Horizontaler Gradient für 3D-Rundung des Stamms #}
           <linearGradient id="trunk-depth" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stop-color="rgba(0,0,0,0.15)"/>
-            <stop offset="25%" stop-color="rgba(0,0,0,0)"/>
-            <stop offset="75%" stop-color="rgba(0,0,0,0)"/>
-            <stop offset="100%" stop-color="rgba(0,0,0,0.10)"/>
+            <stop offset="0%" stop-color="rgba(0,0,0,0.18)"/>
+            <stop offset="22%" stop-color="rgba(0,0,0,0)"/>
+            <stop offset="78%" stop-color="rgba(0,0,0,0)"/>
+            <stop offset="100%" stop-color="rgba(0,0,0,0.12)"/>
           </linearGradient>
           {# Licht-Highlight Mitte des Stamms #}
           <linearGradient id="trunk-highlight" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stop-color="rgba(255,255,255,0)"/>
-            <stop offset="40%" stop-color="rgba(255,255,255,0.07)"/>
-            <stop offset="60%" stop-color="rgba(255,255,255,0.07)"/>
+            <stop offset="42%" stop-color="rgba(255,255,255,0.08)"/>
+            <stop offset="58%" stop-color="rgba(255,255,255,0.08)"/>
             <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
           </linearGradient>
         </defs>
 
-        {# ═══ ÄSTE — hinter der Krone (Übergang Stamm → Krone) ═══ #}
-        <path d="M 242 260 C 230 230, 180 185, 110 150"
-              stroke="#6D4C41" stroke-width="20" fill="none" stroke-linecap="round"/>
-        <path d="M 258 260 C 270 228, 320 180, 395 145"
-              stroke="#6D4C41" stroke-width="18" fill="none" stroke-linecap="round"/>
-        <path d="M 250 250 C 250 215, 248 165, 250 110"
-              stroke="#6D4C41" stroke-width="14" fill="none" stroke-linecap="round"/>
-        <path d="M 246 255 C 228 218, 195 175, 138 130"
-              stroke="#6D4C41" stroke-width="11" fill="none" stroke-linecap="round"/>
-        <path d="M 254 255 C 272 216, 308 172, 368 130"
-              stroke="#6D4C41" stroke-width="10" fill="none" stroke-linecap="round"/>
-        <path d="M 235 270 C 215 255, 180 244, 128 238"
-              stroke="#6D4C41" stroke-width="7" fill="none" stroke-linecap="round" opacity="0.7"/>
-        <path d="M 265 268 C 285 253, 322 242, 378 236"
-              stroke="#6D4C41" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.7"/>
+        {# ═══ ÄSTE — organische Aststruktur, hinter der Krone (niedrige Deckkraft) ═══ #}
+        <g opacity="0.82">
+          {# Hauptast links: Basis → Unterast → Spitzenast #}
+          <path d="M 242 278 C 210 248, 160 210, 100 172"
+                stroke="#5D4037" stroke-width="22" fill="none" stroke-linecap="round"/>
+          <path d="M 185 222 C 160 198, 138 175, 112 150"
+                stroke="#6D4C41" stroke-width="13" fill="none" stroke-linecap="round"/>
+          <path d="M 145 188 C 128 168, 112 148, 98 126"
+                stroke="#795548" stroke-width="7" fill="none" stroke-linecap="round"/>
 
-        {# ═══ BAUMKRONE — breiter ausgebreitet ═══ #}
-        <ellipse cx="250" cy="135" rx="253" ry="145" fill="#2d7a3f" opacity="0.7"/>
-        <ellipse cx="190" cy="115" rx="201" ry="125" fill="#3a8f4f" opacity="0.6"/>
-        <ellipse cx="320" cy="125" rx="190" ry="120" fill="#348a47" opacity="0.6"/>
-        <ellipse cx="250" cy="95" rx="178" ry="105" fill="#45a05a" opacity="0.5"/>
-        <ellipse cx="165" cy="148" rx="150" ry="92" fill="#3d9652" opacity="0.5"/>
-        <ellipse cx="335" cy="142" rx="144" ry="95" fill="#3b9150" opacity="0.5"/>
-        <ellipse cx="250" cy="72" rx="132" ry="78" fill="#52ab65" opacity="0.45"/>
-        <ellipse cx="215" cy="105" rx="121" ry="75" fill="#4da860" opacity="0.4"/>
-        <ellipse cx="285" cy="100" rx="115" ry="70" fill="#50aa63" opacity="0.4"/>
-        {# Sonnenlicht-Reflexe #}
-        <ellipse cx="190" cy="85" rx="52" ry="35" fill="rgba(255,255,255,0.12)"/>
-        <ellipse cx="315" cy="115" rx="46" ry="28" fill="rgba(255,255,255,0.1)"/>
+          {# Hauptast rechts (führt Richtung Schaukel-Aufhängung) #}
+          <path d="M 258 278 C 292 245, 345 208, 405 178"
+                stroke="#5D4037" stroke-width="20" fill="none" stroke-linecap="round"/>
+          <path d="M 312 232 C 338 205, 362 182, 390 158"
+                stroke="#6D4C41" stroke-width="12" fill="none" stroke-linecap="round"/>
+          <path d="M 258 288 C 292 272, 335 255, 378 238"
+                stroke="#6D4C41" stroke-width="9" fill="none" stroke-linecap="round"/>
 
-        {# ═══ STAMM — organisch, breitere Basis ═══ #}
+          {# Zentraler Ast — Stammfortsetzung nach oben #}
+          <path d="M 250 268 C 249 225, 248 175, 250 118"
+                stroke="#5D4037" stroke-width="15" fill="none" stroke-linecap="round"/>
+          <path d="M 250 165 C 251 140, 252 118, 253 95"
+                stroke="#6D4C41" stroke-width="8" fill="none" stroke-linecap="round"/>
+
+          {# Mittlere Äste links/rechts #}
+          <path d="M 244 272 C 222 240, 195 202, 158 165"
+                stroke="#6D4C41" stroke-width="11" fill="none" stroke-linecap="round"/>
+          <path d="M 256 272 C 276 238, 302 200, 330 158"
+                stroke="#6D4C41" stroke-width="10" fill="none" stroke-linecap="round"/>
+
+          {# Kleine tiefe Akzentäste #}
+          <path d="M 236 285 C 218 270, 192 258, 158 250"
+                stroke="#795548" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.7"/>
+          <path d="M 264 285 C 282 270, 308 258, 342 250"
+                stroke="#795548" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.7"/>
+
+          {# ── Astspitzen, die später aus der Krone herausschauen (Charakter) ── #}
+          <path d="M 250 45 C 245 20, 240 0, 236 -8"
+                stroke="#6D4C41" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.7"/>
+          <path d="M 70 160 C 45 155, 20 158, 0 170"
+                stroke="#6D4C41" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.65"/>
+          <path d="M 445 150 C 470 148, 495 155, 515 165"
+                stroke="#6D4C41" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.65"/>
+        </g>
+
+        {# ═══ BAUMKRONE — organische Kronenebenen ═══ #}
+        {# Hinterste Tiefenschicht #}
+        <path d="M 250 345 C 128 348, 32 302, 26 235
+                 C 20 175, 62 128, 108 100
+                 C 88 58, 132 20, 188 18
+                 C 220 16, 246 34, 250 50
+                 C 254 34, 280 16, 312 18
+                 C 368 20, 412 58, 392 100
+                 C 438 128, 480 175, 474 235
+                 C 468 302, 372 348, 250 345 Z"
+              fill="#1a5225" opacity="0.95"/>
+
+        {# Mittlere Schicht links #}
+        <path d="M 250 340 C 148 343, 58 302, 52 238
+                 C 48 182, 84 140, 125 116
+                 C 105 76, 144 42, 198 40
+                 C 226 38, 246 56, 250 70
+                 C 155 85, 100 138, 105 202
+                 C 110 258, 168 308, 250 322 Z"
+              fill="#225e2a" opacity="0.9"/>
+
+        {# Mittlere Schicht rechts #}
+        <path d="M 250 340 C 352 343, 442 302, 448 238
+                 C 452 182, 416 140, 375 116
+                 C 395 76, 356 42, 302 40
+                 C 274 38, 254 56, 250 70
+                 C 345 85, 400 138, 395 202
+                 C 390 258, 332 308, 250 322 Z"
+              fill="#225e2a" opacity="0.9"/>
+
+        {# Hauptkrone #}
+        <path d="M 250 332 C 162 336, 72 296, 64 232
+                 C 58 178, 94 136, 138 112
+                 C 116 74, 155 38, 208 38
+                 C 228 38, 246 54, 250 68
+                 C 254 54, 272 38, 292 38
+                 C 345 38, 384 74, 362 112
+                 C 406 136, 442 178, 436 232
+                 C 428 296, 338 336, 250 332 Z"
+              fill="#2d7a3f"/>
+
+        {# Laubcluster links #}
+        <path d="M 140 228 C 80 236, 58 200, 64 170
+                 C 70 142, 96 118, 126 116
+                 C 112 88, 134 62, 162 66
+                 C 184 70, 198 88, 196 108
+                 C 220 98, 245 110, 248 134
+                 C 252 160, 234 184, 208 192
+                 C 224 206, 220 226, 196 233
+                 C 174 240, 154 238, 140 228 Z"
+              fill="#348a47" opacity="0.92"/>
+
+        {# Laubcluster rechts #}
+        <path d="M 360 228 C 420 236, 442 200, 436 170
+                 C 430 142, 404 118, 374 116
+                 C 388 88, 366 62, 338 66
+                 C 316 70, 302 88, 304 108
+                 C 280 98, 255 110, 252 134
+                 C 248 160, 266 184, 292 192
+                 C 276 206, 280 226, 304 233
+                 C 326 240, 346 238, 360 228 Z"
+              fill="#348a47" opacity="0.92"/>
+
+        {# Laubcluster oben-mitte #}
+        <path d="M 250 72 C 215 64, 190 78, 184 102
+                 C 178 124, 194 144, 216 150
+                 C 205 164, 210 183, 230 188
+                 C 242 192, 254 185, 260 175
+                 C 270 185, 286 190, 296 182
+                 C 314 172, 315 152, 302 140
+                 C 322 133, 333 114, 324 94
+                 C 315 75, 288 62, 264 68 Z"
+              fill="#45a05a" opacity="0.88"/>
+
+        {# Laubcluster vorne-links #}
+        <path d="M 168 295 C 116 300, 88 276, 92 248
+                 C 96 222, 124 202, 154 204
+                 C 146 182, 160 160, 182 158
+                 C 200 157, 215 170, 216 186
+                 C 232 173, 252 173, 258 188
+                 C 266 206, 254 228, 236 234
+                 C 244 252, 236 278, 214 288
+                 C 200 295, 182 295, 168 295 Z"
+              fill="#3a8f4f" opacity="0.92"/>
+
+        {# Laubcluster vorne-rechts #}
+        <path d="M 332 295 C 384 300, 412 276, 408 248
+                 C 404 222, 376 202, 346 204
+                 C 354 182, 340 160, 318 158
+                 C 300 157, 285 170, 284 186
+                 C 268 173, 248 173, 242 188
+                 C 234 206, 246 228, 264 234
+                 C 256 252, 264 278, 286 288
+                 C 300 295, 318 295, 332 295 Z"
+              fill="#3a8f4f" opacity="0.92"/>
+
+        {# Sonnenlicht-Highlight links #}
+        <path d="M 192 108 C 170 98, 160 112, 165 130
+                 C 170 147, 188 156, 208 150
+                 C 220 161, 238 158, 244 145
+                 C 250 132, 243 114, 230 108
+                 C 218 102, 204 104, 192 108 Z"
+              fill="#52ab65" opacity="0.5"/>
+
+        {# Sonnenlicht-Highlight rechts #}
+        <path d="M 292 92 C 272 85, 262 98, 266 116
+                 C 270 132, 286 140, 302 136
+                 C 313 145, 328 143, 334 131
+                 C 340 119, 335 103, 322 97
+                 C 312 90, 302 88, 292 92 Z"
+              fill="#52ab65" opacity="0.42"/>
+
+        {# ═══ STAMM — organisch, leicht gebogen, breitere Basis ═══ #}
         <path d="M 230 250
-                 C 227 280, 224 310, 222 340
-                 C 219 370, 216 400, 213 430
-                 C 211 450, 208 465, 205 480
-                 L 295 480
-                 C 292 465, 289 450, 287 430
-                 C 284 400, 281 370, 278 340
-                 C 276 310, 273 280, 270 250 Z"
+                 C 222 278, 212 302, 216 330
+                 C 210 356, 202 380, 206 410
+                 C 202 432, 198 452, 197 480
+                 L 293 480
+                 C 292 452, 288 432, 286 410
+                 C 290 380, 282 356, 276 330
+                 C 280 302, 274 278, 270 250 Z"
               fill="url(#trunk-gradient)"/>
         {# 3D-Tiefe: Kanten abdunkeln #}
         <path d="M 230 250
-                 C 227 280, 224 310, 222 340
-                 C 219 370, 216 400, 213 430
-                 C 211 450, 208 465, 205 480
-                 L 295 480
-                 C 292 465, 289 450, 287 430
-                 C 284 400, 281 370, 278 340
-                 C 276 310, 273 280, 270 250 Z"
+                 C 222 278, 212 302, 216 330
+                 C 210 356, 202 380, 206 410
+                 C 202 432, 198 452, 197 480
+                 L 293 480
+                 C 292 452, 288 432, 286 410
+                 C 290 380, 282 356, 276 330
+                 C 280 302, 274 278, 270 250 Z"
               fill="url(#trunk-depth)"/>
         {# Licht-Highlight mittig #}
-        <path d="M 240 255
-                 C 238 290, 236 330, 234 370
-                 C 232 410, 228 450, 225 480
-                 L 275 480
-                 C 272 450, 268 410, 266 370
-                 C 264 330, 262 290, 260 255 Z"
+        <path d="M 240 258
+                 C 233 288, 226 312, 229 338
+                 C 224 362, 218 388, 221 412
+                 C 218 434, 214 456, 213 478
+                 L 267 478
+                 C 265 456, 261 434, 258 412
+                 C 261 388, 255 362, 258 338
+                 C 261 312, 254 288, 250 258 Z"
               fill="url(#trunk-highlight)"/>
 
-        {# ── Rinde: vertikale Rillen ── #}
-        <path d="M 240 260 C 239 310, 237 370, 234 450" stroke="rgba(0,0,0,0.07)" stroke-width="1" fill="none"/>
-        <path d="M 250 255 C 250 305, 249 365, 248 455" stroke="rgba(0,0,0,0.05)" stroke-width="0.8" fill="none"/>
-        <path d="M 260 258 C 261 308, 263 368, 266 450" stroke="rgba(0,0,0,0.07)" stroke-width="1" fill="none"/>
-        <path d="M 235 265 C 233 315, 230 375, 226 455" stroke="rgba(0,0,0,0.04)" stroke-width="0.7" fill="none"/>
-        <path d="M 265 262 C 267 312, 270 372, 274 455" stroke="rgba(0,0,0,0.04)" stroke-width="0.7" fill="none"/>
+        {# ── Rinde: vertikale Rillen (folgen der Biegung) ── #}
+        <path d="M 238 260 C 230 300, 218 350, 216 410" stroke="rgba(0,0,0,0.07)" stroke-width="1" fill="none"/>
+        <path d="M 250 255 C 246 300, 238 355, 236 415" stroke="rgba(0,0,0,0.05)" stroke-width="0.8" fill="none"/>
+        <path d="M 262 258 C 260 302, 254 352, 256 412" stroke="rgba(0,0,0,0.07)" stroke-width="1" fill="none"/>
+        <path d="M 226 270 C 216 310, 204 360, 204 420" stroke="rgba(0,0,0,0.04)" stroke-width="0.7" fill="none"/>
+        <path d="M 274 265 C 272 305, 266 355, 268 418" stroke="rgba(0,0,0,0.04)" stroke-width="0.7" fill="none"/>
 
         {# ── Rinde: horizontale Markierungen ── #}
-        <path d="M 228 290 Q 250 296, 272 289" stroke="rgba(0,0,0,0.08)" stroke-width="1" fill="none"/>
-        <path d="M 225 335 Q 250 342, 276 334" stroke="rgba(0,0,0,0.06)" stroke-width="0.9" fill="none"/>
-        <path d="M 222 375 Q 250 382, 278 374" stroke="rgba(0,0,0,0.07)" stroke-width="1" fill="none"/>
-        <path d="M 218 415 Q 250 422, 282 414" stroke="rgba(0,0,0,0.06)" stroke-width="0.8" fill="none"/>
-        <path d="M 214 455 Q 250 462, 286 454" stroke="rgba(0,0,0,0.05)" stroke-width="0.8" fill="none"/>
+        <path d="M 220 295 Q 244 302, 264 292" stroke="rgba(0,0,0,0.08)" stroke-width="1" fill="none"/>
+        <path d="M 213 335 Q 240 344, 268 332" stroke="rgba(0,0,0,0.06)" stroke-width="0.9" fill="none"/>
+        <path d="M 208 375 Q 238 384, 272 372" stroke="rgba(0,0,0,0.07)" stroke-width="1" fill="none"/>
+        <path d="M 203 415 Q 236 424, 278 412" stroke="rgba(0,0,0,0.06)" stroke-width="0.8" fill="none"/>
+        <path d="M 199 455 Q 234 464, 284 452" stroke="rgba(0,0,0,0.05)" stroke-width="0.8" fill="none"/>
 
         {# ── Astknoten (ovale Narben) ── #}
-        <ellipse cx="236" cy="310" rx="5" ry="8" fill="rgba(0,0,0,0.08)" transform="rotate(-5, 236, 310)"/>
-        <ellipse cx="265" cy="385" rx="4" ry="7" fill="rgba(0,0,0,0.06)" transform="rotate(5, 265, 385)"/>
-        <ellipse cx="240" cy="435" rx="3.5" ry="5.5" fill="rgba(0,0,0,0.05)" transform="rotate(-3, 240, 435)"/>
+        <ellipse cx="223" cy="310" rx="5" ry="8" fill="rgba(0,0,0,0.08)" transform="rotate(-8, 223, 310)"/>
+        <ellipse cx="260" cy="385" rx="4" ry="7" fill="rgba(0,0,0,0.06)" transform="rotate(6, 260, 385)"/>
+        <ellipse cx="228" cy="435" rx="3.5" ry="5.5" fill="rgba(0,0,0,0.05)" transform="rotate(-4, 228, 435)"/>
 
         {# ═══ WURZELN — breiter, 6 Stück ═══ #}
-        <path d="M 215 460 Q 185 478, 145 490" stroke="#5D4037" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.5"/>
-        <path d="M 220 468 Q 198 492, 170 508" stroke="#5D4037" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.4"/>
-        <path d="M 210 472 Q 175 485, 130 492" stroke="#5D4037" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.3"/>
-        <path d="M 285 460 Q 315 478, 355 490" stroke="#5D4037" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.5"/>
-        <path d="M 280 468 Q 302 492, 330 508" stroke="#5D4037" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.4"/>
-        <path d="M 290 472 Q 325 485, 370 492" stroke="#5D4037" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.3"/>
+        <path d="M 207 460 Q 178 478, 138 490" stroke="#5D4037" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.5"/>
+        <path d="M 212 468 Q 190 492, 162 508" stroke="#5D4037" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.4"/>
+        <path d="M 202 472 Q 168 485, 123 492" stroke="#5D4037" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.3"/>
+        <path d="M 283 460 Q 313 478, 353 490" stroke="#5D4037" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.5"/>
+        <path d="M 278 468 Q 300 492, 328 508" stroke="#5D4037" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.4"/>
+        <path d="M 288 472 Q 323 485, 368 492" stroke="#5D4037" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.3"/>
 
         {# ═══ SCHAUKEL — am unteren rechten Ast hängend ═══ #}
         <g class="tree-swing">
