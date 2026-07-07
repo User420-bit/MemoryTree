@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard{% endblock %}
+{% block title %}{{ t(request, 'dashboard.title') }}{% endblock %}
 
 {# D3 und Leaflet werden auf dem Dashboard nicht benötigt #}
 
@@ -11,38 +11,38 @@
 {% if success == "created" %}
 <div class="bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl p-4 mb-6 flex items-center gap-3">
   <span class="text-xl">✅</span>
-  <span>Erinnerung wurde erfolgreich erstellt!</span>
+  <span>{{ t(request, 'dashboard.success_created') }}</span>
 </div>
 {% elif success == "updated" %}
 <div class="bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl p-4 mb-6 flex items-center gap-3">
   <span class="text-xl">✅</span>
-  <span>Erinnerung wurde erfolgreich aktualisiert!</span>
+  <span>{{ t(request, 'dashboard.success_updated') }}</span>
 </div>
 {% elif success == "deleted" %}
 <div class="bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl p-4 mb-6 flex items-center gap-3">
   <span class="text-xl">✅</span>
-  <span>Erinnerung wurde erfolgreich gelöscht!</span>
+  <span>{{ t(request, 'dashboard.success_deleted') }}</span>
 </div>
 {% endif %}
 
 {# ── Willkommen & Hero-Statistik ─────────────────────────────────────────── #}
 <section class="text-center mb-10">
   <h1 class="text-3xl md:text-4xl font-bold text-emerald-800 mb-2">
-    Willkommen, {{ user.name }}! 🌳
+    {{ t(request, 'dashboard.welcome_heading', name=user.name) }}
   </h1>
 
   <p class="text-xl md:text-2xl text-stone-600 mt-4">
     {% if partner_name %}
-    Du und <span class="font-bold text-emerald-700">{{ partner_name }}</span> seid seit
-    <span class="font-bold text-emerald-700">{{ tage_zusammen }}</span> Tagen zusammen ❤️
+    {{ t(request, 'dashboard.you_and') }} <span class="font-bold text-emerald-700">{{ partner_name }}</span> {{ t(request, 'dashboard.have_been_together_for') }}
+    <span class="font-bold text-emerald-700">{{ tage_zusammen }}</span> {{ t(request, 'dashboard.days_word') }} ❤️
     {% else %}
-    Ihr seid seit <span class="font-bold text-emerald-700">{{ tage_zusammen }}</span> Tagen zusammen ❤️
+    {{ t(request, 'dashboard.you_both_since') }} <span class="font-bold text-emerald-700">{{ tage_zusammen }}</span> {{ t(request, 'dashboard.days_word') }} ❤️
     {% endif %}
   </p>
 
   {% if naechstes_jubilaeum %}
   <p class="mt-3 text-stone-500">
-    📅 Nächstes Jubiläum: {{ naechstes_jubilaeum }}
+    📅 {{ t(request, 'dashboard.next_anniversary_label') }} {{ naechstes_jubilaeum }}
   </p>
   {% endif %}
 </section>
@@ -54,28 +54,28 @@
   <div class="bg-white rounded-xl shadow-md p-6 text-center hover:shadow-lg transition">
     <div class="text-3xl mb-2">🌳</div>
     <div class="text-3xl font-bold text-emerald-700">{{ erinnerungen_count }}</div>
-    <div class="text-sm text-stone-500 mt-1">Erinnerungen</div>
+    <div class="text-sm text-stone-500 mt-1">{{ t(request, 'dashboard.stat_memories') }}</div>
   </div>
 
   {# Fotos #}
   <div class="bg-white rounded-xl shadow-md p-6 text-center hover:shadow-lg transition">
     <div class="text-3xl mb-2">📸</div>
     <div class="text-3xl font-bold text-emerald-700">{{ fotos_count }}</div>
-    <div class="text-sm text-stone-500 mt-1">Fotos</div>
+    <div class="text-sm text-stone-500 mt-1">{{ t(request, 'dashboard.stat_photos') }}</div>
   </div>
 
   {# Länder #}
   <div class="bg-white rounded-xl shadow-md p-6 text-center hover:shadow-lg transition">
     <div class="text-3xl mb-2">🌍</div>
     <div class="text-3xl font-bold text-emerald-700">{{ laender_count }}</div>
-    <div class="text-sm text-stone-500 mt-1">Länder</div>
+    <div class="text-sm text-stone-500 mt-1">{{ t(request, 'dashboard.stat_countries') }}</div>
   </div>
 
   {# Tage zusammen #}
   <div class="bg-white rounded-xl shadow-md p-6 text-center hover:shadow-lg transition">
     <div class="text-3xl mb-2">❤️</div>
     <div class="text-3xl font-bold text-emerald-700">{{ tage_zusammen }}</div>
-    <div class="text-sm text-stone-500 mt-1">Tage zusammen</div>
+    <div class="text-sm text-stone-500 mt-1">{{ t(request, 'dashboard.stat_days_together') }}</div>
   </div>
 
 </section>
@@ -83,7 +83,7 @@
 {# ── An diesem Tag … ─────────────────────────────────────────────────────── #}
 {% if an_diesem_tag %}
 <section class="mb-12">
-  <h2 class="text-2xl font-bold text-stone-700 mb-4">📅 An diesem Tag…</h2>
+  <h2 class="text-2xl font-bold text-stone-700 mb-4">📅 {{ t(request, 'dashboard.on_this_day_heading') }}</h2>
 
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
     {% for memory in an_diesem_tag %}
@@ -92,7 +92,7 @@
       <div class="flex items-center justify-between mb-2">
         <span class="text-sm text-amber-700 font-medium">{{ memory.date.strftime('%d.%m.%Y') }}</span>
         {% if memory.category %}
-        <span class="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">{{ memory.category }}</span>
+        <span class="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">{{ category_label(request, memory.category) }}</span>
         {% endif %}
       </div>
       <h3 class="font-semibold text-stone-800">{{ memory.title }}</h3>
@@ -107,17 +107,21 @@
 
 {# ── Zum Baum & Zeitstrahl ────────────────────────────────────────────────── #}
 <section class="mb-12">
-  <h2 class="text-2xl font-bold text-stone-700 mb-4">🌳 Euer Memory Tree</h2>
+  <h2 class="text-2xl font-bold text-stone-700 mb-4">🌳 {{ t(request, 'dashboard.your_memory_tree_heading') }}</h2>
 
   <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
     <a href="/tree" class="block bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200
                             rounded-xl p-6 hover:shadow-lg transition group text-center">
       <p class="text-4xl mb-3 group-hover:scale-110 transition-transform inline-block">🌳</p>
       <h3 class="text-lg font-semibold text-emerald-800 mb-1">
-        {{ favoriten_count }} {{ 'Erinnerung' if favoriten_count == 1 else 'Erinnerungen' }} am Baum
+        {% if favoriten_count == 1 %}
+          {{ t(request, 'dashboard.pinned_singular', count=favoriten_count) }}
+        {% else %}
+          {{ t(request, 'dashboard.pinned_plural', count=favoriten_count) }}
+        {% endif %}
       </h3>
       <p class="text-sm text-stone-500">
-        Euren Memory Tree besuchen
+        {{ t(request, 'dashboard.visit_tree_cta') }}
       </p>
     </a>
 
@@ -125,10 +129,14 @@
                                 rounded-xl p-6 hover:shadow-lg transition group text-center">
       <p class="text-4xl mb-3 group-hover:scale-110 transition-transform inline-block">📅</p>
       <h3 class="text-lg font-semibold text-emerald-800 mb-1">
-        {{ erinnerungen_count }} {{ 'Erinnerung' if erinnerungen_count == 1 else 'Erinnerungen' }} gesamt
+        {% if erinnerungen_count == 1 %}
+          {{ t(request, 'dashboard.total_singular', count=erinnerungen_count) }}
+        {% else %}
+          {{ t(request, 'dashboard.total_plural', count=erinnerungen_count) }}
+        {% endif %}
       </h3>
       <p class="text-sm text-stone-500">
-        Euren Zeitstrahl durchstöbern
+        {{ t(request, 'dashboard.browse_timeline_cta') }}
       </p>
     </a>
   </div>
@@ -136,7 +144,7 @@
 
 {# ── Letzte Erinnerungen ─────────────────────────────────────────────────── #}
 <section class="mb-16">
-  <h2 class="text-2xl font-bold text-stone-700 mb-4">Letzte Erinnerungen</h2>
+  <h2 class="text-2xl font-bold text-stone-700 mb-4">{{ t(request, 'dashboard.recent_memories_heading') }}</h2>
 
   {% if letzte_erinnerungen %}
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -145,7 +153,7 @@
       <a href="/memories/{{ memory.id }}?from=%2F" class="block p-6">
         <div class="flex items-center justify-between mb-3">
           <span class="text-xs font-medium bg-emerald-100 text-emerald-700 px-2.5 py-0.5 rounded-full">
-            {{ memory.category }}
+            {{ category_label(request, memory.category) }}
           </span>
           <div class="flex items-center gap-2">
             <span class="text-xs text-stone-400">{{ memory.date.strftime('%d.%m.%Y') }}</span>
@@ -157,7 +165,7 @@
                            {{ 'bg-emerald-100 text-emerald-700' if memory.is_favorite else 'bg-stone-100 text-stone-400' }}"
                     data-id="{{ memory.id }}"
                     data-fav="{{ 'true' if memory.is_favorite else 'false' }}"
-                    title="{{ 'Vom Baum lösen' if memory.is_favorite else 'An den Baum pinnen' }}">
+                    title="{{ t(request, 'dashboard.unpin_from_tree_title') if memory.is_favorite else t(request, 'dashboard.pin_to_tree_title') }}">
               🌳
             </button>
           </div>
@@ -176,7 +184,7 @@
     {% endfor %}
   </div>
   {% else %}
-  <p class="text-stone-500">Noch keine Erinnerungen vorhanden. Erstellt jetzt eure erste! 🌱</p>
+  <p class="text-stone-500">{{ t(request, 'dashboard.no_memories_yet') }}</p>
   {% endif %}
 </section>
 
@@ -187,6 +195,11 @@
 {% block extra_scripts %}
 <script>
 document.addEventListener("DOMContentLoaded", function () {
+  var STR = {
+    pinToTree: {{ t(request, 'dashboard.pin_to_tree_title') | tojson }},
+    unpinFromTree: {{ t(request, 'dashboard.unpin_from_tree_title') | tojson }},
+    maxPinnedAlert: {{ t(request, 'dashboard.max_pinned_alert') | tojson }}
+  };
   document.querySelectorAll(".fav-toggle").forEach(function (btn) {
     btn.addEventListener("click", function (e) {
       e.preventDefault();
@@ -199,11 +212,11 @@ document.addEventListener("DOMContentLoaded", function () {
       if (wasFav) {
         btn.classList.remove("bg-emerald-100", "text-emerald-700");
         btn.classList.add("bg-stone-100", "text-stone-400");
-        btn.title = "An den Baum pinnen";
+        btn.title = STR.pinToTree;
       } else {
         btn.classList.remove("bg-stone-100", "text-stone-400");
         btn.classList.add("bg-emerald-100", "text-emerald-700");
-        btn.title = "Vom Baum lösen";
+        btn.title = STR.unpinFromTree;
       }
 
       fetch("/memories/" + id + "/toggle-favorite", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" } })
@@ -214,19 +227,19 @@ document.addEventListener("DOMContentLoaded", function () {
             btn.dataset.fav = "true";
             btn.classList.remove("bg-emerald-100", "text-emerald-700");
             btn.classList.add("bg-stone-100", "text-stone-400");
-            btn.title = "An den Baum pinnen";
-            alert("Maximal 8 Erinnerungen können an den Baum gepinnt werden.");
+            btn.title = STR.pinToTree;
+            alert(STR.maxPinnedAlert);
             return;
           }
           btn.dataset.fav = data.is_favorite ? "true" : "false";
           if (data.is_favorite) {
             btn.classList.remove("bg-stone-100", "text-stone-400");
             btn.classList.add("bg-emerald-100", "text-emerald-700");
-            btn.title = "Vom Baum lösen";
+            btn.title = STR.unpinFromTree;
           } else {
             btn.classList.remove("bg-emerald-100", "text-emerald-700");
             btn.classList.add("bg-stone-100", "text-stone-400");
-            btn.title = "An den Baum pinnen";
+            btn.title = STR.pinToTree;
           }
         })
         .catch(function () {

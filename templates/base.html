@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="{{ request.state.lang }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -101,12 +101,12 @@
         {# Desktop Navigation (center) — ab lg sichtbar, sonst Hamburger #}
         <div class="hidden lg:flex items-center gap-1 flex-1 min-w-0 ml-6">
           {% set nav_links = [
-            ("/", "Dashboard"),
-            ("/tree", "Baum"),
-            ("/timeline", "Zeitstrahl"),
-            ("/map", "Karte"),
-            ("/gallery", "Galerie"),
-            ("/milestones", "Meilensteine")
+            ("/", t(request, 'common.nav_dashboard')),
+            ("/tree", t(request, 'common.nav_tree')),
+            ("/timeline", t(request, 'common.nav_timeline')),
+            ("/map", t(request, 'common.nav_map')),
+            ("/gallery", t(request, 'common.nav_gallery')),
+            ("/milestones", t(request, 'common.nav_milestones'))
           ] %}
           {% for href, label in nav_links %}
           <a href="{{ href }}"
@@ -121,18 +121,18 @@
         <div class="hidden lg:flex items-center gap-3 ml-4 shrink-0 min-w-0">
           {% if user %}
           <span class="text-emerald-200 text-sm truncate max-w-[10rem]" title="{{ user.name }}">{{ user.name }}</span>
-          <a href="/settings" class="text-emerald-200 hover:text-white transition shrink-0" title="Einstellungen">⚙️</a>
+          <a href="/settings" class="text-emerald-200 hover:text-white transition shrink-0" title="{{ t(request, 'common.settings_title') }}">⚙️</a>
           {% endif %}
           <a href="/auth/logout"
              class="bg-emerald-700 hover:bg-emerald-600 px-3 py-1.5 rounded-md text-sm font-medium transition whitespace-nowrap shrink-0">
-            Abmelden
+            {{ t(request, 'common.logout') }}
           </a>
         </div>
 
         {# Mobile/Tablet Hamburger Button — bis einschließlich md #}
         <button id="mobile-menu-btn"
                 class="lg:hidden p-2 rounded-md hover:bg-emerald-700 transition shrink-0"
-                aria-label="Menü öffnen">
+                aria-label="{{ t(request, 'common.menu_open_label') }}">
           <svg id="hamburger-open" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M4 6h16M4 12h16M4 18h16"/>
@@ -160,13 +160,13 @@
         <hr class="border-emerald-700 my-2">
         <div class="px-3 py-2">
           {% if user %}
-          <span class="block text-sm text-emerald-200 mb-2 break-words">Angemeldet als {{ user.name }}</span>
+          <span class="block text-sm text-emerald-200 mb-2 break-words">{{ t(request, 'common.logged_in_as') }} {{ user.name }}</span>
           {% endif %}
           <div class="flex items-center gap-3 flex-wrap">
-            <a href="/settings" class="flex items-center gap-1 text-emerald-200 hover:text-white transition text-sm">⚙️ Einstellungen</a>
+            <a href="/settings" class="flex items-center gap-1 text-emerald-200 hover:text-white transition text-sm">⚙️ {{ t(request, 'common.settings_title') }}</a>
             <a href="/auth/logout"
                class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg text-sm font-medium transition ml-auto whitespace-nowrap">
-              Abmelden
+              {{ t(request, 'common.logout') }}
             </a>
           </div>
         </div>
@@ -183,7 +183,7 @@
   {# ── Footer ─────────────────────────────────────────────────────────────── #}
   {% block footer %}
   <footer class="bg-amber-50 border-t border-amber-200/60 text-center text-stone-500 text-sm py-6">
-    <p>🌳 Memory Tree — Euer gemeinsames Erinnerungsbuch</p>
+    <p>🌳 Memory Tree — {{ t(request, 'common.footer_tagline') }}</p>
     <p class="mt-1">&copy; {{ now().year if now is defined else "2026" }}</p>
   </footer>
   {% endblock %}
@@ -253,6 +253,18 @@
   {% block extra_scripts %}{% endblock %}
 
   {# ── Hide/Unhide Memories (auf allen Seiten verfügbar) ────────────── #}
-  <script src="/static/js/hide-memory.js?v=2"></script>
+  <script>
+    window.HIDE_STR = {
+      closeLabel: {{ t(request, 'common.toast_close_label') | tojson }},
+      memoryRestored: {{ t(request, 'common.toast_memory_restored') | tojson }},
+      restoreFailed: {{ t(request, 'common.toast_restore_failed') | tojson }},
+      memoryHidden: {{ t(request, 'common.toast_memory_hidden') | tojson }},
+      undo: {{ t(request, 'common.toast_undo') | tojson }},
+      memoryVisibleAgain: {{ t(request, 'common.toast_memory_visible_again') | tojson }},
+      hideFailed: {{ t(request, 'common.toast_hide_failed') | tojson }},
+      restoreError: {{ t(request, 'common.toast_restore_error') | tojson }}
+    };
+  </script>
+  <script src="/static/js/hide-memory.js?v=3"></script>
 </body>
 </html>

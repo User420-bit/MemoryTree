@@ -33,40 +33,40 @@
   {% if return_to %}
     {% set back_url = return_to %}
     {% if return_to.startswith('/settings') %}
-      {% set back_label = 'Zurück zu den versteckten Erinnerungen' %}
+      {% set back_label = t(request, 'memory_detail.back_hidden_memories') %}
     {% elif return_to.startswith('/timeline') %}
-      {% set back_label = 'Zurück zum Zeitstrahl' %}
+      {% set back_label = t(request, 'memory_detail.back_timeline') %}
     {% elif return_to.startswith('/gallery') %}
-      {% set back_label = 'Zurück zur Galerie' %}
+      {% set back_label = t(request, 'memory_detail.back_gallery') %}
     {% elif return_to.startswith('/map') %}
-      {% set back_label = 'Zurück zur Karte' %}
+      {% set back_label = t(request, 'memory_detail.back_map') %}
     {% elif return_to.startswith('/tree') %}
-      {% set back_label = 'Zurück zum Baum' %}
+      {% set back_label = t(request, 'memory_detail.back_tree') %}
     {% elif return_to.startswith('/milestones') %}
-      {% set back_label = 'Zurück zu den Meilensteinen' %}
+      {% set back_label = t(request, 'memory_detail.back_milestones') %}
     {% else %}
-      {% set back_label = 'Zurück' %}
+      {% set back_label = t(request, 'memory_detail.back_default') %}
     {% endif %}
   {% else %}
     {% set ref = request.headers.get('referer', '') %}
     {% if '/timeline' in ref %}
       {% set back_url = '/timeline' %}
-      {% set back_label = 'Zurück zum Zeitstrahl' %}
+      {% set back_label = t(request, 'memory_detail.back_timeline') %}
     {% elif '/gallery' in ref %}
       {% set back_url = '/gallery' %}
-      {% set back_label = 'Zurück zur Galerie' %}
+      {% set back_label = t(request, 'memory_detail.back_gallery') %}
     {% elif '/map' in ref %}
       {% set back_url = '/map' %}
-      {% set back_label = 'Zurück zur Karte' %}
+      {% set back_label = t(request, 'memory_detail.back_map') %}
     {% elif '/tree' in ref %}
       {% set back_url = '/tree' %}
-      {% set back_label = 'Zurück zum Baum' %}
+      {% set back_label = t(request, 'memory_detail.back_tree') %}
     {% elif '/settings' in ref %}
       {% set back_url = '/settings#hidden-memories' %}
-      {% set back_label = 'Zurück zu den Einstellungen' %}
+      {% set back_label = t(request, 'memory_detail.back_settings') %}
     {% else %}
       {% set back_url = '/' %}
-      {% set back_label = 'Zurück zum Dashboard' %}
+      {% set back_label = t(request, 'memory_detail.back_dashboard') %}
     {% endif %}
   {% endif %}
   <a href="{{ back_url }}" class="inline-flex items-center text-stone-500 hover:text-stone-700 transition mb-6">
@@ -78,7 +78,7 @@
   {% if success == "updated" %}
   <div class="bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl p-4 mb-6 flex items-center gap-3">
     <span class="text-xl">✅</span>
-    <span>Erinnerung wurde erfolgreich aktualisiert!</span>
+    <span>{{ t(request, 'memory_detail.success_updated') }}</span>
   </div>
   {% endif %}
 
@@ -86,7 +86,7 @@
   <section class="bg-white rounded-2xl shadow-md p-6 mb-6">
     <div class="flex items-center justify-between mb-4">
       <span class="text-xs font-medium bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full">
-        {{ memory.category }}
+        {{ category_label(request, memory.category) }}
       </span>
       <span class="text-sm text-stone-400">{{ memory.date.strftime('%d.%m.%Y') }}</span>
     </div>
@@ -100,11 +100,11 @@
             class="mt-2 text-2xl transition-transform hover:scale-125"
             data-id="{{ memory.id }}"
             data-fav="{{ 'true' if memory.is_favorite else 'false' }}"
-            title="{{ 'Favorit entfernen' if memory.is_favorite else 'Als Favorit markieren' }}">
+            title="{{ t(request, 'memory_detail.remove_favorite_title') if memory.is_favorite else t(request, 'memory_detail.add_favorite_title') }}">
       <span class="{{ 'text-rose-500' if memory.is_favorite else 'text-stone-300 hover:text-rose-400' }}">
         {{ '♥' if memory.is_favorite else '♡' }}
       </span>
-      <span class="text-sm text-stone-400 ml-1">Favorit</span>
+      <span class="text-sm text-stone-400 ml-1">{{ t(request, 'memory_detail.favorite_label') }}</span>
     </button>
 
     {% if memory.location %}
@@ -114,7 +114,7 @@
     {# Erstellt von #}
     {% if creator %}
     <p class="text-xs text-stone-400 mt-3">
-      Erstellt von {{ creator.name }}
+      {{ t(request, 'memory_detail.created_by', name=creator.name) }}
       {% if memory.created_at %}
        · {{ memory.created_at.strftime('%d.%m.%Y %H:%M') }}
       {% endif %}
@@ -125,7 +125,7 @@
   {# ── Beschreibung ──────────────────────────────────────────────────────── #}
   {% if memory.description %}
   <section class="bg-white rounded-2xl shadow-md p-6 mb-6">
-    <h2 class="text-lg font-semibold text-stone-700 mb-3">📝 Beschreibung</h2>
+    <h2 class="text-lg font-semibold text-stone-700 mb-3">{{ t(request, 'memory_detail.description_heading') }}</h2>
     <div class="text-stone-600 leading-relaxed whitespace-pre-line">{{ memory.description }}</div>
   </section>
   {% endif %}
@@ -133,7 +133,7 @@
   {# ── Fotos ─────────────────────────────────────────────────────────────── #}
   {% if memory.photos %}
   <section class="bg-white rounded-2xl shadow-md p-6 mb-6">
-    <h2 class="text-lg font-semibold text-stone-700 mb-3">📸 Fotos</h2>
+    <h2 class="text-lg font-semibold text-stone-700 mb-3">{{ t(request, 'memory_detail.photos_heading') }}</h2>
     <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
       {% for photo in memory.photos %}
       {% set detail_alt = (photo.caption or memory.title)|e %}
@@ -149,7 +149,7 @@
   {# ── Karte ─────────────────────────────────────────────────────────────── #}
   {% if memory.lat and memory.lng %}
   <section class="bg-white rounded-2xl shadow-md p-6 mb-6">
-    <h2 class="text-lg font-semibold text-stone-700 mb-3">🗺️ Ort auf der Karte</h2>
+    <h2 class="text-lg font-semibold text-stone-700 mb-3">{{ t(request, 'memory_detail.map_heading') }}</h2>
     <div id="detail-map" data-lat="{{ memory.lat|default(0) }}" data-lng="{{ memory.lng|default(0) }}" data-location="{{ memory.location|e }}"></div>
   </section>
   {% endif %}
@@ -162,7 +162,7 @@
     <a href="/memories/{{ memory.id }}/edit?from={{ edit_from|urlencode }}"
        class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold
               py-2.5 px-6 rounded-xl shadow-md hover:shadow-lg transition flex items-center gap-2">
-      ✏️ Bearbeiten
+      {{ t(request, 'memory_detail.edit_button') }}
     </a>
 
     {# Verstecken: Wirkt sofort und springt zur Herkunftsseite zurück.
@@ -172,33 +172,33 @@
             onclick="hideAndReturn({{ memory.id }}, this)"
             class="bg-amber-100 hover:bg-amber-200 text-amber-800 font-semibold
                    py-2.5 px-6 rounded-xl shadow-md hover:shadow-lg transition flex items-center gap-2">
-      🙈 Verstecken
+      {{ t(request, 'memory_detail.hide_button') }}
     </button>
 
     <button type="button" id="delete-btn"
             class="bg-red-500 hover:bg-red-600 text-white font-semibold
                    py-2.5 px-6 rounded-xl shadow-md hover:shadow-lg transition flex items-center gap-2">
-      🗑️ Löschen
+      {{ t(request, 'memory_detail.delete_button') }}
     </button>
   </section>
 
   {# ── Lösch-Bestätigungsdialog ──────────────────────────────────────────── #}
   <div id="delete-dialog" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50">
     <div class="bg-white rounded-2xl shadow-xl p-6 max-w-sm mx-4">
-      <h3 class="text-lg font-bold text-stone-800 mb-2">Erinnerung löschen?</h3>
+      <h3 class="text-lg font-bold text-stone-800 mb-2">{{ t(request, 'memory_detail.delete_dialog_heading') }}</h3>
       <p class="text-stone-600 mb-6">
-        Möchtest du <strong>„{{ memory.title }}"</strong> wirklich unwiderruflich löschen?
+        {{ t(request, 'memory_detail.delete_dialog_text', title=memory.title|e) | safe }}
       </p>
       <div class="flex gap-3 justify-end">
         <button type="button" id="delete-cancel"
                 class="px-4 py-2 rounded-lg text-stone-600 hover:bg-stone-100 transition">
-          Abbrechen
+          {{ t(request, 'memory_detail.delete_cancel') }}
         </button>
         <form method="post" action="/memories/{{ memory.id }}/delete">
           <input type="hidden" name="csrf_token" value="{{ get_csrf_token(request) }}">
           <button type="submit"
                   class="bg-red-500 hover:bg-red-600 text-white font-semibold px-4 py-2 rounded-lg transition">
-            Endgültig löschen
+            {{ t(request, 'memory_detail.delete_confirm') }}
           </button>
         </form>
       </div>
@@ -209,7 +209,7 @@
 
 {# ── Lightbox ────────────────────────────────────────────────────────────── #}
 <div class="lightbox-overlay" id="lightbox">
-  <img src="" alt="Vollbild">
+  <img src="" alt="{{ t(request, 'memory_detail.lightbox_alt') }}">
 </div>
 
 {% endblock %}
@@ -287,9 +287,19 @@ document.addEventListener("DOMContentLoaded", function () {
     var lat = parseFloat(mapEl.dataset.lat) || 0;
     var lng = parseFloat(mapEl.dataset.lng) || 0;
     var map = L.map("detail-map").setView([lat, lng], 13);
-    L.tileLayer("https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png", {
-      maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-    }).addTo(map);
+    var mapLanguage = {{ request.state.lang | tojson }};
+    if (mapLanguage === "de") {
+      L.tileLayer("https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende'
+      }).addTo(map);
+    } else {
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+        maxZoom: 19,
+        subdomains: "abcd",
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      }).addTo(map);
+    }
     L.marker([lat, lng]).addTo(map)
       .bindPopup(mapEl.dataset.location || "")
       .openPopup();

@@ -7,6 +7,7 @@ from pathlib import PurePosixPath
 
 from fastapi.templating import Jinja2Templates
 
+from i18n import category_label, t
 from middleware import get_csrf_token
 
 templates = Jinja2Templates(directory="templates")
@@ -15,6 +16,8 @@ templates = Jinja2Templates(directory="templates")
 
 templates.env.globals["now"] = datetime.now
 templates.env.globals["get_csrf_token"] = get_csrf_token
+templates.env.globals["t"] = t
+templates.env.globals["category_label"] = category_label
 
 
 # ── Sicherer interner Redirect ───────────────────────────────────────────────

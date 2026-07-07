@@ -356,6 +356,32 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         return response
 
 
+# ── Sprach-Middleware ────────────────────────────────────────────────────────
+
+class LanguageMiddleware(BaseHTTPMiddleware):
+    """Liest die App-Sprache (CoupleSettings.language) einmal pro Request
+    und stellt sie als request.state.lang für t()/category_label() bereit.
+    """
+
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        from database import SessionLocal
+        from models import CoupleSettings
+
+        lang = "de"
+        db = SessionLocal()
+        try:
+            cs = db.query(CoupleSettings).first()
+            if cs is not None and cs.language in ("de", "en"):
+                lang = cs.language
+        except Exception:
+            logger.exception("Sprache konnte nicht geladen werden, Fallback 'de'")
+        finally:
+            db.close()
+
+        request.state.lang = lang
+        return await call_next(request)
+
+
 # ── Token-Refresh Middleware ─────────────────────────────────────────────────
 
 class TokenRefreshMiddleware(BaseHTTPMiddleware):

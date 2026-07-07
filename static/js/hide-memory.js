@@ -23,6 +23,19 @@
 (function () {
   "use strict";
 
+  // Übersetzte Strings: von base.html per window.HIDE_STR injiziert
+  // (diese Datei ist statisch, kann kein Jinja rendern).
+  var STR = window.HIDE_STR || {
+    closeLabel: "Schließen",
+    memoryRestored: "Erinnerung wiederhergestellt",
+    restoreFailed: "Wiederherstellen fehlgeschlagen",
+    memoryHidden: "Erinnerung verschoben",
+    undo: "Rückgängig",
+    memoryVisibleAgain: "Erinnerung wieder sichtbar",
+    hideFailed: "Fehler beim Verstecken",
+    restoreError: "Fehler beim Wiederherstellen"
+  };
+
   // ── Helpers ──────────────────────────────────────────────────────────────
   function getCsrfCookie() {
     var match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
@@ -178,7 +191,7 @@
 
     var closeBtn = document.createElement("button");
     closeBtn.type = "button";
-    closeBtn.setAttribute("aria-label", "Schließen");
+    closeBtn.setAttribute("aria-label", STR.closeLabel);
     closeBtn.textContent = "✕";
     Object.assign(closeBtn.style, {
       background: "transparent",
@@ -209,22 +222,22 @@
     try {
       var data = await callToggle(memoryId);
       if (!data.is_hidden) {
-        showToast("Erinnerung wiederhergestellt", { icon: "✓", duration: 2500 });
+        showToast(STR.memoryRestored, { icon: "✓", duration: 2500 });
         setTimeout(function () { window.location.reload(); }, 700);
       } else {
-        showToast("Wiederherstellen fehlgeschlagen", { icon: "⚠️", duration: 3000 });
+        showToast(STR.restoreFailed, { icon: "⚠️", duration: 3000 });
       }
     } catch (err) {
       console.error("[MemoryTree] Undo failed:", err);
-      showToast("Wiederherstellen fehlgeschlagen", { icon: "⚠️", duration: 3000 });
+      showToast(STR.restoreFailed, { icon: "⚠️", duration: 3000 });
     }
   }
 
   function showHideToast(memoryId) {
-    showToast("Erinnerung verschoben", {
+    showToast(STR.memoryHidden, {
       icon: "🙈",
       duration: 6000,
-      actionLabel: "Rückgängig",
+      actionLabel: STR.undo,
       onAction: function () { performUndo(memoryId); },
     });
   }
@@ -240,11 +253,11 @@
         animateCollapse(card);
         showHideToast(memoryId);
       } else {
-        showToast("Erinnerung wieder sichtbar", { icon: "👁️", duration: 2500 });
+        showToast(STR.memoryVisibleAgain, { icon: "👁️", duration: 2500 });
       }
     } catch (err) {
       console.error("[MemoryTree] Hide toggle failed:", err);
-      showToast("Fehler beim Verstecken", { icon: "⚠️", duration: 3000 });
+      showToast(STR.hideFailed, { icon: "⚠️", duration: 3000 });
     } finally {
       buttonElement.dataset.busy = "false";
     }
@@ -274,7 +287,7 @@
       window.location.href = redirect;
     } catch (err) {
       console.error("[MemoryTree] hideAndReturn failed:", err);
-      showToast("Fehler beim Verstecken", { icon: "⚠️", duration: 3000 });
+      showToast(STR.hideFailed, { icon: "⚠️", duration: 3000 });
       buttonElement.dataset.busy = "false";
     }
   };
@@ -298,11 +311,11 @@
             }
           }, 300);
         }
-        showToast("Erinnerung wiederhergestellt", { icon: "✓", duration: 2500 });
+        showToast(STR.memoryRestored, { icon: "✓", duration: 2500 });
       }
     } catch (err) {
       console.error("[MemoryTree] Restore failed:", err);
-      showToast("Fehler beim Wiederherstellen", { icon: "⚠️", duration: 3000 });
+      showToast(STR.restoreError, { icon: "⚠️", duration: 3000 });
     } finally {
       buttonElement.dataset.busy = "false";
     }

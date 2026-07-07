@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 
-{% block title %}Einstellungen{% endblock %}
+{% block title %}{{ t(request, 'settings.title') }}{% endblock %}
 
 {% block content %}
 <div class="max-w-2xl mx-auto">
 
-  <h1 class="text-3xl font-bold text-stone-800 mb-8">⚙️ Einstellungen</h1>
+  <h1 class="text-3xl font-bold text-stone-800 mb-8">⚙️ {{ t(request, 'settings.heading') }}</h1>
 
   {# ── Erfolgsmeldung ────────────────────────────────────────────────────── #}
   {% if success %}
   <div class="bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl p-4 mb-6 flex items-center gap-3">
     <span class="text-xl">✅</span>
-    <span class="font-medium">Einstellungen erfolgreich gespeichert!</span>
+    <span class="font-medium">{{ t(request, 'settings.saved_success') }}</span>
   </div>
   {% endif %}
 
@@ -21,14 +21,14 @@
     {# ── Abschnitt: Unser Profil ─────────────────────────────────────────── #}
     <section class="bg-white rounded-2xl shadow-md p-6">
       <h2 class="text-xl font-semibold text-stone-700 mb-6 flex items-center gap-2">
-        💑 Unser Profil
+        💑 {{ t(request, 'settings.profile_heading') }}
       </h2>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         {# Name Partner A #}
         <div class="min-w-0">
           <label for="partner_a_name" class="block text-sm font-medium text-stone-600 mb-1">
-            Name Partner A
+            {{ t(request, 'settings.partner_a_label') }}
           </label>
           <input type="text" id="partner_a_name" name="partner_a_name"
                  value="{{ couple.partner_a_name }}"
@@ -39,7 +39,7 @@
         {# Name Partner B #}
         <div class="min-w-0">
           <label for="partner_b_name" class="block text-sm font-medium text-stone-600 mb-1">
-            Name Partner B
+            {{ t(request, 'settings.partner_b_label') }}
           </label>
           <input type="text" id="partner_b_name" name="partner_b_name"
                  value="{{ couple.partner_b_name }}"
@@ -51,27 +51,27 @@
       {# Zusammen-seit-Datum #}
       <div class="mt-6 min-w-0">
         <label for="partner_since" class="block text-sm font-medium text-stone-600 mb-1">
-          ❤️ Zusammen seit
+          ❤️ {{ t(request, 'settings.together_since_label') }}
         </label>
         <div class="w-full sm:w-1/2 min-w-0">
           <input type="date" id="partner_since" name="partner_since"
                  value="{{ couple.partner_since.isoformat() if couple.partner_since else '' }}"
                  class="block w-full px-4 py-2.5 rounded-lg border border-stone-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
         </div>
-        <p class="text-xs text-stone-400 mt-1">Das gemeinsame Startdatum eurer Beziehung</p>
+        <p class="text-xs text-stone-400 mt-1">{{ t(request, 'settings.together_since_hint') }}</p>
       </div>
 
       {# Profilbild #}
       <div class="mt-6">
         <label for="avatar" class="block text-sm font-medium text-stone-600 mb-2">
-          📸 Dein Profilbild
+          📸 {{ t(request, 'settings.avatar_label') }}
           <span class="text-stone-400 font-normal">({{ user.name }})</span>
         </label>
 
         <div class="flex items-center gap-4">
           {# Aktuelles Profilbild #}
           {% if user.avatar_path %}
-          <img src="{{ user.avatar_path|upload_url }}" alt="Profilbild"
+          <img src="{{ user.avatar_path|upload_url }}" alt="{{ t(request, 'settings.avatar_alt') }}"
                class="w-16 h-16 rounded-full object-cover border-2 border-emerald-300">
           {% else %}
           <div class="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center text-2xl border-2 border-emerald-300">
@@ -87,7 +87,7 @@
                           file:text-sm file:font-medium
                           file:bg-emerald-50 file:text-emerald-700
                           hover:file:bg-emerald-100 file:cursor-pointer file:transition">
-            <p class="text-xs text-stone-400 mt-1">JPEG, PNG oder WEBP · max. 10 MB</p>
+            <p class="text-xs text-stone-400 mt-1">{{ t(request, 'settings.avatar_hint') }}</p>
           </div>
         </div>
       </div>
@@ -96,18 +96,19 @@
     {# ── Abschnitt: App-Einstellungen ────────────────────────────────────── #}
     <section class="bg-white rounded-2xl shadow-md p-6">
       <h2 class="text-xl font-semibold text-stone-700 mb-6 flex items-center gap-2">
-        🔧 App-Einstellungen
+        🔧 {{ t(request, 'settings.app_settings_heading') }}
       </h2>
 
       <div>
         <label for="language" class="block text-sm font-medium text-stone-600 mb-1">
-          🌐 Sprache
+          🌐 {{ t(request, 'settings.language_label') }}
         </label>
-        <select id="language" disabled
-                class="w-full md:w-1/2 px-4 py-2.5 rounded-lg border border-stone-300 bg-stone-50 text-stone-500 cursor-not-allowed">
-          <option selected>Deutsch</option>
+        <select id="language" name="language"
+                class="w-full md:w-1/2 px-4 py-2.5 rounded-lg border border-stone-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
+          <option value="de" {% if couple.language == 'de' %}selected{% endif %}>Deutsch</option>
+          <option value="en" {% if couple.language == 'en' %}selected{% endif %}>English</option>
         </select>
-        <p class="text-xs text-stone-400 mt-1">Weitere Sprachen in Zukunft verfügbar</p>
+        <p class="text-xs text-stone-400 mt-1">{{ t(request, 'settings.language_hint') }}</p>
       </div>
     </section>
 
@@ -115,7 +116,7 @@
     <div class="flex justify-end">
       <button type="submit"
               class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-8 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2">
-        💾 Speichern
+        💾 {{ t(request, 'settings.save_button') }}
       </button>
     </div>
 
@@ -124,25 +125,25 @@
   {# ── Abschnitt: Login-Daten ändern ────────────────────────────────────── #}
   <section class="bg-white rounded-2xl shadow-md p-6 mt-8">
     <h2 class="text-xl font-semibold text-stone-700 mb-1 flex items-center gap-2">
-      🔐 Login-Daten
+      🔐 {{ t(request, 'settings.login_data_heading') }}
     </h2>
     <p class="text-sm text-stone-500 mb-6">
-      Angemeldet als <span class="font-medium">{{ user.username }}</span>
+      {{ t(request, 'settings.logged_in_as') }} <span class="font-medium">{{ user.username }}</span>
     </p>
 
     {% if account_success == "username" %}
     <div class="bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl p-3 mb-4 text-sm">
-      ✅ Benutzername erfolgreich geändert.
+      ✅ {{ t(request, 'settings.username_changed') }}
     </div>
     {% elif account_success == "password" %}
     <div class="bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-xl p-3 mb-4 text-sm">
-      ✅ Passwort erfolgreich geändert.
+      ✅ {{ t(request, 'settings.password_changed') }}
     </div>
     {% endif %}
 
     {% if account_error %}
     <div class="bg-red-50 border border-red-300 text-red-800 rounded-xl p-3 mb-4 text-sm">
-      ⚠️ {{ account_error }}
+      ⚠️ {{ t(request, 'backend.' + account_error) }}
     </div>
     {% endif %}
 
@@ -150,23 +151,23 @@
     <form method="post" action="/settings/change-username" class="space-y-4 mb-8">
       <input type="hidden" name="csrf_token" value="{{ get_csrf_token(request) }}">
 
-      <h3 class="text-base font-semibold text-stone-700">Benutzername ändern</h3>
+      <h3 class="text-base font-semibold text-stone-700">{{ t(request, 'settings.change_username_heading') }}</h3>
 
       <div class="min-w-0">
         <label for="new_username" class="block text-sm font-medium text-stone-600 mb-1">
-          Neuer Benutzername
+          {{ t(request, 'settings.new_username_label') }}
         </label>
         <input type="text" id="new_username" name="new_username"
                required minlength="3" maxlength="50"
                autocomplete="username"
                pattern="[A-Za-z0-9_.\-]+"
-               title="Nur Buchstaben, Zahlen, _ . und -"
+               title="{{ t(request, 'settings.username_pattern_hint') }}"
                class="block w-full max-w-full box-border min-w-0 px-4 py-2.5 rounded-lg border border-stone-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
       </div>
 
       <div class="min-w-0">
         <label for="current_password_username" class="block text-sm font-medium text-stone-600 mb-1">
-          Aktuelles Passwort (zur Bestätigung)
+          {{ t(request, 'settings.current_password_confirm_label') }}
         </label>
         <input type="password" id="current_password_username" name="current_password"
                required autocomplete="current-password"
@@ -176,7 +177,7 @@
       <div class="flex justify-end">
         <button type="submit"
                 class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 px-6 rounded-lg shadow transition">
-          Benutzername speichern
+          {{ t(request, 'settings.save_username_button') }}
         </button>
       </div>
     </form>
@@ -187,11 +188,11 @@
     <form method="post" action="/settings/change-password" class="space-y-4">
       <input type="hidden" name="csrf_token" value="{{ get_csrf_token(request) }}">
 
-      <h3 class="text-base font-semibold text-stone-700">Passwort ändern</h3>
+      <h3 class="text-base font-semibold text-stone-700">{{ t(request, 'settings.change_password_heading') }}</h3>
 
       <div class="min-w-0">
         <label for="current_password_pw" class="block text-sm font-medium text-stone-600 mb-1">
-          Aktuelles Passwort
+          {{ t(request, 'settings.current_password_label') }}
         </label>
         <input type="password" id="current_password_pw" name="current_password"
                required autocomplete="current-password"
@@ -200,18 +201,18 @@
 
       <div class="min-w-0">
         <label for="new_password" class="block text-sm font-medium text-stone-600 mb-1">
-          Neues Passwort
+          {{ t(request, 'settings.new_password_label') }}
         </label>
         <input type="password" id="new_password" name="new_password"
                required minlength="8" maxlength="128"
                autocomplete="new-password"
                class="block w-full max-w-full box-border min-w-0 px-4 py-2.5 rounded-lg border border-stone-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition">
-        <p class="text-xs text-stone-400 mt-1">Mindestens 8 Zeichen</p>
+        <p class="text-xs text-stone-400 mt-1">{{ t(request, 'settings.new_password_hint') }}</p>
       </div>
 
       <div class="min-w-0">
         <label for="new_password_repeat" class="block text-sm font-medium text-stone-600 mb-1">
-          Neues Passwort wiederholen
+          {{ t(request, 'settings.new_password_repeat_label') }}
         </label>
         <input type="password" id="new_password_repeat" name="new_password_repeat"
                required minlength="8" maxlength="128"
@@ -222,7 +223,7 @@
       <div class="flex justify-end">
         <button type="submit"
                 class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 px-6 rounded-lg shadow transition">
-          Passwort speichern
+          {{ t(request, 'settings.save_password_button') }}
         </button>
       </div>
     </form>
@@ -231,13 +232,17 @@
   {# ── Abschnitt: Versteckte Erinnerungen ───────────────────────────────── #}
   <section id="hidden-memories" class="bg-white rounded-2xl shadow-md p-6 mt-8 scroll-mt-24">
     <h2 class="text-xl font-semibold text-stone-700 mb-1 flex items-center gap-2">
-      🙈 Versteckte Erinnerungen
+      🙈 {{ t(request, 'settings.hidden_memories_heading') }}
     </h2>
     <p id="hidden-count-text" class="text-sm text-stone-500 mb-4">
       {% if hidden_count and hidden_count > 0 %}
-        {{ hidden_count }} Erinnerung{{ 'en' if hidden_count != 1 else '' }} versteckt
+        {% if hidden_count == 1 %}
+          {{ t(request, 'settings.hidden_count_singular', count=hidden_count) }}
+        {% else %}
+          {{ t(request, 'settings.hidden_count_plural', count=hidden_count) }}
+        {% endif %}
       {% else %}
-        Keine versteckten Erinnerungen
+        {{ t(request, 'settings.hidden_count_none') }}
       {% endif %}
     </p>
 
@@ -271,11 +276,11 @@
           <button type="button"
                   onclick="restoreHidden({{ memory.id }}, this)"
                   class="text-sm text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition font-medium whitespace-nowrap">
-            Einblenden
+            {{ t(request, 'settings.restore_button') }}
           </button>
           <a href="/memories/{{ memory.id }}?from=%2Fsettings%23hidden-memories"
              class="text-sm text-stone-500 hover:text-stone-700 hover:bg-stone-100 px-3 py-1.5 rounded-lg transition whitespace-nowrap">
-            Ansehen
+            {{ t(request, 'settings.view_button') }}
           </a>
         </div>
       </div>
@@ -288,15 +293,20 @@
 
 <script>
   // Live-Aktualisierung des Zählers nach Einblenden
+  var HIDDEN_COUNT_STR = {
+    none: {{ t(request, 'settings.hidden_count_none') | tojson }},
+    singular: {{ t(request, 'settings.hidden_count_singular') | tojson }},
+    plural: {{ t(request, 'settings.hidden_count_plural') | tojson }}
+  };
   window.updateHiddenCount = function () {
     var remaining = document.querySelectorAll(".hidden-memory-card").length;
     var el = document.getElementById("hidden-count-text");
     if (!el) return;
     if (remaining === 0) {
-      el.textContent = "Keine versteckten Erinnerungen";
+      el.textContent = HIDDEN_COUNT_STR.none;
     } else {
-      el.textContent =
-        remaining + " Erinnerung" + (remaining !== 1 ? "en" : "") + " versteckt";
+      var template = remaining !== 1 ? HIDDEN_COUNT_STR.plural : HIDDEN_COUNT_STR.singular;
+      el.textContent = template.replace("{count}", remaining);
     }
   };
 </script>
