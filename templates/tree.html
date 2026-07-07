@@ -223,14 +223,6 @@
                 stroke="#795548" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.7"/>
           <path d="M 264 285 C 282 270, 308 258, 342 250"
                 stroke="#795548" stroke-width="6" fill="none" stroke-linecap="round" opacity="0.7"/>
-
-          {# ── Astspitzen, die später aus der Krone herausschauen (Charakter) ── #}
-          <path d="M 250 45 C 245 20, 240 0, 236 -8"
-                stroke="#6D4C41" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.7"/>
-          <path d="M 70 160 C 45 155, 20 158, 0 170"
-                stroke="#6D4C41" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.65"/>
-          <path d="M 445 150 C 470 148, 495 155, 515 165"
-                stroke="#6D4C41" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.65"/>
         </g>
 
         {# ═══ BAUMKRONE — organische Kronenebenen ═══ #}
@@ -369,6 +361,30 @@
                  C 165 304, 162 316, 172 320
                  C 182 325, 198 318, 210 322
                  C 218 312, 220 302, 215 298 Z"
+              fill="#348a47" opacity="0.88"/>
+
+        {# Kronenrand-Füllung links (asymmetrisch, Stammübergang y≈280–340) #}
+        <path d="M 210 300 C 185 290, 155 298, 145 315
+                 C 130 322, 128 340, 148 344
+                 C 160 352, 180 348, 190 336
+                 C 205 340, 218 328, 212 314
+                 C 220 302, 218 290, 210 300 Z"
+              fill="#3a8f4f" opacity="0.9"/>
+
+        {# Kronenrand-Füllung rechts (asymmetrisch, größer als links) #}
+        <path d="M 290 296 C 320 285, 355 292, 368 308
+                 C 382 314, 386 332, 368 340
+                 C 352 350, 328 346, 315 332
+                 C 298 338, 282 326, 288 310
+                 C 280 300, 284 290, 290 296 Z"
+              fill="#2d7a3f" opacity="0.9"/>
+
+        {# Kronenrand-Füllung Mitte (klein, füllt Lücke am Stammübergang) #}
+        <path d="M 250 305 C 235 300, 224 312, 230 325
+                 C 224 336, 240 344, 254 338
+                 C 268 344, 280 332, 272 320
+                 C 280 308, 268 298, 256 302
+                 C 253 298, 250 302, 250 305 Z"
               fill="#348a47" opacity="0.88"/>
 
         {# ═══ STAMM — organisch, leicht gebogen, breitere Basis ═══ #}
