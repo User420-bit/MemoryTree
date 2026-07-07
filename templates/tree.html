@@ -387,13 +387,29 @@
               fill="url(#trunk-highlight)"/>
 
         {# Laub-Kappe — kaschiert die flache Stamm-Oberkante, liegt über dem Stamm #}
-        <path d="M 200 258 C 210 236, 232 226, 248 230
-                 C 262 224, 284 232, 296 252
-                 C 302 266, 292 278, 274 272
-                 C 280 284, 264 292, 250 286
-                 C 234 293, 216 286, 214 272
-                 C 198 276, 192 266, 200 258 Z"
-              fill="#2d7a3f" opacity="0.95"/>
+        {# Basisschicht: dunkler, deckt breiter ab (passt zu "Mittlere Schicht") #}
+        <path d="M 196 262 C 202 238, 224 222, 250 222
+                 C 276 222, 298 238, 304 262
+                 C 308 278, 296 290, 278 286
+                 C 282 296, 268 300, 250 296
+                 C 232 300, 218 296, 222 286
+                 C 204 290, 192 278, 196 262 Z"
+              fill="#225e2a" opacity="0.95"/>
+        {# Texturschicht: heller, schmaler (passt zu Laubclustern) #}
+        <path d="M 210 258 C 215 240, 232 228, 250 228
+                 C 268 228, 285 240, 290 258
+                 C 293 270, 284 280, 270 277
+                 C 273 285, 262 288, 250 285
+                 C 238 288, 227 285, 230 277
+                 C 216 280, 207 270, 210 258 Z"
+              fill="#348a47" opacity="0.85"/>
+        {# Sonnenlicht-Highlight, wie die übrigen Kronen-Highlights #}
+        <path d="M 222 244 C 218 236, 226 230, 236 232
+                 C 246 234, 250 242, 245 250
+                 C 252 252, 253 260, 246 264
+                 C 238 268, 228 264, 226 256
+                 C 218 254, 216 248, 222 244 Z"
+              fill="#52ab65" opacity="0.35"/>
 
         {# ── Rinde: vertikale Rillen (folgen der Biegung) ── #}
         <path d="M 238 260 C 230 300, 218 350, 216 410" stroke="rgba(0,0,0,0.07)" stroke-width="1" fill="none"/>
