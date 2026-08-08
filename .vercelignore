@@ -1,0 +1,37 @@
+# Nicht ins Function-Bundle: hält den Deploy klein und verhindert, dass
+# lokale Daten oder Geheimnisse hochgeladen werden.
+
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Lokale Daten (SQLite-DB + Uploads) — auf Vercel kommen Neon + Blob zum Einsatz
+data/
+
+# Geheimnisse: Env-Vars werden im Vercel-Dashboard gepflegt
+.env
+
+# macOS/exFAT-Schattendateien — Alembic würde ._*.py als Migrationen einlesen
+._*
+.DS_Store
+
+# Raspberry-Pi-/Docker-Deployment, auf Vercel ungenutzt
+Dockerfile
+.dockerignore
+compose.yaml
+docker-compose.yml
+Caddyfile
+gunicorn.conf.py
+start.sh
+stop.sh
+
+# Doku und Tests
+docs/
+tests/
+*.md
+MemoryTree_PRD.docx
+MemoryTree.code-workspace
+.vscode/
+.github/
+models.py.bak

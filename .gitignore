@@ -20,6 +20,9 @@ data/
 static/uploads/*
 !static/uploads/.gitkeep
 
+# Vercel CLI (Projekt-Verknüpfung, enthält Projekt-/Org-IDs)
+.vercel/
+
 # IDE
 .vscode/
 .idea/
