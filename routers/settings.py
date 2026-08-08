@@ -19,7 +19,7 @@ from auth import (
 from database import get_db
 from models import CoupleSettings, Memory, User
 from template_engine import templates
-from uploads import _to_posix_relpath, process_upload, safe_remove
+from uploads import process_upload, safe_remove
 
 logger = logging.getLogger(__name__)
 
@@ -93,13 +93,12 @@ def _handle_avatar_upload(
     if result is None:
         return
 
-    main_path, _ = result
-    rel_path = _to_posix_relpath(main_path)
+    main_ref, _thumb_ref = result
 
     if current_user.avatar_path:
         safe_remove(current_user.avatar_path)
 
-    current_user.avatar_path = rel_path
+    current_user.avatar_path = main_ref
 
 
 @router.get("/settings", response_class=HTMLResponse)

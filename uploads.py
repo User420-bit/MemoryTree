@@ -1,7 +1,15 @@
 # Zentrale Upload-Verarbeitung: Validierung, Sicherheit, Bildoptimierung
+#
+# Zwei Storage-Backends (Weiche über settings.storage_backend):
+#   - "disk": lokales Dateisystem unter UPLOAD_DIR (Raspberry Pi / Entwicklung)
+#   - "blob": Vercel Blob (serverless, read-only Dateisystem)
+# Nach außen liefern alle Funktionen eine "Referenz": entweder ein relativer
+# POSIX-Pfad (disk) oder eine absolute https-URL (blob). Beides ist direkt
+# DB-tauglich und wird vom Jinja-Filter ``upload_url`` verstanden.
 
 import logging
 import uuid
+from io import BytesIO
 from pathlib import Path, PurePosixPath
 
 from fastapi import UploadFile
@@ -38,6 +46,89 @@ Image.MAX_IMAGE_PIXELS = 50_000_000
 
 _UPLOAD_DIR = Path(settings.UPLOAD_DIR).resolve()
 _THUMBNAIL_DIR = _UPLOAD_DIR / "thumbs"
+
+# Blob-Pfadschema — bewusst deterministisch, damit die Thumbnail-Referenz
+# jederzeit aus der Hauptbild-Referenz ableitbar ist und keine zusätzliche
+# DB-Spalte nötig wird.
+_BLOB_PREFIX = "uploads"
+_BLOB_THUMB_PREFIX = "uploads/thumbs"
+
+
+def _use_blob() -> bool:
+    """True, wenn Uploads nach Vercel Blob statt auf die lokale Platte gehen."""
+    return settings.storage_backend == "blob"
+
+
+def is_remote_ref(ref: str) -> bool:
+    """True, wenn die Referenz eine absolute URL (Vercel Blob) ist."""
+    return ref.startswith(("http://", "https://"))
+
+
+def thumbnail_ref(main_ref: str) -> str:
+    """Leitet die Thumbnail-Referenz aus der Hauptbild-Referenz ab.
+
+    Konvention (beide Backends): ``<name>.<ext>`` → ``thumbs/<name>_thumb.<ext>``.
+    """
+    if not main_ref:
+        return ""
+    normalized = main_ref.replace("\\", "/")
+    base, _, filename = normalized.rpartition("/")
+    if not filename:
+        return ""
+    stem, dot, ext = filename.rpartition(".")
+    thumb_name = f"{stem}_thumb.{ext}" if dot else f"{filename}_thumb"
+    if not base:
+        return f"thumbs/{thumb_name}"
+    return f"{base}/thumbs/{thumb_name}"
+
+
+def _blob_client():
+    """Vercel-Blob-Client lazy importieren (nur im Blob-Betrieb installiert)."""
+    import vercel_blob  # noqa: PLC0415 — bewusst lazy, spart Import auf dem Pi
+
+    return vercel_blob
+
+
+def _store_image(pathname: str, data: bytes) -> str:
+    """Bild-Bytes ablegen und die DB-taugliche Referenz zurückgeben.
+
+    ``pathname`` ist der Blob-Pfad (z. B. ``uploads/abc.jpg``); im Disk-Modus
+    wird daraus der Pfad unterhalb von UPLOAD_DIR. Den Content-Type leitet
+    Vercel Blob aus der Endung von ``pathname`` ab — die Endung entspricht
+    immer dem tatsächlich encodierten Format (siehe _sanitize_and_save_image).
+    """
+    if _use_blob():
+        result = _blob_client().put(
+            pathname,
+            data,
+            {
+                # Kein Zufalls-Suffix: der UUID-Dateiname ist bereits nicht
+                # erratbar und die Thumb-Konvention muss vorhersagbar bleiben.
+                "addRandomSuffix": "false",
+                "cacheControlMaxAge": "31536000",
+            },
+        )
+        return str(result["url"])
+
+    # Disk-Modus: pathname ist relativ zum Upload-Verzeichnis
+    relative = PurePosixPath(pathname)
+    if relative.parts and relative.parts[0] == _BLOB_PREFIX:
+        relative = PurePosixPath(*relative.parts[1:])
+    target = _UPLOAD_DIR / Path(*relative.parts)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(data)
+    return _to_posix_relpath(target)
+
+
+def _delete_stored(ref: str) -> None:
+    """Hauptbild und zugehöriges Thumbnail entfernen (Blob-Variante)."""
+    thumb = thumbnail_ref(ref)
+    urls = [u for u in (ref, thumb) if u]
+    try:
+        _blob_client().delete(urls)
+    except Exception:
+        # Verwaiste Blobs sind unkritisch — der DB-Eintrag verschwindet ohnehin.
+        logger.warning("Blob konnte nicht gelöscht werden: %s", ref, exc_info=True)
 
 
 def _to_posix_relpath(absolute_path: str | Path) -> str:
@@ -86,9 +177,11 @@ def _sanitize_and_save_image(data: bytes, extension: str) -> tuple[str, str]:
     - EXIF-Orientierung anwenden
     - Größenbegrenzung
     - Thumbnail erzeugen
-    Gibt (hauptbild_pfad, thumbnail_pfad) zurück.
+    Gibt (hauptbild_referenz, thumbnail_referenz) zurück — relative Pfade im
+    Disk-Modus, absolute Blob-URLs im Vercel-Betrieb.
     """
-    _ensure_dirs()
+    if not _use_blob():
+        _ensure_dirs()
 
     unique_name = uuid.uuid4().hex
     # Einheitlich als JPEG oder WEBP speichern
@@ -97,11 +190,10 @@ def _sanitize_and_save_image(data: bytes, extension: str) -> tuple[str, str]:
 
     main_filename = f"{unique_name}{save_ext}"
     thumb_filename = f"{unique_name}_thumb{save_ext}"
-    main_path = _UPLOAD_DIR / main_filename
-    thumb_path = _THUMBNAIL_DIR / thumb_filename
+    main_pathname = f"{_BLOB_PREFIX}/{main_filename}"
+    thumb_pathname = f"{_BLOB_THUMB_PREFIX}/{thumb_filename}"
 
     # Bild mit Pillow öffnen → EXIF-Orientierung anwenden → neu encodieren
-    from io import BytesIO
     with Image.open(BytesIO(data)) as img:
         # EXIF-Orientierung automatisch korrigieren
         img = ImageOps.exif_transpose(img) or img
@@ -118,24 +210,31 @@ def _sanitize_and_save_image(data: bytes, extension: str) -> tuple[str, str]:
         if img.width > max_dim or img.height > max_dim:
             img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
 
-        # Speichern ohne EXIF-Daten (Pillow schreibt standardmäßig keine)
+        # Speichern ohne EXIF-Daten (Pillow schreibt standardmäßig keine).
+        # In den Speicher encodieren, damit derselbe Code beide Backends bedient.
         save_kwargs = {"quality": 85, "optimize": True}
         if save_format == "WEBP":
             save_kwargs["method"] = 4  # Kompressionsqualität
-        img.save(str(main_path), format=save_format, **save_kwargs)
+
+        main_buffer = BytesIO()
+        img.save(main_buffer, format=save_format, **save_kwargs)
 
         # Thumbnail erzeugen
         thumb_size = settings.THUMBNAIL_SIZE
         img.thumbnail((thumb_size, thumb_size), Image.Resampling.LANCZOS)
-        img.save(str(thumb_path), format=save_format, **save_kwargs)
+        thumb_buffer = BytesIO()
+        img.save(thumb_buffer, format=save_format, **save_kwargs)
 
-    return str(main_path), str(thumb_path)
+    main_ref = _store_image(main_pathname, main_buffer.getvalue())
+    thumb_ref = _store_image(thumb_pathname, thumb_buffer.getvalue())
+    return main_ref, thumb_ref
 
 
 def process_upload(file: UploadFile) -> tuple[str, str] | None:
     """
     Einzelne Datei validieren und verarbeiten.
-    Gibt (hauptbild_pfad, thumbnail_pfad) zurück oder None bei Fehler.
+    Gibt (hauptbild_referenz, thumbnail_referenz) zurück oder None bei Fehler.
+    Die Hauptbild-Referenz ist direkt DB-tauglich (relativer Pfad oder Blob-URL).
     """
     if not file.filename or file.size == 0:
         return None
@@ -166,7 +265,6 @@ def process_upload(file: UploadFile) -> tuple[str, str] | None:
         return None
 
     # Pillow-Validierung: Kann das Bild überhaupt geöffnet werden?
-    from io import BytesIO
     try:
         with Image.open(BytesIO(data)) as test_img:
             test_img.verify()
@@ -193,14 +291,11 @@ def save_uploaded_photos(
         result = process_upload(file)
         if result is None:
             continue
-        main_path, _thumb_path = result
+        main_ref, _thumb_ref = result
 
-        # Relativen Pfad für DB speichern — IMMER mit POSIX-Separatoren,
-        # damit Windows-Backslashes (\) nicht in DB-/URL-Pfade gelangen.
-        rel_main = _to_posix_relpath(main_path)
         photo = Photo(
             memory_id=memory_id,
-            filepath=rel_main,
+            filepath=main_ref,
         )
         db.add(photo)
         count += 1
@@ -211,13 +306,19 @@ def save_uploaded_photos(
 
 
 def safe_remove(filepath: str) -> None:
-    """Datei sicher entfernen — validiert, dass Pfad innerhalb UPLOAD_DIR liegt.
+    """Datei sicher entfernen — Blob-URL oder lokale Datei innerhalb UPLOAD_DIR.
 
     Betrachtet den Input als UNVERTRAUENSWÜRDIG: DB-Rows könnten manipuliert
-    sein oder aus alten Code-Pfaden stammen. Wir normalisieren deshalb auf den
-    reinen Dateinamen und ignorieren alle Pfad-Anteile.
+    sein oder aus alten Code-Pfaden stammen. Im Disk-Modus normalisieren wir
+    deshalb auf den reinen Dateinamen und ignorieren alle Pfad-Anteile.
     """
     if not filepath:
+        return
+
+    # Blob-Referenz: Löschen geht über die API, nicht über das Dateisystem.
+    # Auch im Disk-Modus möglich (migrierte Altbestände), daher vor der Weiche.
+    if is_remote_ref(filepath):
+        _delete_stored(filepath)
         return
 
     # 1) Nur den Dateinamen verwenden — Pfad-Traversal (..), absolute Pfade,

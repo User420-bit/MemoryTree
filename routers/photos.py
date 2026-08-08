@@ -10,7 +10,7 @@ from auth import get_current_user
 from database import get_db
 from models import Memory, Photo, User
 from schemas import PhotoRead
-from uploads import _to_posix_relpath, process_upload, safe_remove
+from uploads import process_upload, safe_remove
 
 logger = logging.getLogger(__name__)
 
@@ -47,13 +47,12 @@ def upload_photo(
             detail="Ungültige Bilddatei. Nur JPEG, PNG und WEBP bis 10 MB erlaubt.",
         )
 
-    main_path, thumb_path = result
-    rel_path = _to_posix_relpath(main_path)
+    main_ref, _thumb_ref = result
 
     # Datenbank-Eintrag erstellen
     photo = Photo(
         memory_id=memory_id,
-        filepath=rel_path,
+        filepath=main_ref,
         caption=caption,
     )
     db.add(photo)

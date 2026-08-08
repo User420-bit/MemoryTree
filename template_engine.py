@@ -3,14 +3,18 @@
 # einheitlich verfügbar sind.
 
 from datetime import datetime
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 from fastapi.templating import Jinja2Templates
 
 from i18n import category_label, t
 from middleware import get_csrf_token
 
-templates = Jinja2Templates(directory="templates")
+# Am Projektverzeichnis ankern statt am CWD — auf Vercel ist das
+# Arbeitsverzeichnis der Function nicht garantiert das Repo-Root.
+_TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
+
+templates = Jinja2Templates(directory=str(_TEMPLATE_DIR))
 
 # ── Globale Template-Funktionen ──────────────────────────────────────────────
 
@@ -61,9 +65,16 @@ templates.env.globals["safe_internal_url"] = safe_internal_url
 # ── Filter ───────────────────────────────────────────────────────────────────
 
 def _upload_url(filepath: str) -> str:
-    """Wandelt DB-Dateipfad in URL um. Unterstützt alte (static/uploads/) und neue (data/uploads/) Pfade."""
+    """Wandelt DB-Dateipfad in URL um.
+
+    Unterstützt Vercel-Blob-URLs (absolut, unverändert durchgereicht) sowie die
+    lokalen Formate static/uploads/ (alt) und data/uploads/ (neu).
+    """
     if not filepath:
         return ""
+    # Vercel Blob: bereits eine vollständige URL
+    if filepath.startswith(("http://", "https://")):
+        return filepath
     # Altes Format: static/uploads/xxx.jpg → /static/uploads/xxx.jpg
     if filepath.startswith("static/"):
         return f"/{filepath}"
