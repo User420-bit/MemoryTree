@@ -85,7 +85,7 @@ python tests/test_responsive.py
 - **Routers** ([routers/](routers/)): `auth`, `memories`, `photos`, `milestones`, `settings` — each included in [main.py](main.py). Page routes for `/`, `/tree`, `/timeline`, `/milestones`, `/gallery`, `/map` are defined directly in `main.py` rather than a router.
 - **Data model** ([models.py](models.py)): `User`, `Memory` (has `is_favorite` = "pinned to tree", capped server-side at `MAX_PINNED_MEMORIES`; `is_hidden`; `tree_pos_top`/`tree_pos_left`; `sort_order`), `Photo`, `Milestone`, `Place`, `CoupleSettings` (singleton row holding `partner_since` — only ever mutated via `POST /settings`, never at DB-init time).
 - **Frontend patterns**: no D3 (removed) — the tree view is SVG-based; map view uses Leaflet.js. Inline-style values driven by DB data (positions, colors) are passed as `data-*` attributes and applied via a small JS helper (`applyDataStyles()`) rather than interpolated into `style=` with Jinja2, to avoid template-driven CSS injection surface.
-- **i18n**: [i18n/](i18n/) exists but the UI standard today is hardcoded German strings in templates/Python — check current usage before assuming a translation layer is wired up everywhere.
+- **i18n**: [i18n/](i18n/) provides `t()`/`category_label()`, wired into Jinja2 globals in [template_engine.py](template_engine.py) and used across all templates (`de`/`en`). `LanguageMiddleware` ([middleware.py](middleware.py)) reads `CoupleSettings.language` once per request into `request.state.lang`. Adding a new user-facing string means adding a key to `i18n/`, not hardcoding it.
 
 ## Security constraints (non-negotiable, see [Copilot Security Instructions .md](Copilot%20Security%20Instructions%20.md))
 
