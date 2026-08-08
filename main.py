@@ -13,13 +13,13 @@ from fastapi.exceptions import HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
-from sqlalchemy import extract, func, inspect as sa_inspect, text
+from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
 
-from auth import get_current_user, hash_password
+from auth import get_current_user
 from config import CATEGORY_CONFIG, settings
 from geo_utils import country_from_coords
-from database import Base, SessionLocal, engine, get_db
+from database import get_db
 from middleware import (
     CSRFMiddleware,
     LanguageMiddleware,
@@ -113,18 +113,35 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: DB initialisieren, Verzeichnisse erstellen. Shutdown: aufräumen."""
+    """Startup / Shutdown.
+
+    Bewusst OHNE Schema-Initialisierung: das Schema wird ausschließlich über
+    Alembic verwaltet (``alembic upgrade head``), Benutzer und Paar-
+    Einstellungen über ``scripts/seed.py``. Auf Vercel startet pro Cold Start
+    eine neue Function-Instanz — DDL an dieser Stelle würde bei jedem Start
+    laufen und sich mit parallelen Instanzen ins Gehege kommen.
+    """
     # Startup
-    _init_database()
     _ensure_directories()
-    logger.info("Memory Tree gestartet (env=%s)", settings.APP_ENV)
+    logger.info(
+        "Memory Tree gestartet (env=%s, storage=%s)",
+        settings.APP_ENV,
+        settings.storage_backend,
+    )
     yield
     # Shutdown
     logger.info("Memory Tree wird beendet")
 
 
 def _ensure_directories() -> None:
-    """Upload- und Daten-Verzeichnisse erstellen."""
+    """Upload- und Daten-Verzeichnisse erstellen (nur im lokalen Betrieb).
+
+    Auf Vercel ist das Dateisystem read-only und Uploads liegen im Blob-Store —
+    dort gibt es nichts anzulegen.
+    """
+    if settings.is_serverless or settings.storage_backend == "blob":
+        return
+
     Path(settings.UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
     Path(settings.UPLOAD_DIR, "thumbs").mkdir(parents=True, exist_ok=True)
     # DB-Verzeichnis aus DATABASE_URL extrahieren
@@ -133,102 +150,6 @@ def _ensure_directories() -> None:
         if db_path.startswith("./"):
             db_path = db_path[2:]
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-
-
-def _init_database() -> None:
-    """DB-Tabellen erstellen und bei Bedarf Spalten nachrüsten."""
-    Base.metadata.create_all(bind=engine)
-    logger.info("Datenbank initialisiert")
-
-    # Pragmatische SQLite-Migration: Spalten nachrüsten
-    inspector = sa_inspect(engine)
-    try:
-        columns = [c["name"] for c in inspector.get_columns("memories")]
-    except Exception:
-        columns = []
-
-    if columns and "is_favorite" not in columns:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE memories ADD COLUMN is_favorite BOOLEAN DEFAULT 0 NOT NULL"))
-        logger.info("Spalte 'is_favorite' zu memories hinzugefügt")
-    if columns and "tree_pos_top" not in columns:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE memories ADD COLUMN tree_pos_top VARCHAR(10)"))
-            conn.execute(text("ALTER TABLE memories ADD COLUMN tree_pos_left VARCHAR(10)"))
-        logger.info("Spalten 'tree_pos_top/left' zu memories hinzugefügt")
-    if columns and "sort_order" not in columns:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE memories ADD COLUMN sort_order INTEGER DEFAULT 0 NOT NULL"))
-        logger.info("Spalte 'sort_order' zu memories hinzugefügt")
-    if columns and "is_hidden" not in columns:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE memories ADD COLUMN is_hidden BOOLEAN DEFAULT 0 NOT NULL"))
-        logger.info("Spalte 'is_hidden' zu memories hinzugefügt")
-
-    try:
-        couple_columns = [c["name"] for c in inspector.get_columns("couple_settings")]
-    except Exception:
-        couple_columns = []
-
-    if couple_columns and "language" not in couple_columns:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE couple_settings ADD COLUMN language VARCHAR(10) DEFAULT 'de' NOT NULL"))
-        logger.info("Spalte 'language' zu couple_settings hinzugefügt")
-
-    # Initiale Benutzer nur in Development erstellen.
-    # Doppel-Gate: zusätzlich DEBUG=True, damit ein fehlkonfiguriertes
-    # APP_ENV allein nicht reicht, um Dev-Passwörter zu aktivieren.
-    if not settings.is_production and settings.DEBUG:
-        logger.warning(
-            "DEV-MODUS: Erstelle Standard-Benutzer partner_a / partner_b "
-            "mit bekanntem Passwort. NIEMALS in Production!"
-        )
-        _create_dev_users()
-
-    # Paar-Einstellungen (Singleton)
-    # SCHUTZLOGIK: partner_since wird hier NICHT gesetzt.
-    # Es darf ausschließlich über POST /settings geändert werden.
-    db: Session = SessionLocal()
-    try:
-        cs: CoupleSettings | None = db.query(CoupleSettings).first()
-        if cs is None:
-            cs = CoupleSettings(
-                partner_a_name="Partner A",
-                partner_b_name="Partner B",
-            )
-            db.add(cs)
-            db.commit()
-            logger.info("Paar-Einstellungen erstellt (ohne Datum — wird über Einstellungen gesetzt)")
-    finally:
-        db.close()
-
-
-def _create_dev_users() -> None:
-    """Test-Benutzer nur in der Entwicklungsumgebung erstellen."""
-    db: Session = SessionLocal()
-    try:
-        existing_a = db.query(User).filter(User.username == "partner_a").first()
-        existing_b = db.query(User).filter(User.username == "partner_b").first()
-
-        # SCHUTZLOGIK: Dev-User werden OHNE partner_since erstellt.
-        # Das Beziehungsdatum wird ausschließlich über couple_settings verwaltet.
-        if not existing_a:
-            db.add(User(
-                name="Partner A",
-                username="partner_a",
-                hashed_password=hash_password("test1234"),
-            ))
-        if not existing_b:
-            db.add(User(
-                name="Partner B",
-                username="partner_b",
-                hashed_password=hash_password("test1234"),
-            ))
-        if not existing_a or not existing_b:
-            db.commit()
-            logger.info("Dev-Benutzer erstellt")
-    finally:
-        db.close()
 
 
 # ── FastAPI App erstellen ────────────────────────────────────────────────────
@@ -256,16 +177,23 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts_l
 
 # ── Statische Dateien & Templates ───────────────────────────────────────────
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Pfade am Projektverzeichnis ankern statt am CWD — auf Vercel ist das
+# Arbeitsverzeichnis der Function nicht garantiert das Repo-Root.
+BASE_DIR = Path(__file__).resolve().parent
 
-# Uploads separat mounten (data/uploads → /uploads/)
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+# Uploads separat mounten (data/uploads → /uploads/) — nur im Disk-Betrieb.
 # BEWUSSTE ENTSCHEIDUNG (Audit 2026-07): kein Auth auf diesem Mount.
 # Schutz: nicht erratbare UUID-Dateinamen + Betrieb ausschließlich im
-# privaten LAN/Tailscale. MUSS überdacht werden, sobald die App jemals
-# öffentlich erreichbar wird (dann: auth-geschützte FileResponse-Route).
-_upload_path = Path(settings.UPLOAD_DIR)
-_upload_path.mkdir(parents=True, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=str(_upload_path)), name="uploads")
+# privaten LAN/Tailscale.
+# Im Blob-Betrieb (Vercel) liefert Vercel Blob die Bilder direkt aus; auch dort
+# sind die URLs öffentlich-aber-unerratbar. Da die App dann im öffentlichen
+# Internet steht, ist das ein bewusst akzeptierter Tradeoff (siehe DEPLOYMENT.md).
+if settings.storage_backend == "disk" and not settings.is_serverless:
+    _upload_path = Path(settings.UPLOAD_DIR)
+    _upload_path.mkdir(parents=True, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=str(_upload_path)), name="uploads")
 
 from template_engine import templates
 
