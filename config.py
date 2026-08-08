@@ -1,8 +1,8 @@
 # Anwendungskonfiguration – lädt Einstellungen aus der .env-Datei
 
+import os
 import secrets
 import sys
-from pathlib import Path
 
 from pydantic_settings import BaseSettings
 
@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024  # 10 MB
     THUMBNAIL_SIZE: int = 400
 
+    # Vercel Blob: wird von Vercel automatisch injiziert, sobald ein Blob-Store
+    # mit dem Projekt verbunden ist. Ist der Token gesetzt, schaltet uploads.py
+    # vom lokalen Dateisystem auf Blob-Storage um (siehe storage_backend).
+    BLOB_READ_WRITE_TOKEN: str = ""
+
     # ── Logging ──────────────────────────────────────────────────────────
     LOG_LEVEL: str = "INFO"
 
@@ -61,14 +66,27 @@ class Settings(BaseSettings):
         return [h.strip() for h in self.ALLOWED_HOSTS.split(",") if h.strip()] or ["*"]
 
     @property
+    def storage_backend(self) -> str:
+        """'blob' (Vercel Blob) oder 'disk' (lokales Dateisystem, Pi/Dev)."""
+        return "blob" if self.BLOB_READ_WRITE_TOKEN else "disk"
+
+    @property
+    def is_serverless(self) -> bool:
+        """True, wenn die App als Vercel-Function läuft (read-only Dateisystem)."""
+        return bool(os.environ.get("VERCEL"))
+
+    @property
     def use_secure_cookies(self) -> bool:
         """Secure-Flag nur aktivieren, wenn explizit per .env gesetzt.
 
         Production != HTTPS: die App läuft auf dem Pi per HTTP im LAN,
         ist aber trotzdem APP_ENV=production. Daher wird das Secure-Flag
         an einen eigenen Schalter gebunden.
+
+        Auf Vercel ist ausschließlich HTTPS erreichbar — dort wird das Flag
+        unabhängig von der .env erzwungen.
         """
-        return self.FORCE_SECURE_COOKIES
+        return self.FORCE_SECURE_COOKIES or self.is_serverless
 
     model_config = {
         "env_file": ".env",
@@ -78,16 +96,17 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# SECRET_KEY-Validierung: in Production muss ein echter Key gesetzt sein
+# SECRET_KEY-Validierung: in Production muss ein echter Key gesetzt sein.
+# Bewusst RuntimeError statt sys.exit(1): auf Vercel würde ein sys.exit im
+# Import der Function nur einen nichtssagenden Crash produzieren, während die
+# Exception mit Text im Log landet.
 if not settings.SECRET_KEY or settings.SECRET_KEY == "dein-geheimer-schluessel-hier-aendern":
     if settings.is_production:
-        print(
-            "FATAL: SECRET_KEY ist nicht gesetzt oder unsicher. "
-            "Bitte einen sicheren Wert in .env setzen: "
-            f"SECRET_KEY={secrets.token_urlsafe(64)}",
-            file=sys.stderr,
+        raise RuntimeError(
+            "SECRET_KEY ist nicht gesetzt oder unsicher. Sicheren Wert setzen "
+            "(.env lokal, Environment Variable auf Vercel), z. B.: "
+            f"SECRET_KEY={secrets.token_urlsafe(64)}"
         )
-        sys.exit(1)
     else:
         # Dev-Modus: temporären Key generieren und warnen
         settings.SECRET_KEY = secrets.token_urlsafe(64)
@@ -95,15 +114,13 @@ if not settings.SECRET_KEY or settings.SECRET_KEY == "dein-geheimer-schluessel-h
 
 # SECRET_KEY-Längen-Guard: auch für gesetzte Keys minimum 32 Zeichen
 if settings.is_production and len(settings.SECRET_KEY) < 32:
-    print(
-        f"FATAL: SECRET_KEY ist zu kurz ({len(settings.SECRET_KEY)} Zeichen). "
-        "Mindestens 32 Zeichen erforderlich.",
-        file=sys.stderr,
+    raise RuntimeError(
+        f"SECRET_KEY ist zu kurz ({len(settings.SECRET_KEY)} Zeichen). "
+        "Mindestens 32 Zeichen erforderlich."
     )
-    sys.exit(1)
 
 # Hinweis wenn Production ohne Secure-Cookies läuft (bewusst per .env, aber warnen).
-if settings.is_production and not settings.FORCE_SECURE_COOKIES:
+if settings.is_production and not settings.use_secure_cookies:
     print(
         "HINWEIS: APP_ENV=production aber FORCE_SECURE_COOKIES=false. "
         "Cookies laufen unverschlüsselt — nur OK wenn die App ausschließlich "
