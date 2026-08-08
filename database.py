@@ -3,23 +3,52 @@
 import logging
 from typing import Generator
 
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from config import settings
 
 logger = logging.getLogger(__name__)
 
-# Engine erstellen – SQLite benötigt check_same_thread=False
-connect_args: dict = {}
-if settings.DATABASE_URL.startswith("sqlite"):
-    connect_args = {"check_same_thread": False}
+def _normalize_database_url(url: str) -> str:
+    """Postgres-URLs auf den psycopg-3-Treiber festnageln.
+
+    Neon/Vercel liefern ``postgres://`` bzw. ``postgresql://``. SQLAlchemy
+    würde daraus psycopg2 ableiten, das hier bewusst nicht installiert ist —
+    ohne diese Normalisierung schlägt der Verbindungsaufbau mit einem
+    "ModuleNotFoundError: psycopg2" fehl.
+    """
+    if url.startswith("postgres://"):
+        return "postgresql+psycopg://" + url[len("postgres://"):]
+    if url.startswith("postgresql://"):
+        return "postgresql+psycopg://" + url[len("postgresql://"):]
+    return url
+
+
+DATABASE_URL: str = _normalize_database_url(settings.DATABASE_URL)
+
+IS_SQLITE: bool = DATABASE_URL.startswith("sqlite")
+IS_POSTGRES: bool = DATABASE_URL.startswith("postgresql")
+
+# Engine-Konfiguration je nach Backend:
+# - SQLite (Pi/Dev): check_same_thread=False, langlebiger Pool.
+# - Postgres/serverless (Vercel): NullPool. Jede Function-Instanz ist kurzlebig
+#   und würde sonst Verbindungen halten, die Neon/Postgres-Limits sprengen —
+#   das eigentliche Pooling übernimmt Neons PgBouncer im "-pooler"-Host.
+_connect_args: dict = {}
+_engine_kwargs: dict = {"pool_pre_ping": True}
+
+if IS_SQLITE:
+    _connect_args = {"check_same_thread": False}
+elif IS_POSTGRES and settings.is_serverless:
+    _engine_kwargs["poolclass"] = NullPool
 
 engine: Engine = create_engine(
-    settings.DATABASE_URL,
-    connect_args=connect_args,
-    pool_pre_ping=True,
+    DATABASE_URL,
+    connect_args=_connect_args,
+    **_engine_kwargs,
 )
 
 
@@ -28,7 +57,7 @@ engine: Engine = create_engine(
 @event.listens_for(engine, "connect")
 def _set_sqlite_pragmas(dbapi_connection, connection_record) -> None:
     """SQLite-PRAGMAs für Stabilität und Performance setzen."""
-    if not settings.DATABASE_URL.startswith("sqlite"):
+    if not IS_SQLITE:
         return
     cursor = dbapi_connection.cursor()
     # WAL-Modus: bessere Lese-Performance, sicherer bei Crashes

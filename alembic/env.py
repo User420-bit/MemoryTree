@@ -10,15 +10,16 @@ from alembic import context
 # Projektverzeichnis zum Python-Pfad hinzufügen
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import settings  # noqa: E402
-from database import Base  # noqa: E402
+from database import DATABASE_URL, IS_SQLITE, Base  # noqa: E402
 from models import *  # noqa: E402, F401, F403 — alle Modelle importieren für Autogenerate
 
 # Alembic Config-Objekt
 config = context.config
 
-# DB-URL aus Settings übernehmen
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# DB-URL aus Settings übernehmen (bereits auf den psycopg-Treiber normalisiert).
+# %-Zeichen escapen: ConfigParser würde sie sonst als Interpolation deuten —
+# in URL-kodierten Passwörtern (%2F o. ä.) ein realer Stolperstein.
+config.set_main_option("sqlalchemy.url", DATABASE_URL.replace("%", "%%"))
 
 # Logging konfigurieren
 if config.config_file_name is not None:
@@ -36,7 +37,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        render_as_batch=True,  # Wichtig für SQLite
+        render_as_batch=IS_SQLITE,  # batch-Modus nur für SQLite nötig
     )
 
     with context.begin_transaction():
@@ -55,7 +56,7 @@ def run_migrations_online() -> None:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            render_as_batch=True,  # Wichtig für SQLite
+            render_as_batch=IS_SQLITE,  # batch-Modus nur für SQLite nötig
         )
 
         with context.begin_transaction():

@@ -71,7 +71,9 @@ class Memory(Base):
     tree_pos_top: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     tree_pos_left: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     created_by: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     creator: Mapped["User"] = relationship("User", back_populates="memories")
@@ -97,6 +99,16 @@ class Memory(Base):
             self.tree_pos_left = None
         self._is_favorite = value
 
+    @is_favorite.expression
+    @classmethod
+    def is_favorite(cls):
+        """SQL-Ausdruck für Queries (``Memory.is_favorite == True``).
+
+        Explizit, damit auf Postgres ein echtes ``is_favorite = true``
+        erzeugt wird statt eines Fallbacks auf den Instanz-Getter.
+        """
+        return cls._is_favorite
+
 
 class Photo(Base):
     """Ein Foto, das einer Erinnerung zugeordnet ist."""
@@ -109,7 +121,9 @@ class Photo(Base):
     )
     filepath: Mapped[str] = mapped_column(String(500), nullable=False)
     caption: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
     memory: Mapped["Memory"] = relationship("Memory", back_populates="photos")
 
