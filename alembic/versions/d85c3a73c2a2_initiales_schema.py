@@ -26,6 +26,7 @@ def upgrade() -> None:
     sa.Column('partner_since', sa.Date(), nullable=True),
     sa.Column('partner_a_name', sa.String(length=100), nullable=False),
     sa.Column('partner_b_name', sa.String(length=100), nullable=False),
+    sa.Column('language', sa.String(length=10), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('couple_settings', schema=None) as batch_op:
