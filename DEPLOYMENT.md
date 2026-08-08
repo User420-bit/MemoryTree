@@ -453,3 +453,113 @@ Als Defense-in-Depth danach:
 hinter einem vertrauenswürdigen Reverse Proxy (Caddy/Traefik) läuft.
 Direkt erreichbar → `false`, sonst ist das Login-Rate-Limit per
 gespooftem `X-Forwarded-For` umgehbar.
+
+---
+
+## 12. Deployment auf Vercel (Alternative zum Pi)
+
+Vercel ist serverless: das Dateisystem ist read-only und jede Anfrage kann in
+einer frischen, kurzlebigen Function-Instanz landen. Die App unterstützt
+deshalb zwei Betriebsmodi, die über Umgebungsvariablen umgeschaltet werden:
+
+| | Raspberry Pi | Vercel |
+|---|---|---|
+| Datenbank | SQLite-Datei | Neon Postgres |
+| Uploads | `data/uploads/` | Vercel Blob |
+| Prozess | Gunicorn (dauerhaft) | Function pro Request |
+| Schema | `alembic upgrade head` | `alembic upgrade head` (lokal, gegen Neon) |
+
+Der Code wählt automatisch: `DATABASE_URL` bestimmt die Datenbank,
+`BLOB_READ_WRITE_TOKEN` bestimmt den Upload-Storage. Der Pi-Betrieb bleibt
+unverändert funktionsfähig.
+
+### 12.1 Ressourcen anlegen
+
+1. Im Vercel-Dashboard → Storage → **Neon Postgres** anlegen und mit dem
+   Projekt verbinden. Den **pooled** Connection String verwenden (Host mit
+   `-pooler`); die App setzt für Postgres bewusst `NullPool`, das Pooling
+   übernimmt Neons PgBouncer.
+2. Storage → **Blob Store** anlegen und mit dem Projekt verbinden.
+   `BLOB_READ_WRITE_TOKEN` wird danach automatisch injiziert.
+
+### 12.2 Umgebungsvariablen (Project Settings → Environment Variables)
+
+```
+APP_ENV=production
+DEBUG=false
+SECRET_KEY=<python3 -c "import secrets; print(secrets.token_urlsafe(64))">
+DATABASE_URL=postgresql://…-pooler….neon.tech/neondb?sslmode=require
+ALLOWED_HOSTS=<projekt>.vercel.app,<eigene-domain>
+TRUST_PROXY_HEADERS=true
+FORCE_SECURE_COOKIES=true
+```
+
+`TRUST_PROXY_HEADERS=true` ist hier korrekt: auf Vercel läuft **jeder**
+Request über den Vercel-Proxy, `X-Forwarded-For` ist also vertrauenswürdig.
+`BLOB_READ_WRITE_TOKEN` kommt von der Blob-Integration und wird nicht
+manuell gesetzt.
+
+### 12.3 Schema und Daten einspielen (lokal ausführen)
+
+```bash
+export DATABASE_URL='postgresql://…-pooler….neon.tech/neondb?sslmode=require'
+export BLOB_READ_WRITE_TOKEN='vercel_blob_rw_…'
+export APP_ENV=production SECRET_KEY='<derselbe Key wie auf Vercel>'
+
+# 1. Schema anlegen
+alembic upgrade head
+
+# 2a. Bestehende Pi-Daten übernehmen (Bilder → Blob, Zeilen → Postgres)
+python3 scripts/migrate_to_vercel.py --dry-run   # erst ansehen
+python3 scripts/migrate_to_vercel.py
+
+# 2b. ODER: leer starten
+python3 scripts/seed.py            # Paar-Einstellungen
+python3 scripts/create_users.py    # Accounts + Passwörter
+```
+
+Die Migration bricht ab, wenn die Zieltabellen nicht leer sind (`--force`
+überschreibt diese Sicherung). IDs bleiben erhalten, danach werden die
+Postgres-Sequenzen auf `max(id)` gesetzt.
+
+### 12.4 Deployen
+
+```bash
+npx vercel            # Preview-Deployment
+npx vercel --prod     # Production
+```
+
+`vercel.json` leitet alle Routen auf die ASGI-Function in
+[api/index.py](api/index.py). Statische Dateien und Templates werden über
+`includeFiles` mitgebündelt; `.vercelignore` hält `data/`, `.env` und das
+Pi-/Docker-Setup aus dem Bundle heraus.
+
+**Wichtig:** Beim App-Start läuft keinerlei Schema-Initialisierung mehr
+(früher `main._init_database`). Nach jeder Änderung an `models.py` gilt:
+`alembic revision --autogenerate` + `alembic upgrade head` gegen Neon
+ausführen, **bevor** deployt wird.
+
+### 12.5 Rate-Limiting
+
+Der Login-Rate-Limiter in [auth.py](auth.py) hält seinen Zustand im Prozess.
+Serverless greift er nur innerhalb einer warmen Instanz und ist damit keine
+verlässliche Schranke mehr. Ergänzend im Vercel-Dashboard unter
+**Firewall → Rate Limiting** eine Regel auf `POST /auth/login` einrichten
+(z. B. 10 Anfragen/Minute pro IP).
+
+### 12.6 Sicherheits-Tradeoff: öffentliche Blob-URLs
+
+Vercel Blob kennt derzeit nur `access: public`. Die Foto-URLs sind damit —
+wie zuvor der `/uploads`-Mount — **ohne Login abrufbar**, geschützt allein
+durch nicht erratbare UUID-Dateinamen.
+
+Der Unterschied zum Pi: dort lagen die Dateien im privaten LAN, auf Vercel
+stehen sie im öffentlichen Internet. Wer eine URL kennt oder mitliest (z. B.
+über einen geteilten Link oder Browser-Verlauf), sieht das Foto dauerhaft,
+auch ohne Account. Für zwei Personen mit privaten Erinnerungsfotos ist das
+ein bewusst akzeptierter Tradeoff — siehe auch Abschnitt 11.1.
+
+Wenn das nicht akzeptabel ist: Bilder nicht direkt aus dem Blob-Store
+verlinken, sondern über eine auth-geschützte Proxy-Route in FastAPI streamen
+(`/uploads/{name}` → `get_current_user` → Blob-Fetch → `StreamingResponse`).
+Kostet pro Bild eine Function-Invocation und ist bewusst nicht umgesetzt.
