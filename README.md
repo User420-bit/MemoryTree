@@ -2,7 +2,7 @@
 
 **Euer privates digitales Erinnerungsbuch** — eine Web-App für Paare, um gemeinsame Erinnerungen, Fotos und Meilensteine festzuhalten, visualisiert als wachsender interaktiver Baum.
 
-> Dieses Projekt ist für den privaten Gebrauch als Zwei-Personen-App konzipiert — es gibt bewusst kein Multi-Tenant- oder Registrierungssystem, sondern genau zwei feste Accounts (`partner_a` / `partner_b`).
+> Die App ist nach Paaren getrennt: jedes Paar hat seine eigenen Erinnerungen, Fotos und Einstellungen und sieht nichts von den anderen. Eine **offene Registrierung gibt es bewusst nicht** — neue Konten entstehen nur über einen Einladungscode, den der Betreiber mit `python scripts/create_invite.py` erzeugt.
 
 ---
 ## Screenshots
@@ -124,6 +124,17 @@ Nach dem Start `http://localhost:8000` im Browser öffnen.
 > ⚠️ Diese Zugangsdaten gelten **nur** wenn `DEBUG=true` in der `.env` gesetzt ist (Standard nach Erstinstallation).  
 > In Production (`DEBUG=false`) werden diese Accounts **nicht** automatisch angelegt — eigene Accounts über `python scripts/create_users.py` anlegen.  
 > Den `SECRET_KEY` in der `.env`-Datei **vor dem produktiven Einsatz** ändern.
+
+### Weitere Paare einladen
+
+```bash
+python scripts/create_invite.py --name "Anna & Ben"   # Paar + Code anlegen
+python scripts/create_invite.py --list                # offene Codes anzeigen
+```
+
+Das Skript druckt einen Registrierungslink (`/auth/register?code=…`). Der Code
+ist zweimal einlösbar — der erste Einlöser wird Partner A, der zweite Partner B —
+und standardmäßig 30 Tage gültig.
 
 ---
 

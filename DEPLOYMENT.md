@@ -130,6 +130,24 @@ docker compose up -d
 docker compose exec app python3 scripts/create_users.py
 ```
 
+Das legt die beiden Konten des Standard-Paars (#1) an.
+
+### 2.4b Weitere Paare einladen
+
+Neue Nutzer registrieren sich nicht selbst — sie brauchen einen Code, den du
+erzeugst. Ein Aufruf legt Paar, Einstellungen und Code in einem Schritt an:
+
+```bash
+docker compose exec app python3 scripts/create_invite.py --name "Anna & Ben"
+docker compose exec app python3 scripts/create_invite.py --list
+```
+
+Das Skript druckt einen Link der Form `/auth/register?code=…`. Der Code ist
+standardmäßig zweimal einlösbar (die zwei Partner) und 30 Tage gültig; der
+erste Einlöser wird Partner A, der zweite Partner B. Den Code über einen
+vertrauenswürdigen Kanal weitergeben — wer ihn hat, kann ein Konto in diesem
+Paar anlegen.
+
 ### 2.5 Status prüfen
 
 ```bash
@@ -206,6 +224,27 @@ docker compose exec app alembic upgrade head
 # Logs prüfen
 docker compose logs --tail 20
 ```
+
+### 4.1 Einmalig: Upgrade auf die Mandantentrennung
+
+Die Revision `b1f4a7c9e230` führt `couples`/`invites` ein und hängt allen
+vorhandenen Bestand an ein Standard-Paar (`couples.id = 1`). Es gehen keine
+Daten verloren, aber **vorher Backup ziehen** (`./scripts/backup.sh`).
+
+```bash
+docker compose exec app alembic upgrade head
+```
+
+Stammt die Datenbank aus der Zeit vor Alembic (kein `alembic_version`-Table,
+Fehler „table users already exists"), zuerst auf die Ausgangsrevision stempeln:
+
+```bash
+docker compose exec app alembic stamp d85c3a73c2a2
+docker compose exec app alembic upgrade head
+```
+
+Bestehende Foto-Dateien bleiben unter `data/uploads/` liegen und werden weiter
+gefunden; erst neue Uploads landen unter `data/uploads/c<paar-id>/`.
 
 ---
 
@@ -455,6 +494,29 @@ Direkt erreichbar → `false`, sonst ist das Login-Rate-Limit per
 gespooftem `X-Forwarded-For` umgehbar.
 
 ---
+
+### 11.4 Mandantentrennung (seit August 2026)
+
+Die App bedient jetzt mehrere Paare. Die Trennung ist rein anwendungsseitig:
+jede Zeile trägt eine `couple_id`, und jeder Zugriff läuft über die Helfer in
+[tenancy.py](tenancy.py). Es gibt **keine** Row-Level-Security in der Datenbank
+— eine vergessene Filterung wäre unmittelbar ein Datenleck zwischen Paaren.
+
+Deshalb nach jeder Änderung an Query-Code prüfen:
+
+```bash
+grep -rn 'db\.query(\(Memory\|Milestone\|Photo\|Place\|CoupleSettings\)' \
+  --include='*.py' main.py routers/ middleware.py
+```
+
+Treffer außerhalb von `tenancy.py` sind erklärungsbedürftig. Zugriff auf eine
+fremde ID muss 404 liefern, nie 403 — sonst verrät der Statuscode die Existenz
+fremder Datensätze.
+
+Die Uploads liegen pro Paar unter `data/uploads/c<paar-id>/` bzw. mit
+demselben Blob-Präfix. Das ist Ordnung, **kein Zugriffsschutz** — die URLs
+bleiben ohne Login abrufbar (siehe 11.1 und 12.6). Mit mehr Nutzern wächst
+diese Angriffsfläche entsprechend.
 
 ## 12. Deployment auf Vercel (Alternative zum Pi)
 

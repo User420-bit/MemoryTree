@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Memory Tree is a private, password-protected web app for exactly two partners (a couple) to record shared memories, photos, and milestones, visualized as a growing interactive tree. There is **no multi-tenant or registration system** — only two fixed accounts (`partner_a` / `partner_b`). All UI text is in **German**.
+Memory Tree is a private, password-protected web app for couples to record shared memories, photos, and milestones, visualized as a growing interactive tree. All UI text is in **German** (with an English translation available via `CoupleSettings.language`).
+
+It is **multi-tenant by couple**: a `Couple` row is the tenant, two user accounts belong to it, and every memory, photo, place, milestone and settings row hangs off exactly one couple. There is **no open registration** — new accounts are created only by redeeming an invite code that you generate with `scripts/create_invite.py`. See "Tenancy" below; that boundary is the app's central security property.
 
 There are **two supported deployment targets**, and the code must keep working on both:
 
@@ -35,11 +37,18 @@ alembic upgrade head
 # DEBUG=true) the partner_a/partner_b dev accounts
 python scripts/seed.py
 
-# Create/reset production user accounts (interactive)
-python scripts/create_users.py
+# Create/reset the two accounts of a couple (interactive)
+python scripts/create_users.py                 # couple #1
+python scripts/create_users.py --couple-id 3
 
-# Load demo data (destructive — wipes existing memories/milestones/photos)
-python scripts/seed_demo_data.py
+# Invite a new couple: creates Couple + CoupleSettings + code, prints the link
+python scripts/create_invite.py --name "Anna & Ben"
+python scripts/create_invite.py --couple-id 3   # extra code for an existing couple
+python scripts/create_invite.py --list          # show open codes
+
+# Load demo data (destructive — wipes that couple's memories/milestones/photos)
+python scripts/seed_demo_data.py                # couple #1
+python scripts/seed_demo_data.py --couple-id 3
 
 # Alembic migration after a models.py change
 alembic revision --autogenerate -m "description"
@@ -64,7 +73,15 @@ Dev login (only seeded when `DEBUG=true`): `partner_a` / `partner_b`, password `
 
 ### Tests
 
-There is no pytest suite. `tests/test_responsive.py` is a Playwright script that checks all pages for horizontal overflow/layout collisions across a viewport matrix — it requires a running server and real login credentials via env vars, it is not run via `pytest`:
+There is no pytest suite; the two test files are standalone scripts.
+
+`tests/test_tenancy.py` is the regression guard for the couple isolation boundary — run it after touching query code, routers, auth, or the tenancy helpers. It builds a throwaway SQLite DB in a temp dir (never touches `data/`), runs `alembic upgrade head` against it, and drives the real ASGI stack via FastAPI's `TestClient`, checking that neither page output nor direct-ID access leaks across couples and that the invite flow behaves. Needs `httpx` (TestClient dependency, not in `requirements.txt`):
+
+```bash
+python tests/test_tenancy.py
+```
+
+`tests/test_responsive.py` is a Playwright script that checks all pages for horizontal overflow/layout collisions across a viewport matrix — it requires a running server and real login credentials via env vars, it is not run via `pytest`:
 
 ```bash
 export MT_TEST_BASE_URL=http://localhost:8000   # optional, this is the default
@@ -77,15 +94,17 @@ python tests/test_responsive.py
 
 - **Backend**: FastAPI (Python 3.11+), server-rendered with Jinja2 + Tailwind CSS (CDN) — not an SPA.
 - **DB**: SQLAlchemy 2.0 ORM over SQLite (Pi/dev — WAL mode + `foreign_keys=ON` + busy_timeout PRAGMAs in [database.py](database.py)) or Neon Postgres (Vercel). **Alembic is the only source of schema truth** — nothing is created at app startup. `main.py` used to run `create_all` plus ad-hoc `ALTER TABLE` migrations in its lifespan; that was removed for Vercel (read-only FS, cold start per request) and replaced by `alembic upgrade head` + [scripts/seed.py](scripts/seed.py). A fresh DB is empty until you run both. `render_as_batch` is enabled only for SQLite.
-- **Auth**: JWT (python-jose), bcrypt password hashing, access token (30 min) + refresh token (7 days), both in **HttpOnly cookies** (never localStorage). Silent renewal via `/auth/refresh`, handled by `TokenRefreshMiddleware`. Rate limiting on `/auth/login` (5 attempts / 5 min, IP-based — only trusts `X-Forwarded-For` when `TRUST_PROXY_HEADERS=true`). That limiter keeps state **in-process**, so on Vercel it only applies within a warm instance — the real limit there is a Vercel Firewall rule (DEPLOYMENT.md 12.5).
+- **Auth**: JWT (python-jose), bcrypt password hashing, access token (30 min) + refresh token (7 days), both in **HttpOnly cookies** (never localStorage). Silent renewal via `/auth/refresh`, handled by `TokenRefreshMiddleware`. Rate limiting on `/auth/login` and `/auth/register` (5 attempts / 5 min) against two counters — `ip:<addr>` and `user:<name>` — so that rotating usernames still hits the IP limit and distributed guessing against one account still hits the account limit. `X-Forwarded-For` is only trusted when `TRUST_PROXY_HEADERS=true`. That limiter keeps state **in-process**, so on Vercel it only applies within a warm instance — the real limit there is a Vercel Firewall rule (DEPLOYMENT.md 12.5).
+- **Registration**: `GET`/`POST /auth/register` redeems an invite code. The code decides which couple the account joins; first redeemer becomes partner A, second partner B. Redemption is a conditional `UPDATE … WHERE used_count < max_uses` so two concurrent signups can't exceed the limit. All "code unusable" cases (unknown, expired, exhausted) return the *same* message — otherwise the page becomes an oracle for valid codes. The form is CSRF-protected like any other (it is deliberately **not** in the exempt list).
 - **Middleware stack** ([middleware.py](middleware.py)), registered in `main.py` in this order (last `add_middleware` call = outermost = runs first): `RequestIDMiddleware` → `SecurityHeadersMiddleware` → `CSRFMiddleware` → `TokenRefreshMiddleware` → `TrustedHostMiddleware` (outermost, enforces `ALLOWED_HOSTS`).
 - **CSRF**: double-submit cookie pattern; exempt routes are `/auth/login`, `/health`, and JSON-content-type requests. All state-changing HTML forms must include a `csrf_token` hidden input.
-- **Uploads**: centralized in [uploads.py](uploads.py) — magic-byte content validation (not extension-based), EXIF stripping, re-encoding and thumbnailing via Pillow. Pillow always encodes into `BytesIO`; a storage layer in the same module then writes either to `data/uploads/` (disk) or to Vercel Blob. `process_upload()` returns DB-ready **references**: a relative POSIX path on disk, an absolute `https://` Blob URL on Vercel. Thumbnails are never stored in the DB — derive them with `thumbnail_ref()` (convention: `<dir>/thumbs/<name>_thumb.<ext>`, identical for both backends). The `/uploads` static mount only exists in disk mode and is **intentionally unauthenticated**; on Vercel, Blob URLs are public-but-unguessable, which is a bigger exposure since the app is on the public internet (DEPLOYMENT.md 12.6). Never reference uploaded images directly — always go through the `{{ filepath|upload_url }}` Jinja2 filter, which passes absolute URLs through and still handles the legacy `static/uploads/` format.
+- **Uploads**: centralized in [uploads.py](uploads.py) — magic-byte content validation (not extension-based), EXIF stripping, re-encoding and thumbnailing via Pillow. Pillow always encodes into `BytesIO`; a storage layer in the same module then writes either to `data/uploads/` (disk) or to Vercel Blob. `process_upload(file, couple_id)` returns DB-ready **references**: a relative POSIX path on disk, an absolute `https://` Blob URL on Vercel. Files are filed under a per-couple prefix `uploads/c<couple_id>/` — that is tidiness and migratability, **not** access control; the real protection is the `couple_id` filtering in `tenancy.py`. `safe_remove()` accepts only a directory segment matching `c<digits>` from a stored reference, so a tampered DB row still can't escape `UPLOAD_DIR`; legacy references without a prefix keep working. Thumbnails are never stored in the DB — derive them with `thumbnail_ref()` (convention: `<dir>/thumbs/<name>_thumb.<ext>`, identical for both backends). The `/uploads` static mount only exists in disk mode and is **intentionally unauthenticated**; on Vercel, Blob URLs are public-but-unguessable, which is a bigger exposure since the app is on the public internet (DEPLOYMENT.md 12.6). Never reference uploaded images directly — always go through the `{{ filepath|upload_url }}` Jinja2 filter, which passes absolute URLs through and still handles the legacy `static/uploads/` format.
 - **Config**: [config.py](config.py) is a `pydantic-settings` `Settings` object loaded from `.env` (on Vercel: from real env vars, there is no `.env`). It raises `RuntimeError` at import time in production (`APP_ENV=production`) if `SECRET_KEY` is missing/default/short, so anything importing `config` in a script needs a valid `.env` or `APP_ENV != production`. `use_secure_cookies` is forced on when serverless. `MAX_PINNED_MEMORIES` and `CATEGORY_CONFIG` (emoji/color per memory category, shared across Tree/Timeline/Gallery/Map) also live here.
 - **Routers** ([routers/](routers/)): `auth`, `memories`, `photos`, `milestones`, `settings` — each included in [main.py](main.py). Page routes for `/`, `/tree`, `/timeline`, `/milestones`, `/gallery`, `/map` are defined directly in `main.py` rather than a router.
-- **Data model** ([models.py](models.py)): `User`, `Memory` (has `is_favorite` = "pinned to tree", capped server-side at `MAX_PINNED_MEMORIES`; `is_hidden`; `tree_pos_top`/`tree_pos_left`; `sort_order`), `Photo`, `Milestone`, `Place`, `CoupleSettings` (singleton row holding `partner_since` — only ever mutated via `POST /settings`, never at DB-init time).
+- **Data model** ([models.py](models.py)): `Couple` (the tenant), `Invite`, `User` (has `couple_id`), `Memory` (has `couple_id`; `is_favorite` = "pinned to tree", capped per couple at `MAX_PINNED_MEMORIES`; `is_hidden`; `tree_pos_top`/`tree_pos_left`; `sort_order`), `Photo`, `Milestone` (has `couple_id`), `Place`, `CoupleSettings` (one row per couple via a unique `couple_id`, holding `partner_since` — only ever mutated via `POST /settings`, never at DB-init time). `Photo` and `Place` deliberately have no `couple_id`; they inherit tenancy through `memory_id`.
+- **Tenancy** ([tenancy.py](tenancy.py)) — **the security boundary**: every read and write of `Memory`, `Milestone`, `Photo`, `Place` and `CoupleSettings` must go through this module. `get_current_couple_id` is a FastAPI dependency (aliased as `CoupleId`) that resolves the couple from the logged-in `User` row, not from a JWT claim, so a stale token can't carry stale membership. Use `scoped_memories`/`visible_memories`/`scoped_milestones`/`scoped_photos`/`scoped_places`/`scoped_users` for lists and `get_owned_memory`/`get_owned_milestone`/`get_owned_photo` for single-ID access — the latter raise **404, never 403**, so a differing status code can't reveal that an ID exists in another couple. Page routes in `main.py` pass `current_user.couple_id` directly since they already depend on the user. A `db.query(Memory|Milestone|Photo|Place|CoupleSettings)` anywhere outside `tenancy.py` is a bug; grep for it after touching query code. Looking up `User` by username (login, uniqueness checks) is the one legitimate unscoped query — usernames are globally unique because login resolves them without a couple context.
 - **Frontend patterns**: no D3 (removed) — the tree view is SVG-based; map view uses Leaflet.js. Inline-style values driven by DB data (positions, colors) are passed as `data-*` attributes and applied via a small JS helper (`applyDataStyles()`) rather than interpolated into `style=` with Jinja2, to avoid template-driven CSS injection surface.
-- **i18n**: [i18n/](i18n/) provides `t()`/`category_label()`, wired into Jinja2 globals in [template_engine.py](template_engine.py) and used across all templates (`de`/`en`). `LanguageMiddleware` ([middleware.py](middleware.py)) reads `CoupleSettings.language` once per request into `request.state.lang`. Adding a new user-facing string means adding a key to `i18n/`, not hardcoding it.
+- **i18n**: [i18n/](i18n/) provides `t()`/`category_label()`, wired into Jinja2 globals in [template_engine.py](template_engine.py) and used across all templates (`de`/`en`). `LanguageMiddleware` ([middleware.py](middleware.py)) reads the language of the *logged-in user's* couple once per request into `request.state.lang`; it runs before the auth dependency and therefore resolves the username from the access-token cookie itself (`auth.username_from_access_token`), falling back to `de` when anonymous. Adding a new user-facing string means adding a key to `i18n/`, not hardcoding it.
 
 ## Security constraints (non-negotiable, see [Copilot Security Instructions .md](Copilot%20Security%20Instructions%20.md))
 
@@ -93,7 +112,8 @@ python tests/test_responsive.py
 - Never render untrusted content with Jinja2 `|safe`; sanitize any rich text with an allowlist.
 - SQLAlchemy ORM / parameterized queries only — never string-built SQL.
 - Validate uploads by content (magic bytes), never by extension alone; never trust user-supplied filenames/paths; never write uploads into `static/`.
-- Don't log secrets, passwords, raw cookies, or JWTs.
+- Never load a tenant-owned model without a `couple_id` filter — always go through [tenancy.py](tenancy.py). Unauthorized single-record access returns 404, never 403.
+- Don't log secrets, passwords, raw cookies, or JWTs — and don't log usernames or invite codes on failed login/registration (enables enumeration via logs).
 - Don't weaken CSP/security headers/cookie flags without calling out the tradeoff explicitly.
 - Keep resource usage Pi-Zero-2-W-appropriate: SQLite stays the DB, 1 Gunicorn worker (`gunicorn.conf.py`) by default, no heavy added services.
 
@@ -103,3 +123,4 @@ python tests/test_responsive.py
 - DB sessions and current-user auth go through FastAPI `Depends()`.
 - Upload handling always goes through [uploads.py](uploads.py), never inlined in a router.
 - Any `models.py` change needs a matching Alembic migration (`alembic revision --autogenerate`).
+- A new tenant-owned table needs a `couple_id` FK plus index, a scoping helper in [tenancy.py](tenancy.py), and a migration that backfills before setting `NOT NULL`.
