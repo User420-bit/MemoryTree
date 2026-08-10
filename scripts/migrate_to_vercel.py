@@ -34,7 +34,9 @@ from sqlalchemy.engine import Engine  # noqa: E402
 from config import settings  # noqa: E402
 from database import DATABASE_URL, IS_POSTGRES  # noqa: E402
 from models import (  # noqa: E402, F401 — Import registriert alle Tabellen
+    Couple,
     CoupleSettings,
+    Invite,
     Memory,
     Milestone,
     Photo,
@@ -42,8 +44,11 @@ from models import (  # noqa: E402, F401 — Import registriert alle Tabellen
     User,
 )
 
-# Reihenfolge respektiert die Fremdschlüssel (users vor memories vor photos).
+# Reihenfolge respektiert die Fremdschlüssel: couples zuerst, weil users,
+# memories, milestones und couple_settings darauf zeigen.
 TABLE_ORDER = [
+    Couple.__table__,
+    Invite.__table__,
     User.__table__,
     CoupleSettings.__table__,
     Milestone.__table__,

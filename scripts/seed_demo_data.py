@@ -2,14 +2,19 @@
 """
 Demo-Daten für Memory Tree — für Entwicklung und öffentliche Demos.
 
-WARNUNG: Dieses Skript löscht alle bestehenden Erinnerungen, Meilensteine,
-Fotos und Orte und ersetzt sie durch fiktive Demo-Daten. Bestehende
+WARNUNG: Dieses Skript löscht alle Erinnerungen, Meilensteine, Fotos und Orte
+DES ZIELPAARS und ersetzt sie durch fiktive Demo-Daten. Bestehende
 Benutzerkonten werden nicht gelöscht, aber ihre Anzeigenamen werden auf
-"Partner A" / "Partner B" zurückgesetzt.
+"Partner A" / "Partner B" zurückgesetzt. Andere Paare bleiben unberührt.
+
+Nutzung:
+    python3 scripts/seed_demo_data.py                 # Standard-Paar (#1)
+    python3 scripts/seed_demo_data.py --couple-id 3   # anderes Paar
 
 Nur in Entwicklungsumgebungen ausführen, niemals in Production mit echten Daten.
 """
 
+import argparse
 import datetime
 import os
 import sys
@@ -18,7 +23,9 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import SessionLocal
-from models import CoupleSettings, Memory, Milestone, Photo, Place, User
+from models import Couple, CoupleSettings, Memory, Milestone, Photo, Place, User
+
+DEFAULT_COUPLE_ID = 1
 
 DEMO_MEMORIES = [
     dict(
@@ -115,60 +122,93 @@ DEMO_MILESTONES = [
 ]
 
 
-def seed():
+def seed(couple_id: int):
     db = SessionLocal()
     try:
+        couple = db.query(Couple).filter(Couple.id == couple_id).first()
+        if couple is None:
+            print(f"Paar #{couple_id} existiert nicht. Abgebrochen.")
+            return
+
+        # Konten des Paars — ohne sie gibt es keinen Ersteller für die
+        # Demo-Erinnerungen.
+        users = (
+            db.query(User)
+            .filter(User.couple_id == couple_id)
+            .order_by(User.id.asc())
+            .all()
+        )
+        if not users:
+            print(
+                f"Paar #{couple_id} hat noch keine Benutzerkonten — bitte zuerst\n"
+                "  python3 scripts/seed.py            (Dev-Konten, DEBUG=true)\n"
+                "  python3 scripts/create_users.py    (Konten direkt anlegen)\n"
+                "ausführen."
+            )
+            return
+
         antwort = input(
-            "⚠️  WARNUNG: Alle Erinnerungen, Meilensteine und Fotos werden gelöscht "
-            "und durch Demo-Daten ersetzt.\nFortfahren? (ja/nein): "
+            f"⚠️  WARNUNG: Alle Erinnerungen, Meilensteine und Fotos von Paar "
+            f"#{couple_id} ({couple.name}) werden gelöscht und durch Demo-Daten "
+            "ersetzt.\nFortfahren? (ja/nein): "
         )
         if antwort.lower() != "ja":
             print("Abgebrochen.")
             return
 
-        # Daten löschen (Reihenfolge wegen Foreign Keys)
-        db.query(Photo).delete()
-        db.query(Place).delete()
-        db.query(Memory).delete()
-        db.query(Milestone).delete()
+        # Nur die Daten DIESES Paars löschen. Photos und Places hängen über
+        # memory_id an den Erinnerungen, deshalb über deren IDs filtern.
+        memory_ids = [
+            m.id for m in db.query(Memory.id).filter(Memory.couple_id == couple_id)
+        ]
+        if memory_ids:
+            db.query(Photo).filter(Photo.memory_id.in_(memory_ids)).delete(
+                synchronize_session=False
+            )
+            db.query(Place).filter(Place.memory_id.in_(memory_ids)).delete(
+                synchronize_session=False
+            )
+        db.query(Memory).filter(Memory.couple_id == couple_id).delete(
+            synchronize_session=False
+        )
+        db.query(Milestone).filter(Milestone.couple_id == couple_id).delete(
+            synchronize_session=False
+        )
 
         # CoupleSettings aktualisieren
-        cs = db.query(CoupleSettings).first()
+        cs = (
+            db.query(CoupleSettings)
+            .filter(CoupleSettings.couple_id == couple_id)
+            .first()
+        )
         if cs:
             cs.partner_a_name = "Lena"
             cs.partner_b_name = "Max"
             cs.partner_since = datetime.date(2022, 2, 14)
 
-        # Anzeigenamen bestehender Nutzerkonten anonymisieren
-        partner_a = db.query(User).filter(User.username == "partner_a").first()
-        if partner_a:
-            partner_a.name = "Partner A"
-        partner_b = db.query(User).filter(User.username == "partner_b").first()
-        if partner_b:
-            partner_b.name = "Partner B"
+        # Anzeigenamen der Konten dieses Paars anonymisieren
+        for user, anzeigename in zip(users, ("Partner A", "Partner B")):
+            user.name = anzeigename
 
-        creator_id = partner_a.id if partner_a else (partner_b.id if partner_b else None)
-        if creator_id is None:
-            print(
-                "Kein Benutzer 'partner_a'/'partner_b' gefunden — bitte zuerst "
-                "die App einmal starten (main.py legt Dev-User automatisch an) "
-                "oder scripts/create_users.py ausführen."
-            )
-            return
+        creator_id = users[0].id
 
         # Demo-Erinnerungen einfügen
         for m in DEMO_MEMORIES:
-            db.add(Memory(created_by=creator_id, **m))
+            db.add(Memory(couple_id=couple_id, created_by=creator_id, **m))
 
         # Demo-Meilensteine einfügen
         for ms in DEMO_MILESTONES:
-            db.add(Milestone(**ms))
+            db.add(Milestone(couple_id=couple_id, **ms))
 
         db.commit()
-        print("✅ Demo-Daten erfolgreich eingefügt.")
+        print(f"✅ Demo-Daten für Paar #{couple_id} eingefügt.")
     finally:
         db.close()
 
 
 if __name__ == "__main__":
-    seed()
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--couple-id", type=int, default=DEFAULT_COUPLE_ID,
+                        help=f"Zielpaar (Default: {DEFAULT_COUPLE_ID})")
+    seed(parser.parse_args().couple_id)
