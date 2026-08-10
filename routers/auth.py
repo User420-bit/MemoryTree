@@ -1,6 +1,8 @@
-# Authentifizierungs-Routen: Login, Logout, Refresh
+# Authentifizierungs-Routen: Login, Logout, Refresh, Registrierung per Invite
 
 import logging
+import re
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, Request, Response
@@ -13,13 +15,14 @@ from auth import (
     _record_login_attempt,
     clear_auth_cookies,
     get_user_from_refresh_token,
+    hash_password,
     set_auth_cookies,
     verify_password,
 )
 from config import settings
 from database import get_db
 from i18n import t
-from models import User
+from models import CoupleSettings, Invite, User
 from template_engine import templates
 
 logger = logging.getLogger(__name__)
@@ -41,6 +44,9 @@ _SAFE_NEXT_PATHS: frozenset[str] = frozenset({
     "/settings",
 })
 _DEFAULT_NEXT_URL = "/"
+
+_USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_.\-]{3,50}$")
+_REGISTER_TEMPLATE = "register.html"
 
 
 def _get_client_ip(request: Request) -> str:
@@ -73,14 +79,17 @@ def login(
 ) -> Response:
     """Anmeldedaten prüfen, JWT-Cookies setzen und zum Dashboard weiterleiten."""
     client_ip = _get_client_ip(request)
+    # Zwei Zähler: die IP bremst einen einzelnen Angreifer, das Konto bremst
+    # verteiltes Raten gegen einen bestimmten Benutzer.
+    rate_keys = (f"ip:{client_ip}", f"user:{username.strip().lower()}")
 
     # Rate Limiting prüfen
-    _check_rate_limit(client_ip)
+    _check_rate_limit(*rate_keys)
 
     user: User | None = db.query(User).filter(User.username == username).first()
 
     if not user or not verify_password(password, user.hashed_password):
-        _record_login_attempt(client_ip)
+        _record_login_attempt(*rate_keys)
         # Username absichtlich NICHT loggen — verhindert Enumeration via Logs.
         logger.warning("Fehlgeschlagener Login-Versuch von %s", client_ip)
         return templates.TemplateResponse(
@@ -90,7 +99,7 @@ def login(
             status_code=401,
         )
 
-    _clear_login_attempts(client_ip)
+    _clear_login_attempts(*rate_keys)
     logger.info("Erfolgreicher Login: %s von %s", username, client_ip)
 
     response = RedirectResponse(url="/", status_code=303)
@@ -107,11 +116,11 @@ def refresh_token(
     # Rate-Limit, damit ein geklauter Refresh-Token nicht beliebig oft
     # rotieren kann. Teilt sich den Zähler mit /auth/login.
     client_ip = _get_client_ip(request)
-    _check_rate_limit(client_ip)
+    _check_rate_limit(f"ip:{client_ip}")
 
     user = get_user_from_refresh_token(request, db)
     if user is None:
-        _record_login_attempt(client_ip)
+        _record_login_attempt(f"ip:{client_ip}")
         return RedirectResponse(url="/auth/login", status_code=303)
 
     # Strikte Whitelist: `next_url` stammt *nie* aus der Anfrage, sondern
@@ -122,6 +131,157 @@ def refresh_token(
 
     response = RedirectResponse(url=next_url, status_code=303)
     set_auth_cookies(response, user.username)
+    return response
+
+
+# ── Registrierung per Einladungscode ────────────────────────────────────────
+
+def _find_usable_invite(db: Session, code: str) -> Invite | None:
+    """Einladungscode auflösen, sofern er noch eingelöst werden darf.
+
+    Liefert None für "existiert nicht", "abgelaufen" und "aufgebraucht" —
+    der Aufrufer darf diese Fälle nach außen nicht unterscheiden, sonst wird
+    die Seite zum Orakel für gültige Codes.
+    """
+    if not code:
+        return None
+
+    invite: Invite | None = db.query(Invite).filter(Invite.code == code).first()
+    if invite is None:
+        return None
+    if invite.used_count >= invite.max_uses:
+        return None
+    if invite.expires_at is not None:
+        expires_at = invite.expires_at
+        # SQLite liefert naive Datetimes zurück — als UTC interpretieren,
+        # sonst scheitert der Vergleich mit einem aware "jetzt".
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at < datetime.now(timezone.utc):
+            return None
+    return invite
+
+
+def _register_error(request: Request, error_key: str, code: str) -> Response:
+    """Registrierungsformular mit Fehlermeldung erneut anzeigen."""
+    return templates.TemplateResponse(
+        request,
+        _REGISTER_TEMPLATE,
+        {
+            "request": request,
+            "error": t(request, f"register.{error_key}"),
+            # Code zurückspiegeln, damit der Nutzer ihn nicht neu eintippen
+            # muss. Jinja2 escaped den Wert beim Rendern.
+            "code": code,
+        },
+        status_code=400,
+    )
+
+
+@router.get("/register")
+def register_page(request: Request) -> Response:
+    """Registrierungsseite anzeigen (Code darf per ?code= vorbelegt werden)."""
+    return templates.TemplateResponse(
+        request,
+        _REGISTER_TEMPLATE,
+        {"request": request, "code": request.query_params.get("code", "")},
+    )
+
+
+@router.post("/register")
+def register(
+    request: Request,
+    db: Annotated[Session, Depends(get_db)],
+    code: Annotated[str, Form(...)],
+    name: Annotated[str, Form(...)],
+    username: Annotated[str, Form(...)],
+    password: Annotated[str, Form(...)],
+    password_repeat: Annotated[str, Form(...)],
+) -> Response:
+    """Neues Konto über einen Einladungscode anlegen.
+
+    Es gibt bewusst keine offene Registrierung: der Code entscheidet, zu
+    welchem Paar das Konto gehört, und wird per scripts/create_invite.py
+    erzeugt. Der erste Einlöser wird Partner A des Paars, der zweite Partner B.
+    """
+    client_ip = _get_client_ip(request)
+    # Registrierungsversuche teilen sich den IP-Zähler mit dem Login, damit
+    # Codes nicht durchprobiert werden können.
+    _check_rate_limit(f"ip:{client_ip}")
+
+    code_clean = code.strip()
+    username_clean = username.strip()
+    name_clean = name.strip()
+
+    if not _USERNAME_PATTERN.match(username_clean):
+        return _register_error(request, "invalid_username", code_clean)
+    if not name_clean or len(name_clean) > 100:
+        return _register_error(request, "invalid_name", code_clean)
+    if password != password_repeat:
+        return _register_error(request, "password_mismatch", code_clean)
+    if len(password) < 8 or len(password) > 128:
+        return _register_error(request, "password_length", code_clean)
+
+    invite = _find_usable_invite(db, code_clean)
+    if invite is None:
+        _record_login_attempt(f"ip:{client_ip}")
+        logger.warning("Registrierung mit ungültigem Code von %s", client_ip)
+        return _register_error(request, "invalid_code", code_clean)
+
+    # Benutzernamen sind global eindeutig — der Login löst sie ohne
+    # Paar-Kontext auf.
+    if db.query(User).filter(User.username == username_clean).first() is not None:
+        return _register_error(request, "username_taken", code_clean)
+
+    couple_id: int = invite.couple_id
+
+    # Einlösung als bedingtes UPDATE statt als Lese-dann-Schreib-Sequenz:
+    # zwei gleichzeitige Registrierungen mit demselben Code könnten sonst
+    # beide die Prüfung oben passieren und max_uses überschreiten.
+    claimed = (
+        db.query(Invite)
+        .filter(Invite.id == invite.id, Invite.used_count < Invite.max_uses)
+        .update({Invite.used_count: Invite.used_count + 1}, synchronize_session=False)
+    )
+    if claimed == 0:
+        db.rollback()
+        return _register_error(request, "invalid_code", code_clean)
+
+    db.refresh(invite)
+    used_count: int = invite.used_count
+
+    user = User(
+        couple_id=couple_id,
+        name=name_clean,
+        username=username_clean,
+        hashed_password=hash_password(password),
+    )
+    db.add(user)
+
+    # Einstellungen des Paars anlegen bzw. den Anzeigenamen eintragen.
+    cs: CoupleSettings | None = (
+        db.query(CoupleSettings).filter(CoupleSettings.couple_id == couple_id).first()
+    )
+    if cs is None:
+        cs = CoupleSettings(
+            couple_id=couple_id,
+            partner_a_name=name_clean,
+            partner_b_name="Partner B",
+        )
+        db.add(cs)
+    elif used_count == 1:
+        cs.partner_a_name = name_clean
+    else:
+        cs.partner_b_name = name_clean
+
+    db.commit()
+    logger.info(
+        "Neues Konto registriert für Paar #%d (Einlösung %d/%d)",
+        couple_id, used_count, invite.max_uses,
+    )
+
+    response = RedirectResponse(url="/", status_code=303)
+    set_auth_cookies(response, username_clean)
     return response
 
 
