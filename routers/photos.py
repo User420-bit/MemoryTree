@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 
 from auth import get_current_user
 from database import get_db
-from models import Memory, Photo, User
+from models import Photo, User
 from schemas import PhotoRead
+from tenancy import CoupleId, get_owned_memory, get_owned_photo
 from uploads import process_upload, safe_remove
 
 logger = logging.getLogger(__name__)
@@ -26,21 +27,17 @@ def upload_photo(
     memory_id: int,
     file: Annotated[UploadFile, File(...)],
     current_user: Annotated[User, Depends(get_current_user)],
+    couple_id: CoupleId,
     db: Annotated[Session, Depends(get_db)],
     caption: Annotated[str | None, Form()] = None,
 ) -> Photo:
     """Ein Foto zu einer Erinnerung hochladen."""
 
-    # Erinnerung prüfen
-    memory: Memory | None = db.query(Memory).filter(Memory.id == memory_id).first()
-    if memory is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Erinnerung nicht gefunden",
-        )
+    # Erinnerung prüfen — fremde Erinnerungen liefern 404, nicht 403
+    get_owned_memory(db, couple_id, memory_id)
 
     # Upload verarbeiten (Validierung, Magic Bytes, EXIF, Resize, Thumbnail)
-    result = process_upload(file)
+    result = process_upload(file, couple_id)
     if result is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -65,16 +62,12 @@ def upload_photo(
 def delete_photo(
     photo_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
+    couple_id: CoupleId,
     db: Annotated[Session, Depends(get_db)],
 ) -> dict[str, str]:
     """Ein Foto löschen."""
 
-    photo: Photo | None = db.query(Photo).filter(Photo.id == photo_id).first()
-    if photo is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Foto nicht gefunden",
-        )
+    photo = get_owned_photo(db, couple_id, photo_id)
 
     # Datei vom Dateisystem entfernen
     safe_remove(photo.filepath)

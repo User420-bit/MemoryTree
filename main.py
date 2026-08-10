@@ -13,11 +13,11 @@ from fastapi.exceptions import HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
-from sqlalchemy import extract, func
+from sqlalchemy import extract
 from sqlalchemy.orm import Session
 
 from auth import get_current_user
-from config import CATEGORY_CONFIG, settings
+from config import CATEGORY_CONFIG, MAX_PINNED_MEMORIES, settings
 from geo_utils import country_from_coords
 from database import get_db
 from middleware import (
@@ -27,7 +27,15 @@ from middleware import (
     SecurityHeadersMiddleware,
     TokenRefreshMiddleware,
 )
-from models import CoupleSettings, Memory, Milestone, Photo, Place, User
+from models import Memory, Milestone, Photo, Place, User
+from tenancy import (
+    get_couple_settings,
+    scoped_milestones,
+    scoped_photos,
+    scoped_places,
+    scoped_users,
+    visible_memories,
+)
 
 from routers.auth import router as auth_router
 from routers.memories import router as memories_router
@@ -244,18 +252,12 @@ def dashboard(
 ) -> Response:
     """Dashboard-Seite mit Übersichtsstatistiken anzeigen."""
     today: date = date.today()
+    couple_id: int = current_user.couple_id
 
     # Statistiken abfragen (versteckte Erinnerungen werden ausgeblendet)
-    erinnerungen_count: int = (
-        db.query(func.count(Memory.id))
-        .filter(Memory.is_hidden == False)
-        .scalar() or 0
-    )
+    erinnerungen_count: int = visible_memories(db, couple_id).count()
     fotos_count: int = (
-        db.query(func.count(Photo.id))
-        .join(Memory, Photo.memory_id == Memory.id)
-        .filter(Memory.is_hidden == False)
-        .scalar() or 0
+        scoped_photos(db, couple_id).filter(Memory.is_hidden == False).count()
     )
 
     # Länder ermitteln — Reihenfolge der Quellen:
@@ -266,9 +268,8 @@ def dashboard(
     distinct_countries: set[str] = set()
 
     place_countries: list[str] = [
-        c for (c,) in (
-            db.query(func.distinct(Place.country))
-            .join(Memory, Place.memory_id == Memory.id)
+        p.country for p in (
+            scoped_places(db, couple_id)
             .filter(
                 Place.country.isnot(None),
                 Place.country != "",
@@ -276,19 +277,17 @@ def dashboard(
             )
             .all()
         )
-        if c
+        if p.country
     ]
     distinct_countries.update(place_countries)
 
-    geo_coords: list[tuple[float, float]] = (
-        db.query(Memory.lat, Memory.lng)
-        .filter(
-            Memory.lat.isnot(None),
-            Memory.lng.isnot(None),
-            Memory.is_hidden == False,
+    geo_coords: list[tuple[float, float]] = [
+        (m.lat, m.lng) for m in (
+            visible_memories(db, couple_id)
+            .filter(Memory.lat.isnot(None), Memory.lng.isnot(None))
+            .all()
         )
-        .all()
-    )
+    ]
     for lat, lng in geo_coords:
         country = country_from_coords(lat, lng)
         if country:
@@ -297,7 +296,7 @@ def dashboard(
     laender_count: int = len(distinct_countries)
 
     # Paar-Einstellungen laden
-    cs: CoupleSettings | None = db.query(CoupleSettings).first()
+    cs = get_couple_settings(db, couple_id)
     partner_since: date | None = cs.partner_since if cs else current_user.partner_since
 
     # Tage zusammen berechnen
@@ -307,22 +306,21 @@ def dashboard(
 
     # Anzahl gepinnter Favoriten (für "Zum Baum"-Karte)
     favoriten_count: int = (
-        db.query(func.count(Memory.id))
-        .filter(Memory.is_favorite == True, Memory.is_hidden == False)
-        .scalar() or 0
+        visible_memories(db, couple_id).filter(Memory.is_favorite == True).count()
     )
 
     # Letzte 5 Erinnerungen (ohne versteckte)
     letzte_erinnerungen: List[Memory] = (
-        db.query(Memory)
-        .filter(Memory.is_hidden == False)
+        visible_memories(db, couple_id)
         .order_by(Memory.date.desc())
         .limit(5)
         .all()
     )
 
-    # Partnername ermitteln (der jeweils andere)
-    partner: User | None = db.query(User).filter(User.id != current_user.id).first()
+    # Partnername ermitteln (der jeweils andere im selben Paar)
+    partner: User | None = (
+        scoped_users(db, couple_id).filter(User.id != current_user.id).first()
+    )
     partner_name: str | None = partner.name if partner else None
 
     # Nächstes Jubiläum berechnen
@@ -336,11 +334,10 @@ def dashboard(
 
     # "An diesem Tag"-Erinnerungen (gleicher Monat + Tag, ohne versteckte)
     an_diesem_tag: List[Memory] = (
-        db.query(Memory)
+        visible_memories(db, couple_id)
         .filter(
             extract("month", Memory.date) == today.month,
             extract("day", Memory.date) == today.day,
-            Memory.is_hidden == False,
         )
         .all()
     )
@@ -371,14 +368,15 @@ def tree_page(
     db: Annotated[Session, Depends(get_db)],
 ) -> Response:
     """Memory-Tree-Seite anzeigen (nur Baum + gepinnte Favoriten)."""
-    cs: CoupleSettings | None = db.query(CoupleSettings).first()
+    couple_id: int = current_user.couple_id
+    cs = get_couple_settings(db, couple_id)
     partner_since: date | None = cs.partner_since if cs else current_user.partner_since
 
     favorites: list[Memory] = (
-        db.query(Memory)
-        .filter(Memory.is_favorite == True, Memory.is_hidden == False)
+        visible_memories(db, couple_id)
+        .filter(Memory.is_favorite == True)
         .order_by(Memory.date.desc())
-        .limit(8)
+        .limit(MAX_PINNED_MEMORIES)
         .all()
     )
 
@@ -394,7 +392,7 @@ def tree_page(
         {"top": "32%", "left": "55%"},
     ]
     pinned: list[tuple[Memory, dict[str, str]]] = []
-    for i, mem in enumerate(favorites[:8]):
+    for i, mem in enumerate(favorites[:MAX_PINNED_MEMORIES]):
         if mem.tree_pos_top and mem.tree_pos_left:
             pos = {"top": mem.tree_pos_top, "left": mem.tree_pos_left}
         else:
@@ -431,9 +429,10 @@ def timeline_page(
 ) -> Response:
     """Zeitstrahl-Seite: chronologische Ansicht aller Erinnerungen."""
     today: date = date.today()
+    couple_id: int = current_user.couple_id
 
     # Paar-Einstellungen laden
-    cs: CoupleSettings | None = db.query(CoupleSettings).first()
+    cs = get_couple_settings(db, couple_id)
     partner_since: date | None = cs.partner_since if cs else current_user.partner_since
 
     tage_zusammen: int = 0
@@ -444,17 +443,14 @@ def timeline_page(
 
     # Alle sichtbaren Erinnerungen chronologisch absteigend
     all_memories: list[Memory] = (
-        db.query(Memory)
-        .filter(Memory.is_hidden == False)
+        visible_memories(db, couple_id)
         .order_by(Memory.date.desc(), Memory.sort_order.asc())
         .all()
     )
 
     # Anzahl gepinnter Erinnerungen
     total_pinned: int = (
-        db.query(func.count(Memory.id))
-        .filter(Memory.is_favorite == True, Memory.is_hidden == False)
-        .scalar() or 0
+        visible_memories(db, couple_id).filter(Memory.is_favorite == True).count()
     )
 
     # Kategorie-Konfig
@@ -485,13 +481,14 @@ def milestones_page(
 ) -> Response:
     """Meilensteine-Seite: vertikale Timeline besonderer Ereignisse."""
     today: date = date.today()
+    couple_id: int = current_user.couple_id
 
-    milestones: list[Milestone] = (
-        db.query(Milestone).order_by(Milestone.date.desc()).all()
+    milestones = (
+        scoped_milestones(db, couple_id).order_by(Milestone.date.desc()).all()
     )
 
     # Paar-Einstellungen laden
-    cs: CoupleSettings | None = db.query(CoupleSettings).first()
+    cs = get_couple_settings(db, couple_id)
     partner_since: date | None = cs.partner_since if cs else current_user.partner_since
 
     # Nächstes Jubiläum berechnen
@@ -527,8 +524,7 @@ def gallery_page(
 ) -> Response:
     """Galerie: Grid aller Fotos mit Filtern und Lightbox."""
     all_photos: list[Photo] = (
-        db.query(Photo)
-        .join(Memory, Photo.memory_id == Memory.id)
+        scoped_photos(db, current_user.couple_id)
         .filter(Memory.is_hidden == False)
         .order_by(Memory.date.desc(), Photo.uploaded_at.desc())
         .all()
@@ -567,12 +563,8 @@ def map_page(
     """Karten-Seite: interaktive Weltkarte aller besuchten Orte."""
     # Erinnerungen mit Koordinaten laden (ohne versteckte)
     geo_memories: list[Memory] = (
-        db.query(Memory)
-        .filter(
-            Memory.lat.isnot(None),
-            Memory.lng.isnot(None),
-            Memory.is_hidden == False,
-        )
+        visible_memories(db, current_user.couple_id)
+        .filter(Memory.lat.isnot(None), Memory.lng.isnot(None))
         .order_by(Memory.date.desc())
         .all()
     )

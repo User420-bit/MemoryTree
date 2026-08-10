@@ -359,24 +359,39 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 # ── Sprach-Middleware ────────────────────────────────────────────────────────
 
 class LanguageMiddleware(BaseHTTPMiddleware):
-    """Liest die App-Sprache (CoupleSettings.language) einmal pro Request
-    und stellt sie als request.state.lang für t()/category_label() bereit.
+    """Liest die Sprache des angemeldeten Paars einmal pro Request und stellt
+    sie als request.state.lang für t()/category_label() bereit.
+
+    Die Middleware läuft vor der eigentlichen Auth-Dependency und löst den
+    Benutzer deshalb selbst aus dem Access-Token auf — ein ungültiger oder
+    fehlender Token bedeutet schlicht "anonym" und damit die Standardsprache
+    (Login-Seite). Vor der Mandantentrennung wurde hier die erste beliebige
+    CoupleSettings-Zeile gelesen; das würde jetzt die Sprache eines fremden
+    Paars durchreichen.
     """
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        from auth import username_from_access_token
         from database import SessionLocal
-        from models import CoupleSettings
+        from models import CoupleSettings, User
 
         lang = "de"
-        db = SessionLocal()
-        try:
-            cs = db.query(CoupleSettings).first()
-            if cs is not None and cs.language in ("de", "en"):
-                lang = cs.language
-        except Exception:
-            logger.exception("Sprache konnte nicht geladen werden, Fallback 'de'")
-        finally:
-            db.close()
+        username = username_from_access_token(request)
+        if username:
+            db = SessionLocal()
+            try:
+                row = (
+                    db.query(CoupleSettings.language)
+                    .join(User, User.couple_id == CoupleSettings.couple_id)
+                    .filter(User.username == username)
+                    .first()
+                )
+                if row is not None and row[0] in ("de", "en"):
+                    lang = row[0]
+            except Exception:
+                logger.exception("Sprache konnte nicht geladen werden, Fallback 'de'")
+            finally:
+                db.close()
 
         request.state.lang = lang
         return await call_next(request)

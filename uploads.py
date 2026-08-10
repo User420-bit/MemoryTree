@@ -8,6 +8,7 @@
 # DB-tauglich und wird vom Jinja-Filter ``upload_url`` verstanden.
 
 import logging
+import re
 import uuid
 from io import BytesIO
 from pathlib import Path, PurePosixPath
@@ -47,11 +48,28 @@ Image.MAX_IMAGE_PIXELS = 50_000_000
 _UPLOAD_DIR = Path(settings.UPLOAD_DIR).resolve()
 _THUMBNAIL_DIR = _UPLOAD_DIR / "thumbs"
 
+# Einziges Verzeichnismuster, das safe_remove aus einer DB-Referenz akzeptiert.
+_COUPLE_DIR_PATTERN = re.compile(r"^c\d+$")
+
 # Blob-Pfadschema — bewusst deterministisch, damit die Thumbnail-Referenz
 # jederzeit aus der Hauptbild-Referenz ableitbar ist und keine zusätzliche
 # DB-Spalte nötig wird.
 _BLOB_PREFIX = "uploads"
-_BLOB_THUMB_PREFIX = "uploads/thumbs"
+
+
+def _upload_prefix(couple_id: int) -> str:
+    """Ablage-Präfix eines Paars: ``uploads/c<id>``.
+
+    Trennt die Dateien pro Paar in eigene Unterverzeichnisse bzw. Blob-Pfade.
+    Das ist Ordnung und Migrierbarkeit, KEIN Zugriffsschutz: der eigentliche
+    Schutz ist die couple_id-Filterung in tenancy.py. Blob-URLs bleiben
+    öffentlich-aber-unerratbar (siehe DEPLOYMENT.md 12.6).
+
+    Altbestände ohne Präfix (direkt unter ``uploads/``) bleiben lesbar — die
+    DB speichert die vollständige Referenz, und ``thumbnail_ref`` leitet den
+    Thumbnail-Pfad relativ zur gespeicherten Referenz ab.
+    """
+    return f"{_BLOB_PREFIX}/c{int(couple_id)}"
 
 
 def _use_blob() -> bool:
@@ -169,7 +187,7 @@ def validate_image_magic_bytes(data: bytes, extension: str) -> bool:
     return False
 
 
-def _sanitize_and_save_image(data: bytes, extension: str) -> tuple[str, str]:
+def _sanitize_and_save_image(data: bytes, extension: str, couple_id: int) -> tuple[str, str]:
     """
     Bild sicher speichern:
     - UUID-basierter Dateiname
@@ -190,8 +208,9 @@ def _sanitize_and_save_image(data: bytes, extension: str) -> tuple[str, str]:
 
     main_filename = f"{unique_name}{save_ext}"
     thumb_filename = f"{unique_name}_thumb{save_ext}"
-    main_pathname = f"{_BLOB_PREFIX}/{main_filename}"
-    thumb_pathname = f"{_BLOB_THUMB_PREFIX}/{thumb_filename}"
+    prefix = _upload_prefix(couple_id)
+    main_pathname = f"{prefix}/{main_filename}"
+    thumb_pathname = f"{prefix}/thumbs/{thumb_filename}"
 
     # Bild mit Pillow öffnen → EXIF-Orientierung anwenden → neu encodieren
     with Image.open(BytesIO(data)) as img:
@@ -230,11 +249,12 @@ def _sanitize_and_save_image(data: bytes, extension: str) -> tuple[str, str]:
     return main_ref, thumb_ref
 
 
-def process_upload(file: UploadFile) -> tuple[str, str] | None:
+def process_upload(file: UploadFile, couple_id: int) -> tuple[str, str] | None:
     """
     Einzelne Datei validieren und verarbeiten.
     Gibt (hauptbild_referenz, thumbnail_referenz) zurück oder None bei Fehler.
     Die Hauptbild-Referenz ist direkt DB-tauglich (relativer Pfad oder Blob-URL).
+    ``couple_id`` bestimmt das Ablage-Präfix (siehe ``_upload_prefix``).
     """
     if not file.filename or file.size == 0:
         return None
@@ -274,7 +294,7 @@ def process_upload(file: UploadFile) -> tuple[str, str] | None:
 
     # Sicher speichern und verarbeiten
     try:
-        return _sanitize_and_save_image(data, ext)
+        return _sanitize_and_save_image(data, ext, couple_id)
     except Exception:
         logger.exception("Fehler beim Verarbeiten des Uploads")
         return None
@@ -284,11 +304,16 @@ def save_uploaded_photos(
     files: list[UploadFile],
     memory_id: int,
     db: Session,
+    couple_id: int,
 ) -> int:
-    """Mehrere Fotos validieren, speichern und in die DB einfügen. Gibt Anzahl erfolgreicher Uploads zurück."""
+    """Mehrere Fotos validieren, speichern und in die DB einfügen. Gibt Anzahl erfolgreicher Uploads zurück.
+
+    Der Aufrufer muss vorher sichergestellt haben, dass ``memory_id`` zu
+    ``couple_id`` gehört (siehe ``tenancy.get_owned_memory``).
+    """
     count = 0
     for file in files:
-        result = process_upload(file)
+        result = process_upload(file, couple_id)
         if result is None:
             continue
         main_ref, _thumb_ref = result
@@ -321,16 +346,28 @@ def safe_remove(filepath: str) -> None:
         _delete_stored(filepath)
         return
 
-    # 1) Nur den Dateinamen verwenden — Pfad-Traversal (..), absolute Pfade,
-    #    Windows-Drive-Letter und Backslashes werden dadurch eliminiert.
-    filename = PurePosixPath(filepath.replace("\\", "/")).name
+    # 1) Auf Dateinamen und — falls vorhanden — das Paar-Unterverzeichnis
+    #    reduzieren. Alles andere (Pfad-Traversal via .., absolute Pfade,
+    #    Windows-Drive-Letter, Backslashes) fällt dabei weg, weil nur ein
+    #    Verzeichnisname akzeptiert wird, der exakt auf ``c<Ziffern>`` passt.
+    parts = PurePosixPath(filepath.replace("\\", "/")).parts
+    filename = parts[-1] if parts else ""
     if not filename or filename in (".", ".."):
         logger.warning("safe_remove: Ungültiger Dateiname %r — ignoriert", filepath)
         return
 
+    subdir = ""
+    if len(parts) >= 2 and _COUPLE_DIR_PATTERN.match(parts[-2]):
+        subdir = parts[-2]
+    # Altbestände liegen direkt unter UPLOAD_DIR und haben kein Präfix —
+    # dann bleibt subdir leer und der Pfad ist derselbe wie früher.
+
+    base_dir = (_UPLOAD_DIR / subdir) if subdir else _UPLOAD_DIR
+    thumb_dir = base_dir / "thumbs"
+
     # 2) Zielpfad aufbauen und verifizieren, dass er tatsächlich innerhalb
     #    _UPLOAD_DIR liegt (z. B. gegen Symlink-Tricks).
-    abs_path = (_UPLOAD_DIR / filename).resolve()
+    abs_path = (base_dir / filename).resolve()
     try:
         abs_path.relative_to(_UPLOAD_DIR)
     except ValueError:
@@ -342,9 +379,9 @@ def safe_remove(filepath: str) -> None:
 
     # Auch Thumbnail löschen falls vorhanden
     thumb_name = abs_path.stem + "_thumb" + abs_path.suffix
-    thumb_path = (_THUMBNAIL_DIR / thumb_name).resolve()
+    thumb_path = (thumb_dir / thumb_name).resolve()
     try:
-        thumb_path.relative_to(_THUMBNAIL_DIR)
+        thumb_path.relative_to(_UPLOAD_DIR)
     except ValueError:
         return
     if thumb_path.is_file():

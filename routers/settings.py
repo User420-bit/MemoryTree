@@ -19,6 +19,12 @@ from auth import (
 from database import get_db
 from models import CoupleSettings, Memory, User
 from template_engine import templates
+from tenancy import (
+    CoupleId,
+    get_or_create_couple_settings,
+    scoped_memories,
+    scoped_users,
+)
 from uploads import process_upload, safe_remove
 
 logger = logging.getLogger(__name__)
@@ -27,21 +33,6 @@ router = APIRouter(tags=["Einstellungen"])
 
 _USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_.\-]{3,50}$")
 _SUPPORTED_LANGUAGES = ("de", "en")
-
-
-def _get_or_create_couple_settings(db: Session) -> CoupleSettings:
-    """Singleton-Zugriff auf die Paar-Einstellungen.
-
-    SCHUTZLOGIK: partner_since wird hier NICHT gesetzt.
-    Es darf ausschließlich über POST /settings geändert werden.
-    """
-    cs: CoupleSettings | None = db.query(CoupleSettings).first()
-    if cs is None:
-        cs = CoupleSettings(partner_a_name="Partner A", partner_b_name="Partner B")
-        db.add(cs)
-        db.commit()
-        db.refresh(cs)
-    return cs
 
 
 def _parse_and_validate_partner_since(raw_value: str | None) -> date_cls | None:
@@ -70,15 +61,18 @@ def _parse_and_validate_partner_since(raw_value: str | None) -> date_cls | None:
 
 def _sync_partner_names(
     db: Session,
+    couple_id: int,
     cs: CoupleSettings,
 ) -> None:
-    """User-Tabelle mit den aktuellen Namen synchronisieren.
+    """Benutzerkonten DIESES Paars mit den aktuellen Namen synchronisieren.
 
-    Stabil per User-ID: Erster User (kleinste ID) = Partner A,
+    Stabil per User-ID: Erster User (kleinste ID) im Paar = Partner A,
     zweiter User = Partner B. Der Login-Username darf vom Nutzer
     geändert werden, ohne dass die Zuordnung bricht.
     """
-    users: list[User] = db.query(User).order_by(User.id.asc()).limit(2).all()
+    users: list[User] = (
+        scoped_users(db, couple_id).order_by(User.id.asc()).limit(2).all()
+    )
     names = [cs.partner_a_name, cs.partner_b_name]
     for user, name in zip(users, names):
         user.name = name
@@ -89,7 +83,7 @@ def _handle_avatar_upload(
     current_user: User,
 ) -> None:
     """Avatar-Bild validieren, speichern und altes Bild entfernen."""
-    result = process_upload(avatar)
+    result = process_upload(avatar, current_user.couple_id)
     if result is None:
         return
 
@@ -105,18 +99,16 @@ def _handle_avatar_upload(
 def settings_page(
     request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
+    couple_id: CoupleId,
     db: Annotated[Session, Depends(get_db)],
 ) -> Response:
     """Einstellungsseite anzeigen."""
     try:
-        cs: CoupleSettings = _get_or_create_couple_settings(db)
-
-        partner_a: User | None = db.query(User).filter(User.username == "partner_a").first()
-        partner_b: User | None = db.query(User).filter(User.username == "partner_b").first()
+        cs: CoupleSettings = get_or_create_couple_settings(db, couple_id)
 
         # Versteckte Erinnerungen — NUR hier laden (überall sonst ausgefiltert)
         hidden_memories: list[Memory] = (
-            db.query(Memory)
+            scoped_memories(db, couple_id)
             .filter(Memory.is_hidden == True)
             .order_by(Memory.date.desc())
             .all()
@@ -129,8 +121,6 @@ def settings_page(
                 "request": request,
                 "user": current_user,
                 "couple": cs,
-                "partner_a": partner_a,
-                "partner_b": partner_b,
                 "hidden_memories": hidden_memories,
                 "hidden_count": len(hidden_memories),
                 "success": request.query_params.get("success"),
@@ -147,6 +137,7 @@ def settings_page(
 def save_settings(
     request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
+    couple_id: CoupleId,
     db: Annotated[Session, Depends(get_db)],
     partner_a_name: Annotated[str, Form()],
     partner_b_name: Annotated[str, Form()],
@@ -156,7 +147,7 @@ def save_settings(
 ) -> Response:
     """Einstellungen speichern."""
     try:
-        cs: CoupleSettings = _get_or_create_couple_settings(db)
+        cs: CoupleSettings = get_or_create_couple_settings(db, couple_id)
 
         cs.partner_a_name = partner_a_name.strip()
         cs.partner_b_name = partner_b_name.strip()
@@ -177,7 +168,7 @@ def save_settings(
                     old_date, parsed_date, current_user.id,
                 )
 
-        _sync_partner_names(db, cs)
+        _sync_partner_names(db, couple_id, cs)
 
         if avatar is not None:
             _handle_avatar_upload(avatar, current_user)
@@ -226,7 +217,8 @@ def change_username(
         if new_username_clean == current_user.username:
             return _redirect_account_error("username_unchanged")
 
-        # Eindeutigkeit prüfen
+        # Eindeutigkeit prüfen — Benutzernamen sind global eindeutig, nicht
+        # nur innerhalb des Paars, weil der Login sie ohne Paar-Kontext auflöst.
         existing = db.query(User).filter(User.username == new_username_clean).first()
         if existing is not None and existing.id != current_user.id:
             return _redirect_account_error("username_taken")

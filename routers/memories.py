@@ -10,12 +10,20 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from auth import get_current_user
-from config import settings
+from config import MAX_PINNED_MEMORIES, settings
 from database import get_db
 from i18n import t
 from models import Memory, Photo, Place, User
 from schemas import MemoryCreate, MemoryRead, MemoryUpdate
 from template_engine import templates, safe_internal_url
+from tenancy import (
+    CoupleId,
+    get_owned_memory,
+    scoped_memories,
+    scoped_places,
+    scoped_users,
+    visible_memories,
+)
 from uploads import safe_remove, save_uploaded_photos
 
 logger = logging.getLogger(__name__)
@@ -30,7 +38,11 @@ _MEMORY_FORM_TEMPLATE = "memory_form.html"
 # Update. Als Modul-Konstante, damit sie bei künftigen Erweiterungen von
 # MemoryUpdate sichtbar bleibt.
 _GESCHUETZTE_FELDER: frozenset[str] = frozenset({
-    "is_favorite", "tree_pos_top", "tree_pos_left", "is_hidden"
+    "is_favorite", "tree_pos_top", "tree_pos_left", "is_hidden",
+    # Mandantenzugehörigkeit ist nie über ein Update änderbar — ein
+    # durchgereichtes couple_id würde die Erinnerung einem fremden Paar
+    # unterschieben.
+    "couple_id",
 })
 
 
@@ -52,6 +64,7 @@ def memory_form_new(
 def memory_form_create(
     request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
+    couple_id: CoupleId,
     db: Annotated[Session, Depends(get_db)],
     title: Annotated[str, Form()],
     date_field: Annotated[str, Form(alias="date")],
@@ -79,6 +92,7 @@ def memory_form_create(
     lng_val: float | None = float(lng) if lng else None
 
     memory = Memory(
+        couple_id=couple_id,
         title=title,
         date=parsed_date,
         description=description or None,
@@ -99,7 +113,7 @@ def memory_form_create(
 
     # Fotos speichern
     if photos:
-        save_uploaded_photos(photos, memory.id, db)
+        save_uploaded_photos(photos, memory.id, db, couple_id)
 
     db.commit()
     logger.info("Erinnerung #%d erstellt von User #%d", memory.id, current_user.id)
@@ -115,12 +129,11 @@ def memory_form_edit(
     memory_id: int,
     request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
+    couple_id: CoupleId,
     db: Annotated[Session, Depends(get_db)],
 ) -> HTMLResponse:
     """Formular zum Bearbeiten einer bestehenden Erinnerung anzeigen."""
-    memory: Memory | None = db.query(Memory).filter(Memory.id == memory_id).first()
-    if memory is None:
-        raise HTTPException(status_code=404, detail=_NOT_FOUND)
+    memory = get_owned_memory(db, couple_id, memory_id)
 
     return_to = safe_internal_url(
         request.query_params.get("from"),
@@ -144,6 +157,7 @@ def memory_form_update(
     memory_id: int,
     request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
+    couple_id: CoupleId,
     db: Annotated[Session, Depends(get_db)],
     title: Annotated[str, Form()],
     date_field: Annotated[str, Form(alias="date")],
@@ -157,9 +171,7 @@ def memory_form_update(
     photos: Annotated[List[UploadFile], File()] = [],
 ) -> HTMLResponse | RedirectResponse:
     """Bestehende Erinnerung über das HTML-Formular aktualisieren."""
-    memory: Memory | None = db.query(Memory).filter(Memory.id == memory_id).first()
-    if memory is None:
-        raise HTTPException(status_code=404, detail=_NOT_FOUND)
+    memory = get_owned_memory(db, couple_id, memory_id)
 
     try:
         parsed_date = date.fromisoformat(date_field)
@@ -183,7 +195,7 @@ def memory_form_update(
 
     # Neue Fotos hochladen
     if photos:
-        save_uploaded_photos(photos, memory.id, db)
+        save_uploaded_photos(photos, memory.id, db, couple_id)
 
     db.commit()
     logger.info("Erinnerung #%d aktualisiert von User #%d", memory.id, current_user.id)
@@ -203,23 +215,23 @@ def memory_form_update(
 def toggle_favorite(
     memory_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
+    couple_id: CoupleId,
     db: Annotated[Session, Depends(get_db)],
 ) -> JSONResponse:
     """Favoriten-Status einer Erinnerung umschalten (max 8 Pins am Baum)."""
-    from sqlalchemy import func
+    memory = get_owned_memory(db, couple_id, memory_id)
 
-    memory: Memory | None = db.query(Memory).filter(Memory.id == memory_id).first()
-    if memory is None:
-        raise HTTPException(status_code=404, detail=_NOT_FOUND)
-
-    # Pinning: max 8 erlaubt (versteckte zählen nicht mit)
-    if not memory.is_favorite:
-        total_pinned: int = (
-            db.query(func.count(Memory.id))
-            .filter(Memory.is_favorite == True, Memory.is_hidden == False)
-            .scalar() or 0
+    def _count_pinned() -> int:
+        return (
+            visible_memories(db, couple_id)
+            .filter(Memory.is_favorite == True)
+            .count()
         )
-        if total_pinned >= 8:
+
+    # Pinning: Obergrenze gilt pro Paar (versteckte zählen nicht mit)
+    if not memory.is_favorite:
+        total_pinned: int = _count_pinned()
+        if total_pinned >= MAX_PINNED_MEMORIES:
             return JSONResponse(
                 {"is_favorite": False, "total_pinned": total_pinned, "error": "max_reached"},
                 status_code=200,
@@ -233,11 +245,7 @@ def toggle_favorite(
         memory.tree_pos_left = None
     db.commit()
 
-    total_pinned_after: int = (
-        db.query(func.count(Memory.id))
-        .filter(Memory.is_favorite == True, Memory.is_hidden == False)
-        .scalar() or 0
-    )
+    total_pinned_after: int = _count_pinned()
 
     logger.info(
         "Erinnerung #%d Favorit=%s von User #%d (total_pinned=%d)",
@@ -254,6 +262,7 @@ def toggle_favorite(
 def toggle_hidden(
     memory_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
+    couple_id: CoupleId,
     db: Annotated[Session, Depends(get_db)],
 ) -> JSONResponse:
     """Sichtbarkeit einer Erinnerung umschalten.
@@ -262,9 +271,7 @@ def toggle_hidden(
     Verwaltungsbereich auf der Einstellungsseite. Wird eine Erinnerung
     versteckt, wird sie zusätzlich automatisch vom Baum entpinnt.
     """
-    memory: Memory | None = db.query(Memory).filter(Memory.id == memory_id).first()
-    if memory is None:
-        raise HTTPException(status_code=404, detail=_NOT_FOUND)
+    memory = get_owned_memory(db, couple_id, memory_id)
 
     memory.is_hidden = not memory.is_hidden
     if memory.is_hidden and memory.is_favorite:
@@ -299,12 +306,11 @@ def update_tree_position(
     memory_id: int,
     request_body: dict,
     current_user: Annotated[User, Depends(get_current_user)],
+    couple_id: CoupleId,
     db: Annotated[Session, Depends(get_db)],
 ) -> JSONResponse:
     """Position einer Erinnerung im Baum aktualisieren (Drag & Drop)."""
-    memory: Memory | None = db.query(Memory).filter(Memory.id == memory_id).first()
-    if memory is None:
-        raise HTTPException(status_code=404, detail=_NOT_FOUND)
+    memory = get_owned_memory(db, couple_id, memory_id)
 
     if not memory.is_favorite:
         raise HTTPException(status_code=400, detail="Nur gepinnte Erinnerungen können positioniert werden")
@@ -339,6 +345,7 @@ def update_tree_position(
 async def reorder_memories(
     request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
+    couple_id: CoupleId,
     db: Annotated[Session, Depends(get_db)],
 ) -> JSONResponse:
     """Reihenfolge von Erinnerungen innerhalb eines Datums aktualisieren."""
@@ -355,7 +362,7 @@ async def reorder_memories(
             continue
         if sort_val < 0 or sort_val > 999:
             continue
-        memory = db.query(Memory).filter(Memory.id == memory_id).first()
+        memory = scoped_memories(db, couple_id).filter(Memory.id == memory_id).first()
         if memory:
             memory.sort_order = sort_val
 
@@ -367,36 +374,32 @@ async def reorder_memories(
 @router.get("/locations", response_model=None)
 def list_saved_locations(
     current_user: Annotated[User, Depends(get_current_user)],
+    couple_id: CoupleId,
     db: Annotated[Session, Depends(get_db)],
 ) -> JSONResponse:
-    """Alle gespeicherten Orte als Autocomplete-Vorschläge zurückgeben."""
-    from sqlalchemy import distinct
-
+    """Gespeicherte Orte des Paars als Autocomplete-Vorschläge zurückgeben."""
     # Orte aus memories (location + lat/lng)
     locations: list[dict] = []
     seen: set[str] = set()
 
     rows = (
-        db.query(Memory.location, Memory.lat, Memory.lng)
+        scoped_memories(db, couple_id)
         .filter(Memory.location.isnot(None), Memory.location != "")
-        .distinct()
         .order_by(Memory.location)
         .all()
     )
-    for loc, lat, lng in rows:
-        key = loc.strip().lower()
+    for memory in rows:
+        key = memory.location.strip().lower()
         if key not in seen:
             seen.add(key)
-            locations.append({"name": loc, "lat": lat, "lng": lng})
+            locations.append(
+                {"name": memory.location, "lat": memory.lat, "lng": memory.lng}
+            )
 
     # Orte aus places Tabelle (name + country + lat/lng)
-    place_rows = (
-        db.query(Place.name, Place.country, Place.lat, Place.lng)
-        .distinct()
-        .order_by(Place.name)
-        .all()
-    )
-    for name, country, lat, lng in place_rows:
+    place_rows = scoped_places(db, couple_id).order_by(Place.name).all()
+    for place in place_rows:
+        name, country, lat, lng = place.name, place.country, place.lat, place.lng
         display = f"{name}, {country}" if country else name
         key = display.strip().lower()
         if key not in seen:
@@ -409,13 +412,14 @@ def list_saved_locations(
 @router.get("", response_model=list[MemoryRead])
 def list_memories(
     current_user: Annotated[User, Depends(get_current_user)],
+    couple_id: CoupleId,
     db: Annotated[Session, Depends(get_db)],
     category: str | None = None,
     year: int | None = None,
     favorites_only: bool = False,
 ) -> list[Memory]:
-    """Alle sichtbaren Erinnerungen abfragen, optional nach Kategorie, Jahr und Favoriten gefiltert."""
-    query = db.query(Memory).filter(Memory.is_hidden == False)
+    """Sichtbare Erinnerungen des Paars, optional nach Kategorie, Jahr und Favoriten gefiltert."""
+    query = visible_memories(db, couple_id)
 
     if category is not None:
         query = query.filter(Memory.category == category)
@@ -434,10 +438,12 @@ def list_memories(
 def create_memory(
     payload: MemoryCreate,
     current_user: Annotated[User, Depends(get_current_user)],
+    couple_id: CoupleId,
     db: Annotated[Session, Depends(get_db)],
 ) -> Memory:
     """Neue Erinnerung anlegen (JSON-API). Legt ggf. auch einen Ort an."""
     memory = Memory(
+        couple_id=couple_id,
         title=payload.title,
         date=payload.date,
         description=payload.description,
@@ -474,14 +480,15 @@ def memory_detail(
     memory_id: int,
     request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
+    couple_id: CoupleId,
     db: Annotated[Session, Depends(get_db)],
 ) -> HTMLResponse:
     """Detailseite einer Erinnerung anzeigen."""
-    memory: Memory | None = db.query(Memory).filter(Memory.id == memory_id).first()
-    if memory is None:
-        raise HTTPException(status_code=404, detail=_NOT_FOUND)
+    memory = get_owned_memory(db, couple_id, memory_id)
 
-    creator: User | None = db.query(User).filter(User.id == memory.created_by).first()
+    creator: User | None = (
+        scoped_users(db, couple_id).filter(User.id == memory.created_by).first()
+    )
 
     # Navigationskontext: explizites ?from= hat Vorrang vor Referer-Heuristik.
     # Versteckte Erinnerungen kommen i. d. R. aus den Einstellungen.
@@ -506,12 +513,11 @@ def update_memory(
     memory_id: int,
     payload: MemoryUpdate,
     current_user: Annotated[User, Depends(get_current_user)],
+    couple_id: CoupleId,
     db: Annotated[Session, Depends(get_db)],
 ) -> Memory:
     """Felder einer bestehenden Erinnerung aktualisieren (nur nicht-None Werte)."""
-    memory: Memory | None = db.query(Memory).filter(Memory.id == memory_id).first()
-    if memory is None:
-        raise HTTPException(status_code=404, detail=_NOT_FOUND)
+    memory = get_owned_memory(db, couple_id, memory_id)
 
     update_data: dict = payload.model_dump(exclude_unset=True)
     for field, value in update_data.items():
@@ -538,12 +544,11 @@ def update_memory(
 def delete_memory_form(
     memory_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
+    couple_id: CoupleId,
     db: Annotated[Session, Depends(get_db)],
 ) -> RedirectResponse:
     """Erinnerung über HTML-Formular löschen und zum Dashboard weiterleiten."""
-    memory: Memory | None = db.query(Memory).filter(Memory.id == memory_id).first()
-    if memory is None:
-        raise HTTPException(status_code=404, detail=_NOT_FOUND)
+    memory = get_owned_memory(db, couple_id, memory_id)
 
     # Zugehörige Foto-Dateien vom Dateisystem entfernen
     for photo in memory.photos:
@@ -562,12 +567,11 @@ def delete_memory_form(
 def delete_memory(
     memory_id: int,
     current_user: Annotated[User, Depends(get_current_user)],
+    couple_id: CoupleId,
     db: Annotated[Session, Depends(get_db)],
 ) -> dict[str, str]:
     """Erinnerung löschen (JSON-API)."""
-    memory: Memory | None = db.query(Memory).filter(Memory.id == memory_id).first()
-    if memory is None:
-        raise HTTPException(status_code=404, detail=_NOT_FOUND)
+    memory = get_owned_memory(db, couple_id, memory_id)
 
     for photo in memory.photos:
         try:
