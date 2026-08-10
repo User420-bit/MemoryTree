@@ -7,6 +7,7 @@ venv/
 
 # Umgebung
 .env
+.env.local
 
 # Datenbank (inkl. SQLite WAL/SHM-Sidecar-Dateien)
 *.db
@@ -36,3 +37,5 @@ static/uploads/*
 ._*
 .AppleDouble
 .LSOverride.claude/
+.vercel
+.env*
