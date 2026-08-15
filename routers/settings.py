@@ -7,7 +7,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from auth import (
     clear_auth_cookies,
@@ -17,6 +17,7 @@ from auth import (
     verify_password,
 )
 from database import get_db
+from middleware import set_language_cookie
 from models import CoupleSettings, Memory, User
 from template_engine import templates
 from tenancy import (
@@ -107,8 +108,11 @@ def settings_page(
         cs: CoupleSettings = get_or_create_couple_settings(db, couple_id)
 
         # Versteckte Erinnerungen — NUR hier laden (überall sonst ausgefiltert)
+        # selectinload: settings.html greift pro Eintrag auf memory.photos[0]
+        # zu — ohne Eager Loading wäre das eine Extra-Query je Erinnerung.
         hidden_memories: list[Memory] = (
             scoped_memories(db, couple_id)
+            .options(selectinload(Memory.photos))
             .filter(Memory.is_hidden == True)
             .order_by(Memory.date.desc())
             .all()
@@ -174,7 +178,11 @@ def save_settings(
             _handle_avatar_upload(avatar, current_user)
 
         db.commit()
-        return RedirectResponse(url="/settings?success=1", status_code=303)
+        response = RedirectResponse(url="/settings?success=1", status_code=303)
+        # Sprach-Cache der LanguageMiddleware direkt mitziehen, sonst würde die
+        # Umstellung erst greifen, wenn das alte Cookie abläuft.
+        set_language_cookie(response, cs.language)
+        return response
     except Exception:
         logger.exception("Fehler beim Speichern der Einstellungen")
         db.rollback()

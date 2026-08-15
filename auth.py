@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from config import settings
 from database import get_db
+from middleware import LANG_COOKIE
 from models import User
 
 logger = logging.getLogger(__name__)
@@ -161,9 +162,15 @@ def set_auth_cookies(response: Response, username: str) -> None:
 
 
 def clear_auth_cookies(response: Response) -> None:
-    """Beide Auth-Cookies aktiv löschen."""
+    """Beide Auth-Cookies aktiv löschen — plus den Sprach-Cache.
+
+    Das ``lang``-Cookie ist nur ein Cache für die Sprache des Paars. Bliebe es
+    nach dem Logout stehen, würde ein anderer Nutzer am selben Browser die
+    Sprache des Vorgängers sehen, bis die DB erneut befragt wird.
+    """
     response.delete_cookie(key="access_token", path="/")
     response.delete_cookie(key="refresh_token", path="/auth/refresh")
+    response.delete_cookie(key=LANG_COOKIE, path="/")
 
 
 # ── Token-Validierung und User-Lookup ────────────────────────────────────────

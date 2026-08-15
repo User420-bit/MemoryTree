@@ -41,13 +41,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         response: Response = await call_next(request)
 
-        # CSP: Tailwind CDN, Leaflet CDN, Leaflet Geocoder CDN, OpenStreetMap Tiles
-        # unsafe-inline für Tailwind CDN <script> und inline <style>/<script> in Templates
+        # CSP: Leaflet CDN, Leaflet Geocoder CDN, OpenStreetMap Tiles.
+        # Tailwind wird nicht mehr vom CDN geladen (vorgebautes
+        # static/css/app.css), deshalb ist cdn.tailwindcss.com hier raus.
+        # unsafe-inline bleibt nötig für die inline <style>/<script>-Blöcke
+        # in den Templates.
         csp_parts = [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com",
-            "style-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.tailwindcss.com",
-            "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.tile.openstreetmap.de https://*.basemaps.cartocdn.com https://unpkg.com",
+            "script-src 'self' 'unsafe-inline' https://unpkg.com",
+            "style-src 'self' 'unsafe-inline' https://unpkg.com",
+            "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.tile.openstreetmap.de https://*.basemaps.cartocdn.com https://unpkg.com https://*.public.blob.vercel-storage.com",
             "font-src 'self' data:",
             "connect-src 'self' https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://*.tile.openstreetmap.de https://*.basemaps.cartocdn.com",
             "frame-ancestors 'none'",
@@ -64,6 +67,20 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
         if settings.is_production:
             response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+
+        # Statische Assets langfristig cachen — greift für die Deployments, in
+        # denen Starlettes StaticFiles wirklich ausliefert (Pi/Docker/lokal).
+        # Auf Vercel kommt /static von der Edge, ohne die Function überhaupt zu
+        # betreten (nachgemessen: x-vercel-id ohne Function-Segment), dort
+        # setzt deshalb der headers-Block in vercel.json denselben Wert.
+        # "immutable" ist gefahrlos, weil alle Verweise über static_url() einen
+        # Content-Hash in der Query tragen: ändert sich der Inhalt, ändert sich
+        # die URL.
+        if request.url.path.startswith("/static/"):
+            response.headers.setdefault(
+                "Cache-Control",
+                "public, max-age=31536000, s-maxage=31536000, immutable",
+            )
 
         return response
 
@@ -358,9 +375,34 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 
 # ── Sprach-Middleware ────────────────────────────────────────────────────────
 
+LANG_COOKIE = "lang"
+SUPPORTED_LANGS: tuple[str, ...] = ("de", "en")
+DEFAULT_LANG = "de"
+_LANG_COOKIE_MAX_AGE = 30 * 86400
+
+
+def set_language_cookie(response: Response, lang: str) -> None:
+    """Sprach-Cookie setzen (Cache für LanguageMiddleware).
+
+    Wird beim ersten Request nach dem Login gesetzt und von
+    ``POST /settings`` aktualisiert, wenn der Nutzer die Sprache umstellt.
+    """
+    if lang not in SUPPORTED_LANGS:
+        return
+    response.set_cookie(
+        key=LANG_COOKIE,
+        value=lang,
+        httponly=True,
+        secure=settings.use_secure_cookies,
+        samesite="lax",
+        max_age=_LANG_COOKIE_MAX_AGE,
+        path="/",
+    )
+
+
 class LanguageMiddleware(BaseHTTPMiddleware):
-    """Liest die Sprache des angemeldeten Paars einmal pro Request und stellt
-    sie als request.state.lang für t()/category_label() bereit.
+    """Stellt die Sprache des angemeldeten Paars als request.state.lang für
+    t()/category_label() bereit.
 
     Die Middleware läuft vor der eigentlichen Auth-Dependency und löst den
     Benutzer deshalb selbst aus dem Access-Token auf — ein ungültiger oder
@@ -368,33 +410,61 @@ class LanguageMiddleware(BaseHTTPMiddleware):
     (Login-Seite). Vor der Mandantentrennung wurde hier die erste beliebige
     CoupleSettings-Zeile gelesen; das würde jetzt die Sprache eines fremden
     Paars durchreichen.
+
+    Die Auflösung lief früher als eigene DB-Abfrage bei *jedem* Request. Mit
+    NullPool auf Vercel bedeutete das eine zweite, komplett neu aufgebaute
+    Neon-Verbindung pro Seitenaufruf, nur um ein Sprachkürzel zu lesen.
+    Deshalb wird das Ergebnis in einem Cookie zwischengespeichert; die DB wird
+    nur noch befragt, wenn das Cookie fehlt oder unbrauchbar ist. Das Cookie
+    steuert ausschließlich die Anzeigesprache — ein manipulierter Wert kann
+    nichts weiter als "de" oder "en" bewirken, alles andere wird verworfen.
+    Beim Logout wird es zusammen mit den Auth-Cookies gelöscht, damit auf einem
+    geteilten Browser nicht die Sprache des Vorgängers hängen bleibt.
     """
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         from auth import username_from_access_token
+
+        lang = DEFAULT_LANG
+        needs_cookie = False
+
+        cached = request.cookies.get(LANG_COOKIE)
+        if cached in SUPPORTED_LANGS:
+            lang = cached
+        else:
+            username = username_from_access_token(request)
+            if username:
+                lang = self._lang_from_db(username)
+                needs_cookie = True
+
+        request.state.lang = lang
+        response = await call_next(request)
+
+        if needs_cookie:
+            set_language_cookie(response, lang)
+        return response
+
+    @staticmethod
+    def _lang_from_db(username: str) -> str:
+        """Sprache des Paars zum Benutzernamen laden, Fallback ``de``."""
         from database import SessionLocal
         from models import CoupleSettings, User
 
-        lang = "de"
-        username = username_from_access_token(request)
-        if username:
-            db = SessionLocal()
-            try:
-                row = (
-                    db.query(CoupleSettings.language)
-                    .join(User, User.couple_id == CoupleSettings.couple_id)
-                    .filter(User.username == username)
-                    .first()
-                )
-                if row is not None and row[0] in ("de", "en"):
-                    lang = row[0]
-            except Exception:
-                logger.exception("Sprache konnte nicht geladen werden, Fallback 'de'")
-            finally:
-                db.close()
-
-        request.state.lang = lang
-        return await call_next(request)
+        db = SessionLocal()
+        try:
+            row = (
+                db.query(CoupleSettings.language)
+                .join(User, User.couple_id == CoupleSettings.couple_id)
+                .filter(User.username == username)
+                .first()
+            )
+            if row is not None and row[0] in SUPPORTED_LANGS:
+                return row[0]
+        except Exception:
+            logger.exception("Sprache konnte nicht geladen werden, Fallback 'de'")
+        finally:
+            db.close()
+        return DEFAULT_LANG
 
 
 # ── Token-Refresh Middleware ─────────────────────────────────────────────────

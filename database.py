@@ -44,6 +44,11 @@ if IS_SQLITE:
     _connect_args = {"check_same_thread": False}
 elif IS_POSTGRES and settings.is_serverless:
     _engine_kwargs["poolclass"] = NullPool
+    # Kein pool_pre_ping: NullPool baut ohnehin für jeden Checkout eine frische
+    # Verbindung auf, die gar nicht abgestanden sein kann. Der Ping wäre ein
+    # zusätzliches "SELECT 1" pro Request — bei Neon über Netz ein voller
+    # Round-Trip, den wir uns hier sparen.
+    _engine_kwargs["pool_pre_ping"] = False
 
 engine: Engine = create_engine(
     DATABASE_URL,
