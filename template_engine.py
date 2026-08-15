@@ -2,6 +2,7 @@
 # Alle Router importieren ihre Templates von hier, damit Filter und Globals
 # einheitlich verfügbar sind.
 
+import hashlib
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 
@@ -12,9 +13,50 @@ from middleware import get_csrf_token
 
 # Am Projektverzeichnis ankern statt am CWD — auf Vercel ist das
 # Arbeitsverzeichnis der Function nicht garantiert das Repo-Root.
-_TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
+_BASE_DIR = Path(__file__).resolve().parent
+_TEMPLATE_DIR = _BASE_DIR / "templates"
+_STATIC_DIR = _BASE_DIR / "static"
 
 templates = Jinja2Templates(directory=str(_TEMPLATE_DIR))
+
+
+# ── Statische Assets mit Cache-Buster ────────────────────────────────────────
+
+_static_version_cache: dict[str, str] = {}
+
+
+def static_url(path: str) -> str:
+    """URL für eine Datei unter ``static/`` inkl. Content-Hash als Query.
+
+    Die Assets werden mit ``Cache-Control: immutable`` und einem Jahr Lebens-
+    dauer ausgeliefert — auf Pi/Docker über ``SecurityHeadersMiddleware``, auf
+    Vercel über den ``headers``-Block in ``vercel.json``. Damit ein Deploy
+    trotzdem sofort durchschlägt, hängt hier ein Hash des Dateiinhalts an der
+    URL: ändert sich die Datei, ändert sich die URL und der alte Cache-Eintrag
+    wird nie wieder angefragt.
+
+    Bewusst der Inhalt und nicht die mtime — im Vercel-Bundle sind die
+    Zeitstempel nicht verlässlich. Das Ergebnis wird pro Prozess gecacht, die
+    Dateien werden also höchstens einmal pro Cold Start gelesen (die größte
+    ist derzeit das gebaute app.css mit ~36 KB).
+    """
+    rel = path.lstrip("/")
+    if rel.startswith("static/"):
+        rel = rel[len("static/"):]
+
+    version = _static_version_cache.get(rel)
+    if version is None:
+        try:
+            data = (_STATIC_DIR / rel).read_bytes()
+            version = hashlib.md5(data).hexdigest()[:8]  # noqa: S324 — nur Cache-Buster
+        except OSError:
+            # Fehlende Datei soll die Seite nicht sprengen; ohne Query
+            # verhält sich die URL wie vorher.
+            version = ""
+        _static_version_cache[rel] = version
+
+    return f"/static/{rel}?v={version}" if version else f"/static/{rel}"
+
 
 # ── Globale Template-Funktionen ──────────────────────────────────────────────
 
@@ -22,6 +64,7 @@ templates.env.globals["now"] = datetime.now
 templates.env.globals["get_csrf_token"] = get_csrf_token
 templates.env.globals["t"] = t
 templates.env.globals["category_label"] = category_label
+templates.env.globals["static_url"] = static_url
 
 
 # ── Sicherer interner Redirect ───────────────────────────────────────────────

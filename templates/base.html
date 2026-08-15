@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>{% block title %}Memory Tree{% endblock %} | 🌳 Memory Tree</title>
 
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tailwind CSS (vorgebaut, siehe tailwind.config.js) -->
+  <link rel="stylesheet" href="{{ static_url('css/app.css') }}">
 
   {% block leaflet %}{% endblock %}
 
@@ -265,6 +265,6 @@
       restoreError: {{ t(request, 'common.toast_restore_error') | tojson }}
     };
   </script>
-  <script src="/static/js/hide-memory.js?v=3"></script>
+  <script src="{{ static_url('js/hide-memory.js') }}"></script>
 </body>
 </html>

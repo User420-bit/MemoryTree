@@ -1,0 +1,7 @@
+/* Eingabedatei für den Tailwind-CLI-Build.
+   Erzeugt static/css/app.css — siehe tailwind.config.js für den Befehl.
+   Das Ergebnis ist eingecheckt, damit weder der Pi noch Vercel einen
+   Node-Build-Schritt im Deploy braucht. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

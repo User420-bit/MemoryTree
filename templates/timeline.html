@@ -310,7 +310,7 @@
     maxPinnedAlert: {{ t(request, 'common.max_pinned_alert') | tojson }}
   };
 </script>
-<script src="/static/js/pin-animation.js"></script>
-<script src="/static/js/timeline.js"></script>
-<script src="/static/js/timeline-sort.js"></script>
+<script src="{{ static_url('js/pin-animation.js') }}"></script>
+<script src="{{ static_url('js/timeline.js') }}"></script>
+<script src="{{ static_url('js/timeline-sort.js') }}"></script>
 {% endblock %}
