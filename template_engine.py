@@ -122,6 +122,12 @@ def _upload_url(filepath: str) -> str:
     # Vercel Blob: bereits eine vollständige URL
     if filepath.startswith(("http://", "https://")):
         return filepath
+    # Demo-Fotos liegen im Repo und ändern sich mit einem Deploy, /static/ wird
+    # aber ein Jahr "immutable" gecacht — deshalb wie jedes andere Asset mit
+    # Content-Hash. Der ".."-Check hält eine manipulierte DB-Zeile davon ab,
+    # static_url() Dateien außerhalb von static/ lesen zu lassen.
+    if filepath.startswith("static/demo/") and ".." not in PurePosixPath(filepath).parts:
+        return static_url(filepath)
     # Altes Format: static/uploads/xxx.jpg → /static/uploads/xxx.jpg
     if filepath.startswith("static/"):
         return f"/{filepath}"
