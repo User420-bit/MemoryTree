@@ -11,20 +11,36 @@
 # Paar existiert.
 
 import logging
+import secrets
+from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import Depends, HTTPException
 from sqlalchemy.orm import Query, Session
 
 from auth import get_current_user
+from config import settings
 from database import get_db
-from models import CoupleSettings, Memory, Milestone, Photo, Place, User
+from demo_data import (
+    DEMO_COUPLE_NAME,
+    DEMO_MEMORIES,
+    DEMO_MILESTONES,
+    DEMO_PARTNER_A,
+    DEMO_PARTNER_B,
+    DEMO_PARTNER_SINCE,
+    demo_photo_ref,
+    memory_columns,
+)
+from models import (
+    Couple, CoupleSettings, Invite, Memory, Milestone, Photo, Place, User,
+)
 
 logger = logging.getLogger(__name__)
 
 _MEMORY_NOT_FOUND = "Erinnerung nicht gefunden"
 _MILESTONE_NOT_FOUND = "Meilenstein nicht gefunden"
 _PHOTO_NOT_FOUND = "Foto nicht gefunden"
+_DEMO_FORBIDDEN = "Im Demo-Modus nicht verfügbar"
 
 
 # ── Dependency ──────────────────────────────────────────────────────────────
@@ -152,3 +168,179 @@ def get_or_create_couple_settings(db: Session, couple_id: int) -> CoupleSettings
         db.commit()
         db.refresh(cs)
     return cs
+
+
+# ── Demo-Paare (Gastzugang) ─────────────────────────────────────────────────
+#
+# Ein Gast bekommt kein geteiltes Schau-Konto, sondern ein eigenes Paar: damit
+# trennt dieselbe couple_id-Filterung, die echte Paare schützt, auch die Gäste
+# voneinander — was einer ändert, sieht kein anderer. Der Preis sind Zeilen in
+# der Datenbank, die ein anonymer Besucher auslöst; deshalb Ablaufdatum,
+# Aufräumlauf und eine harte Obergrenze.
+
+# Kein bcrypt-Hash, passt also auf kein Passwort (siehe auth.verify_password).
+# Spart außerdem die ~250 ms bcrypt pro Gast im Request-Pfad.
+GUEST_PASSWORD_HASH = "!"
+
+GUEST_USERNAME_PREFIX = "guest_"
+
+# Wie viele abgelaufene Paare ein einzelner Aufruf höchstens abräumt — der
+# Lauf hängt am Demo-Einstieg und darf dessen Antwortzeit nicht sprengen.
+_SWEEP_BATCH = 20
+
+
+def is_demo_user(user: User) -> bool:
+    """Gehört das Konto zu einem Demo-Paar?
+
+    Liest ``user.couple`` — über ``get_current_user`` ist das Paar bereits per
+    JOIN geladen, der Zugriff kostet dort also keinen weiteren Roundtrip.
+    """
+    return user.couple.is_demo
+
+
+def require_non_demo(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> None:
+    """Dependency: Route für Gäste sperren (403).
+
+    Für alles, was ein anonymer Besucher nicht auslösen darf: Dateien
+    speichern (Blob-Kosten, fremde Inhalte auf unserer Domain) und Login-Daten
+    eines Gast-Kontos ändern. 403 statt 404 ist hier richtig — es geht nicht
+    um eine fremde ID, deren Existenz verborgen bleiben muss, sondern um eine
+    Funktion, die es im Demo-Modus erklärtermaßen nicht gibt.
+    """
+    if is_demo_user(current_user):
+        raise HTTPException(status_code=403, detail=_DEMO_FORBIDDEN)
+
+
+def _demo_couples(db: Session) -> Query:
+    return db.query(Couple).filter(Couple.is_demo == True)  # noqa: E712
+
+
+def delete_demo_couple(db: Session, couple_id: int) -> bool:
+    """Ein Demo-Paar mit allem, was daran hängt, löschen.
+
+    Weigert sich bei echten Paaren: das ist die einzige Stelle im Code, die
+    einen ganzen Mandanten entfernt, und sie soll durch keinen Aufrufer-Fehler
+    echte Erinnerungen treffen können. ``False`` = nichts gelöscht.
+
+    Dateien werden nicht angefasst. Gäste dürfen nichts hochladen; ihre Fotos
+    zeigen auf die geteilten Bilder unter ``static/demo/``.
+
+    Committet nicht selbst — der Aufrufer bestimmt die Transaktion.
+    """
+    is_demo = (
+        _demo_couples(db).filter(Couple.id == couple_id).with_entities(Couple.id).first()
+    )
+    if is_demo is None:
+        logger.warning("delete_demo_couple: Paar #%s ist kein Demo-Paar", couple_id)
+        return False
+
+    # Reihenfolge folgt den Fremdschlüsseln: users/memories/milestones
+    # kaskadieren nicht von couples, memories hängt zusätzlich an users.
+    memory_ids = db.query(Memory.id).filter(Memory.couple_id == couple_id)
+    db.query(Photo).filter(Photo.memory_id.in_(memory_ids)).delete(
+        synchronize_session=False
+    )
+    db.query(Place).filter(Place.memory_id.in_(memory_ids)).delete(
+        synchronize_session=False
+    )
+    for model in (Memory, Milestone, CoupleSettings, Invite, User):
+        db.query(model).filter(model.couple_id == couple_id).delete(
+            synchronize_session=False
+        )
+    db.query(Couple).filter(Couple.id == couple_id).delete(synchronize_session=False)
+    return True
+
+
+def sweep_expired_demo_couples(db: Session, limit: int = _SWEEP_BATCH) -> int:
+    """Abgelaufene Demo-Paare löschen, älteste zuerst. Gibt die Anzahl zurück."""
+    now = datetime.now(timezone.utc)
+    expired_ids = [
+        row.id
+        for row in _demo_couples(db)
+        .filter(Couple.expires_at != None, Couple.expires_at < now)  # noqa: E711
+        .order_by(Couple.expires_at.asc())
+        .limit(limit)
+        .with_entities(Couple.id)
+    ]
+    for couple_id in expired_ids:
+        delete_demo_couple(db, couple_id)
+    if expired_ids:
+        db.commit()
+    return len(expired_ids)
+
+
+def _make_room_for_demo_couple(db: Session) -> None:
+    """Obergrenze durchsetzen: bei vollem Kontingent das älteste Paar recyceln.
+
+    Verdrängen statt ablehnen — ein Besucher soll die Demo immer sehen können.
+    Getroffen wird, wer am längsten da ist und damit am ehesten schon weg.
+    """
+    overflow = _demo_couples(db).count() - settings.MAX_DEMO_COUPLES + 1
+    if overflow <= 0:
+        return
+    oldest = (
+        _demo_couples(db)
+        .order_by(Couple.created_at.asc(), Couple.id.asc())
+        .limit(overflow)
+        .with_entities(Couple.id)
+    )
+    for row in oldest.all():
+        delete_demo_couple(db, row.id)
+
+
+def create_demo_couple(db: Session) -> User:
+    """Frisches Demo-Paar samt Gast-Konto anlegen und mit Demo-Daten füllen.
+
+    Räumt vorher auf (abgelaufene Paare, Obergrenze), damit der Bestand auch
+    ohne Cron begrenzt bleibt. Gibt das Gast-Konto zurück; der Aufrufer setzt
+    damit die Auth-Cookies.
+    """
+    sweep_expired_demo_couples(db)
+    _make_room_for_demo_couple(db)
+
+    couple = Couple(
+        name=DEMO_COUPLE_NAME,
+        is_demo=True,
+        expires_at=datetime.now(timezone.utc)
+        + timedelta(minutes=settings.DEMO_TTL_MINUTES),
+    )
+    db.add(couple)
+    db.flush()  # couple.id für die abhängigen Zeilen
+
+    guest = User(
+        couple_id=couple.id,
+        name=DEMO_PARTNER_A,
+        # Benutzernamen sind global eindeutig; 64 Bit Zufall statt einer
+        # Zählnummer, damit sich Gast-Konten nicht durchnummerieren lassen.
+        username=GUEST_USERNAME_PREFIX + secrets.token_hex(8),
+        hashed_password=GUEST_PASSWORD_HASH,
+    )
+    db.add(guest)
+    db.add(
+        CoupleSettings(
+            couple_id=couple.id,
+            partner_a_name=DEMO_PARTNER_A,
+            partner_b_name=DEMO_PARTNER_B,
+            partner_since=DEMO_PARTNER_SINCE,
+        )
+    )
+    db.flush()  # guest.id für created_by
+
+    for entry in DEMO_MEMORIES:
+        memory = Memory(
+            couple_id=couple.id, created_by=guest.id, **memory_columns(entry)
+        )
+        memory.photos = [
+            Photo(filepath=demo_photo_ref(name), caption=caption)
+            for name, caption in entry.get("photos", [])
+        ]
+        memory.places = [Place(**place) for place in entry.get("places", [])]
+        db.add(memory)
+    for entry in DEMO_MILESTONES:
+        db.add(Milestone(couple_id=couple.id, **entry))
+
+    db.commit()
+    db.refresh(guest)
+    return guest

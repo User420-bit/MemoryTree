@@ -15,7 +15,6 @@ Nur in Entwicklungsumgebungen ausführen, niemals in Production mit echten Daten
 """
 
 import argparse
-import datetime
 import os
 import sys
 
@@ -23,103 +22,18 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import SessionLocal
+from demo_data import (
+    DEMO_MEMORIES,
+    DEMO_MILESTONES,
+    DEMO_PARTNER_A,
+    DEMO_PARTNER_B,
+    DEMO_PARTNER_SINCE,
+    demo_photo_ref,
+    memory_columns,
+)
 from models import Couple, CoupleSettings, Memory, Milestone, Photo, Place, User
 
 DEFAULT_COUPLE_ID = 1
-
-DEMO_MEMORIES = [
-    dict(
-        title="Erster gemeinsamer Urlaub",
-        date=datetime.date(2022, 7, 15),
-        category="Urlaub",
-        mood="🏖️",
-        location="Mallorca, Spanien",
-    ),
-    dict(
-        title="Unser erstes gemeinsames Konzert",
-        date=datetime.date(2022, 9, 3),
-        category="Feier",
-        mood="🎵",
-        location="Hamburg",
-    ),
-    dict(
-        title="Silvester in Berlin",
-        date=datetime.date(2022, 12, 31),
-        category="Feier",
-        mood="🎉",
-        location="Berlin",
-    ),
-    dict(
-        title="Wanderung im Allgäu",
-        date=datetime.date(2023, 4, 22),
-        category="Abenteuer",
-        mood="🏔️",
-        location="Allgäu, Bayern",
-    ),
-    dict(
-        title="Unser erster Jahrestag",
-        date=datetime.date(2023, 2, 14),
-        category="Meilenstein",
-        mood="❤️",
-        location="München",
-    ),
-    dict(
-        title="Wochenende in Wien",
-        date=datetime.date(2023, 8, 11),
-        category="Urlaub",
-        mood="🏙️",
-        location="Wien, Österreich",
-    ),
-    dict(
-        title="Gemeinsames Kochen — Erstes Dinner",
-        date=datetime.date(2023, 11, 5),
-        category="Alltag",
-        mood="🍝",
-        location="Zuhause",
-    ),
-    dict(
-        title="Skiurlaub in den Alpen",
-        date=datetime.date(2024, 1, 20),
-        category="Abenteuer",
-        mood="⛷️",
-        location="Innsbruck, Österreich",
-    ),
-    dict(
-        title="Zweiter Jahrestag",
-        date=datetime.date(2024, 2, 14),
-        category="Meilenstein",
-        mood="💑",
-        location="Paris, Frankreich",
-    ),
-    dict(
-        title="Sommerkonzert Open Air",
-        date=datetime.date(2024, 7, 8),
-        category="Feier",
-        mood="🎶",
-        location="Frankfurt am Main",
-    ),
-]
-
-DEMO_MILESTONES = [
-    dict(
-        title="Erstes Date",
-        date=datetime.date(2022, 2, 14),
-        icon="❤️",
-        description="Der Anfang von allem.",
-    ),
-    dict(
-        title="Erster gemeinsamer Urlaub",
-        date=datetime.date(2022, 7, 15),
-        icon="✈️",
-        description="Eine Woche Mallorca — unvergesslich.",
-    ),
-    dict(
-        title="Zusammengezogen",
-        date=datetime.date(2023, 6, 1),
-        icon="🏠",
-        description="Unser erstes gemeinsames Zuhause.",
-    ),
-]
 
 
 def seed(couple_id: int):
@@ -182,9 +96,9 @@ def seed(couple_id: int):
             .first()
         )
         if cs:
-            cs.partner_a_name = "Lena"
-            cs.partner_b_name = "Max"
-            cs.partner_since = datetime.date(2022, 2, 14)
+            cs.partner_a_name = DEMO_PARTNER_A
+            cs.partner_b_name = DEMO_PARTNER_B
+            cs.partner_since = DEMO_PARTNER_SINCE
 
         # Anzeigenamen der Konten dieses Paars anonymisieren
         for user, anzeigename in zip(users, ("Partner A", "Partner B")):
@@ -192,9 +106,18 @@ def seed(couple_id: int):
 
         creator_id = users[0].id
 
-        # Demo-Erinnerungen einfügen
+        # Demo-Erinnerungen samt Fotos und Orten einfügen. Die Fotos zeigen
+        # auf die mitgelieferten Dateien unter static/demo/.
         for m in DEMO_MEMORIES:
-            db.add(Memory(couple_id=couple_id, created_by=creator_id, **m))
+            memory = Memory(
+                couple_id=couple_id, created_by=creator_id, **memory_columns(m)
+            )
+            memory.photos = [
+                Photo(filepath=demo_photo_ref(name), caption=caption)
+                for name, caption in m.get("photos", [])
+            ]
+            memory.places = [Place(**place) for place in m.get("places", [])]
+            db.add(memory)
 
         # Demo-Meilensteine einfügen
         for ms in DEMO_MILESTONES:

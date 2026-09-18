@@ -609,6 +609,10 @@ verlässliche Schranke mehr. Ergänzend im Vercel-Dashboard unter
 **Firewall → Rate Limiting** eine Regel auf `POST /auth/login` einrichten
 (z. B. 10 Anfragen/Minute pro IP).
 
+Ist der Gastzugang eingeschaltet (12.7), braucht `POST /auth/demo` dieselbe
+Regel — dort ist sie wichtiger als beim Login: der Endpunkt ist anonym
+erreichbar und jeder Aufruf legt rund 60 Zeilen in der Datenbank an.
+
 ### 12.6 Sicherheits-Tradeoff: öffentliche Blob-URLs
 
 Vercel Blob kennt derzeit nur `access: public`. Die Foto-URLs sind damit —
@@ -625,3 +629,74 @@ Wenn das nicht akzeptabel ist: Bilder nicht direkt aus dem Blob-Store
 verlinken, sondern über eine auth-geschützte Proxy-Route in FastAPI streamen
 (`/uploads/{name}` → `get_current_user` → Blob-Fetch → `StreamingResponse`).
 Kostet pro Bild eine Function-Invocation und ist bewusst nicht umgesetzt.
+
+### 12.7 Gastzugang (Demo)
+
+Für eine öffentliche Schau-Instanz: auf der Login-Seite erscheint "Als Gast
+ansehen". Jeder Gast bekommt ein **eigenes Wegwerf-Paar** mit Beispieldaten
+aus [demo_data.py](demo_data.py). Dadurch trennt dieselbe
+`couple_id`-Filterung, die echte Paare schützt, auch die Gäste voneinander:
+was ein Gast ändert, sieht kein anderer. Das Paar verschwindet beim Logout,
+beim "Zurücksetzen" im Demo-Banner oder spätestens nach `DEMO_TTL_MINUTES`.
+
+Standardmäßig aus. Auf dem Pi aus lassen — der bleibt privat.
+
+**Einschalten (Vercel → Environment Variables):**
+
+```
+DEMO_ENABLED=true
+DEMO_TTL_MINUTES=120
+MAX_DEMO_COUPLES=200
+CRON_SECRET=<python3 -c "import secrets; print(secrets.token_urlsafe(32))">
+```
+
+Vorher `alembic upgrade head` gegen die Produktions-DB laufen lassen
+(Revision `c7e2d4a91b56` bringt `couples.is_demo` und `couples.expires_at`).
+Ein Seed ist nicht nötig, die Demo-Bilder liegen als statische Dateien unter
+`static/demo/` im Repo.
+
+**Was ein Gast nicht darf:** Bilder hochladen (Foto, Avatar) sowie
+Benutzername und Passwort ändern. Anonyme Uploads ins öffentliche Internet
+hießen Blob-Kosten und fremde Inhalte unter unserer Domain. Gast-Konten
+tragen außerdem keinen gültigen Passwort-Hash und sind per Login nicht
+erreichbar — der einzige Weg hinein ist `POST /auth/demo`.
+
+**Drei Schranken gegen Missbrauch — alle drei einrichten:**
+
+1. **Firewall-Regel** auf `POST /auth/demo` (siehe 12.5). Der In-Process-
+   Limiter (5 Einstiege / 5 Min pro IP) greift serverless nur innerhalb einer
+   warmen Instanz.
+2. **`MAX_DEMO_COUPLES`** deckelt den Bestand hart. Ist das Kontingent voll,
+   wird das älteste Demo-Paar verdrängt, der neue Gast kommt trotzdem hinein.
+   200 Paare entsprechen rund 12.000 Zeilen.
+3. **Aufräumen:** jeder Demo-Einstieg löscht vorab bis zu 20 abgelaufene
+   Paare. Zusätzlich ruft der Cron aus [vercel.json](vercel.json) einmal
+   täglich `GET /internal/demo-sweep` auf, für den Fall, dass länger niemand
+   kommt. Vercel schickt `CRON_SECRET` von selbst als
+   `Authorization: Bearer …`. Ohne gesetztes Secret antwortet der Endpunkt
+   mit 404, ist also nie offen. Der Hobby-Plan erlaubt nur tägliche Crons; ab
+   Pro lässt sich der Zeitplan in `vercel.json` auf stündlich (`0 * * * *`)
+   stellen.
+
+**Prüfen nach dem Deploy:**
+
+```bash
+# Muss 404 liefern (kein Secret mitgeschickt)
+curl -s -o /dev/null -w "%{http_code}\n" https://<domain>/internal/demo-sweep
+
+# Muss {"deleted": <n>} liefern
+curl -s -H "Authorization: Bearer $CRON_SECRET" https://<domain>/internal/demo-sweep
+```
+
+**Rest-Risiko:** ein Gast kann einem Formular von Hand eine Datei anhängen.
+Der Server verwirft sie, liest aber vorher bis zu 10 MB Request-Body. Das
+kostet Bandbreite und Function-Zeit, gespeichert wird nichts — die
+Firewall-Regel aus Punkt 1 begrenzt auch das.
+
+**Demo-Inhalte ändern:** Texte in [demo_data.py](demo_data.py) anpassen. Für
+neue Bilder dort den Dateinamen eintragen, eine Szene in
+[scripts/make_demo_images.py](scripts/make_demo_images.py) ergänzen, das
+Skript laufen lassen und `static/demo/` committen. Eigene Fotos gehen auch:
+unter demselben Namen ablegen, Thumbnail nach
+`static/demo/thumbs/<name>_thumb.jpg`. Nur Bilder verwenden, die öffentlich
+sein dürfen — `/static/` ist ohne Login abrufbar.

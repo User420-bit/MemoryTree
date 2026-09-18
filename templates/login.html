@@ -68,6 +68,25 @@
           {{ t(request, 'login.submit_button') }}
         </button>
       </form>
+
+      {# Gastzugang — nur wenn DEMO_ENABLED. POST + CSRF, damit Crawler und
+         Link-Vorschauen keine Demo-Paare anlegen. #}
+      {% if demo_enabled() %}
+      <div class="flex items-center gap-3 my-6">
+        <hr class="flex-1 border-stone-200">
+        <span class="text-xs uppercase tracking-wide text-stone-400">{{ t(request, 'login.demo_divider') }}</span>
+        <hr class="flex-1 border-stone-200">
+      </div>
+      <form method="post" action="/auth/demo">
+        <input type="hidden" name="csrf_token" value="{{ get_csrf_token(request) }}">
+        <button type="submit"
+                class="w-full border border-emerald-600 text-emerald-700 hover:bg-emerald-50
+                       font-semibold py-2.5 rounded-lg transition">
+          👀 {{ t(request, 'login.demo_button') }}
+        </button>
+      </form>
+      <p class="text-center text-stone-500 text-xs mt-3">{{ t(request, 'login.demo_hint') }}</p>
+      {% endif %}
     </div>
 
     {# Fußzeile #}

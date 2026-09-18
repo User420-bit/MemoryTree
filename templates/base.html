@@ -77,11 +77,15 @@
         font-size: max(16px, 1rem);
       }
     }
+
+    /* Gastzugang: unten fixierte Bedienelemente (z. B. der "+"-Button im
+       Zeitstrahl) über den Demo-Banner heben, statt dahinter zu verschwinden. */
+    .demo-mode .demo-lift { bottom: 4.5rem; }
   </style>
 
   {% block extra_head %}{% endblock %}
 </head>
-<body class="bg-amber-50 text-stone-800 min-h-[100dvh] flex flex-col">
+<body class="bg-amber-50 text-stone-800 min-h-[100dvh] flex flex-col{{ ' demo-mode' if user and user.couple.is_demo }}">
 
   {# ── Navbar ─────────────────────────────────────────────────────────────── #}
   {% block navbar %}
@@ -180,6 +184,30 @@
     {% block content %}{% endblock %}
   </main>
 
+  {# ── Demo-Banner (Gastzugang) ───────────────────────────────────────────── #}
+  {# Unten fixiert statt unter der Navbar: die Navbar ist fixed mit fester Höhe,
+     auf die alle Seiten ihr mt-16 abstimmen. z-Index wie die Navbar, damit der
+     Banner auch über der Leaflet-Karte liegt. "Zurücksetzen" ist derselbe
+     Endpunkt wie der Einstieg — er ersetzt das Demo-Paar durch ein frisches. #}
+  {% if user and user.couple.is_demo %}
+  <div class="fixed bottom-0 left-0 right-0 z-[1100] bg-amber-100 border-t border-amber-300 text-amber-900 shadow-lg">
+    <div class="max-w-7xl mx-auto px-4 py-2 flex items-center gap-3 text-sm">
+      <span class="shrink-0">👀</span>
+      <p class="flex-1 min-w-0">
+        <strong>{{ t(request, 'common.demo_banner_title') }}</strong>
+        <span class="hidden sm:inline">— {{ t(request, 'common.demo_banner_text') }}</span>
+      </p>
+      <form method="post" action="/auth/demo" class="shrink-0">
+        <input type="hidden" name="csrf_token" value="{{ get_csrf_token(request) }}">
+        <button type="submit"
+                class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-md font-medium transition whitespace-nowrap">
+          ↺ {{ t(request, 'common.demo_banner_reset') }}
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
   {# ── Footer ─────────────────────────────────────────────────────────────── #}
   {% block footer %}
   <footer class="bg-amber-50 border-t border-amber-200/60 text-center text-stone-500 text-sm py-6">
@@ -187,6 +215,8 @@
     <p class="mt-1">&copy; {{ now().year if now is defined else "2026" }}</p>
   </footer>
   {% endblock %}
+  {# Platzhalter, damit der fixierte Demo-Banner das Seitenende nicht verdeckt. #}
+  {% if user and user.couple.is_demo %}<div class="h-12 shrink-0" aria-hidden="true"></div>{% endif %}
 
   {# ── Mobile-Menü Toggle ─────────────────────────────────────────────────── #}
   <script>

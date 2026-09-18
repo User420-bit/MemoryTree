@@ -49,6 +49,20 @@ class Settings(BaseSettings):
     LOGIN_RATE_LIMIT_MAX: int = 5       # max Versuche
     LOGIN_RATE_LIMIT_WINDOW: int = 300  # Fenster in Sekunden (5 Min)
 
+    # ── Gastzugang (Demo) ────────────────────────────────────────────────
+    # Standardmäßig aus: der Pi bleibt privat, nur eine öffentliche Instanz
+    # schaltet den Gastzugang ein. Jeder Gast bekommt ein eigenes Wegwerf-Paar
+    # (tenancy.create_demo_couple), das nach DEMO_TTL_MINUTES gelöscht wird.
+    # MAX_DEMO_COUPLES deckelt, wie viele davon gleichzeitig existieren — der
+    # Endpunkt ist anonym erreichbar und darf die Datenbank nicht füllen können.
+    DEMO_ENABLED: bool = False
+    DEMO_TTL_MINUTES: int = 120
+    MAX_DEMO_COUPLES: int = 200
+    # Schützt GET /internal/demo-sweep. Vercel Cron schickt den Wert von selbst
+    # als "Authorization: Bearer <CRON_SECRET>", sobald die Variable im Projekt
+    # gesetzt ist. Leer = Endpunkt abgeschaltet (404), nie offen.
+    CRON_SECRET: str = ""
+
     # ── Transport-Security ───────────────────────────────────────────────
     # Muss explizit auf true gesetzt werden, wenn die App ausschließlich
     # über HTTPS erreichbar ist (z. B. Cloudflare Tunnel, Tailscale+HTTPS,

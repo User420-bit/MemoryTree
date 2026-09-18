@@ -10,7 +10,7 @@ from typing import Any
 import bcrypt
 from jose import jwt, JWTError
 from fastapi import Depends, HTTPException, Request, Response
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from config import settings
 from database import get_db
@@ -93,11 +93,21 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Passwort gegen Hash prüfen."""
-    return bcrypt.checkpw(
-        plain_password.encode("utf-8"),
-        hashed_password.encode("utf-8"),
-    )
+    """Passwort gegen Hash prüfen.
+
+    Ein Wert, der kein bcrypt-Hash ist, passt auf kein Passwort. Gast-Konten
+    tragen absichtlich so einen Platzhalter (``tenancy.GUEST_PASSWORD_HASH``):
+    sie entstehen nur über den Demo-Einstieg und sind per Login nicht
+    erreichbar. Ohne das ``except`` würde bcrypt hier mit "Invalid salt"
+    werfen und der Login-Versuch als 500 enden.
+    """
+    try:
+        return bcrypt.checkpw(
+            plain_password.encode("utf-8"),
+            hashed_password.encode("utf-8"),
+        )
+    except ValueError:
+        return False
 
 
 # ── JWT Token-Erstellung ────────────────────────────────────────────────────
@@ -134,8 +144,15 @@ def _decode_token(token: str, expected_type: str) -> dict[str, Any]:
 
 # ── Cookie-Hilfsfunktionen ──────────────────────────────────────────────────
 
-def set_auth_cookies(response: Response, username: str) -> None:
-    """Access + Refresh Token als sichere HttpOnly Cookies setzen."""
+def set_auth_cookies(
+    response: Response, username: str, session_only: bool = False
+) -> None:
+    """Access + Refresh Token als sichere HttpOnly Cookies setzen.
+
+    ``session_only`` lässt ``max_age`` weg: der Browser verwirft die Cookies
+    beim Schließen. Für Gäste — deren Sitzung soll nicht tagelang im Browser
+    liegen, während das Demo-Paar dahinter längst gelöscht ist.
+    """
     access_token = create_access_token(data={"sub": username})
     refresh_token = create_refresh_token(data={"sub": username})
 
@@ -147,7 +164,7 @@ def set_auth_cookies(response: Response, username: str) -> None:
         httponly=True,
         secure=secure_flag,
         samesite="lax",
-        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        max_age=None if session_only else settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         path="/",
     )
     response.set_cookie(
@@ -156,7 +173,7 @@ def set_auth_cookies(response: Response, username: str) -> None:
         httponly=True,
         secure=secure_flag,
         samesite="strict",
-        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
+        max_age=None if session_only else settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
         path="/auth/refresh",
     )
 
@@ -186,7 +203,15 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     if username is None:
         raise HTTPException(status_code=401, detail=_AUTH_ERROR)
 
-    user: User | None = db.query(User).filter(User.username == username).first()
+    # Das Paar per JOIN mitladen: base.html fragt auf jeder Seite
+    # ``user.couple.is_demo`` ab (Demo-Banner). Als Lazy-Load wäre das ein
+    # zweiter Roundtrip pro Seitenaufruf.
+    user: User | None = (
+        db.query(User)
+        .options(joinedload(User.couple))
+        .filter(User.username == username)
+        .first()
+    )
     if user is None:
         raise HTTPException(status_code=401, detail=_AUTH_ERROR)
     return user

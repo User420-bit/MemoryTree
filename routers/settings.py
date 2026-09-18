@@ -23,6 +23,8 @@ from template_engine import templates
 from tenancy import (
     CoupleId,
     get_or_create_couple_settings,
+    is_demo_user,
+    require_non_demo,
     scoped_memories,
     scoped_users,
 )
@@ -174,7 +176,8 @@ def save_settings(
 
         _sync_partner_names(db, couple_id, cs)
 
-        if avatar is not None:
+        # Gäste dürfen nichts hochladen — Namen, Datum und Sprache schon.
+        if avatar is not None and not is_demo_user(current_user):
             _handle_avatar_upload(avatar, current_user)
 
         db.commit()
@@ -203,7 +206,9 @@ def _redirect_account_error(error_key: str) -> RedirectResponse:
     )
 
 
-@router.post("/settings/change-username")
+# Für Gäste gesperrt: ein Gast-Konto hat keine Login-Daten, die man ändern
+# könnte, und soll auch keine bekommen.
+@router.post("/settings/change-username", dependencies=[Depends(require_non_demo)])
 def change_username(
     request: Request,
     current_user: Annotated[User, Depends(get_current_user)],
@@ -246,7 +251,9 @@ def change_username(
         raise
 
 
-@router.post("/settings/change-password")
+# Für Gäste gesperrt: ein Gast-Konto hat keine Login-Daten, die man ändern
+# könnte, und soll auch keine bekommen.
+@router.post("/settings/change-password", dependencies=[Depends(require_non_demo)])
 def change_password(
     request: Request,
     current_user: Annotated[User, Depends(get_current_user)],

@@ -13,6 +13,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    false,
 )
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -50,6 +51,15 @@ class Couple(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False, default="Paar")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    # Gastzugang: ein Demo-Paar ist ein Wegwerf-Mandant, der pro Gast aus
+    # ``demo_data.py`` befüllt und nach ``expires_at`` wieder gelöscht wird.
+    # Echte Paare haben ``is_demo=False`` und nie ein Ablaufdatum.
+    is_demo: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False, index=True
+    )
+    expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
 
     users: Mapped[List["User"]] = relationship("User", back_populates="couple")

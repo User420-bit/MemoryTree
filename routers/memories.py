@@ -19,6 +19,7 @@ from template_engine import templates, safe_internal_url
 from tenancy import (
     CoupleId,
     get_owned_memory,
+    is_demo_user,
     scoped_memories,
     scoped_places,
     scoped_users,
@@ -111,8 +112,10 @@ def memory_form_create(
         place = Place(memory_id=memory.id, name=location, lat=lat_val, lng=lng_val)
         db.add(place)
 
-    # Fotos speichern
-    if photos:
+    # Fotos speichern. Gäste dürfen nichts hochladen: die Erinnerung wird
+    # angelegt, mitgeschickte Dateien werden verworfen — das Formular bietet
+    # im Demo-Modus gar kein Dateifeld an, das trifft nur gebastelte Requests.
+    if photos and not is_demo_user(current_user):
         save_uploaded_photos(photos, memory.id, db, couple_id)
 
     db.commit()
@@ -193,8 +196,8 @@ def memory_form_update(
     memory.lng = float(lng) if lng else None
     memory.description = description or None
 
-    # Neue Fotos hochladen
-    if photos:
+    # Neue Fotos hochladen — nicht für Gäste (siehe memory_form_create)
+    if photos and not is_demo_user(current_user):
         save_uploaded_photos(photos, memory.id, db, couple_id)
 
     db.commit()
