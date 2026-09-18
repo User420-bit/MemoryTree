@@ -4,12 +4,17 @@
 # im Request-Pfad geladen (Gast-Paar anlegen) und soll dort nichts kosten.
 #
 # FOTOS: alle Gast-Paare teilen sich dieselben Dateien unter ``static/demo/``.
-# Die Referenz beginnt mit ``static/`` — dieses Format reicht der
-# ``upload_url``-Filter unverändert durch, und ``uploads.safe_remove`` fasst es
-# nicht an (nur ``c<Ziffern>``-Verzeichnisse unter UPLOAD_DIR). Löscht ein Gast
+# Die Referenz beginnt mit ``static/demo/`` — der ``upload_url``-Filter macht
+# daraus eine /static/-URL mit Content-Hash (sonst hielte der einjährige
+# immutable-Cache ausgetauschte Bilder fest), und ``uploads.safe_remove`` fasst
+# sie nicht an (nur ``c<Ziffern>``-Verzeichnisse unter UPLOAD_DIR). Löscht ein Gast
 # ein Foto, verschwindet also nur seine DB-Zeile, nie die geteilte Datei.
-# Die Bilder erzeugt scripts/make_demo_images.py; Thumbnails liegen nach der
-# üblichen Konvention unter ``static/demo/thumbs/<name>_thumb.jpg``.
+# Die Bilder sind KI-generierte Fotos ohne erkennbare Gesichter, eingespielt
+# mit scripts/import_demo_photos.py; scripts/make_demo_images.py zeichnet nur
+# noch Platzhalter für Dateinamen, zu denen kein Bild existiert. Thumbnails
+# liegen nach der üblichen Konvention unter
+# ``static/demo/thumbs/<name>_thumb.jpg``. Bildunterschrift und Motiv gehören
+# zusammen — wer eine Caption ändert, prüft, ob das Foto noch dazu passt.
 
 import datetime
 from typing import Any
@@ -257,5 +262,5 @@ DEMO_MILESTONES: list[dict[str, Any]] = [
 
 
 def demo_photo_filenames() -> list[str]:
-    """Alle referenzierten Foto-Dateinamen — make_demo_images.py prüft dagegen."""
+    """Alle referenzierten Foto-Dateinamen — die Demo-Bild-Skripte prüfen dagegen."""
     return [name for m in DEMO_MEMORIES for name, _caption in m.get("photos", [])]
