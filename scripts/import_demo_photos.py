@@ -2,7 +2,7 @@
 """
 Übernimmt fertige Fotos als Demo-Bilder des Gastzugangs nach static/demo/.
 
-Erwartet einen Ordner mit je einer Quelldatei pro Dateiname aus demo_data.py
+Erwartet einen Ordner mit Quelldateien, benannt wie die Dateinamen aus demo_data.py
 (gleicher Stamm, Endung png/jpg/jpeg/webp — z. B. ``demo_paris_1.png``). Jedes
 Bild wird mittig auf 3:2 beschnitten, auf 1200×800 gebracht und als JPEG neu
 kodiert; Metadaten der Quelle (EXIF, Prompt-Chunks) gehen dabei verloren. Das
@@ -64,9 +64,14 @@ def main() -> None:
         save_with_thumb(img, name)
         print(f"  {name}  <-  {source.name}")
 
+    # Ein Ordner mit nur einem Teil der Bilder ist der Normalfall (ein Foto
+    # austauschen) — Fehler ist erst, wenn gar nichts gepasst hat.
+    imported = len(demo_photo_filenames()) - len(missing)
+    if not imported:
+        sys.exit(f"Keine passende Quelldatei in {folder} (erwartet z. B. {missing[0]})")
     if missing:
-        sys.exit(f"Keine Quelle für: {', '.join(missing)}")
-    print(f"{len(demo_photo_filenames())} Bilder unter {OUT_DIR.relative_to(ROOT)}/")
+        print(f"  unverändert: {', '.join(missing)}")
+    print(f"{imported} Bilder unter {OUT_DIR.relative_to(ROOT)}/ geschrieben")
 
 
 if __name__ == "__main__":
