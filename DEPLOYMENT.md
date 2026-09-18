@@ -693,10 +693,24 @@ Der Server verwirft sie, liest aber vorher bis zu 10 MB Request-Body. Das
 kostet Bandbreite und Function-Zeit, gespeichert wird nichts — die
 Firewall-Regel aus Punkt 1 begrenzt auch das.
 
-**Demo-Inhalte ändern:** Texte in [demo_data.py](demo_data.py) anpassen. Für
-neue Bilder dort den Dateinamen eintragen, eine Szene in
-[scripts/make_demo_images.py](scripts/make_demo_images.py) ergänzen, das
-Skript laufen lassen und `static/demo/` committen. Eigene Fotos gehen auch:
-unter demselben Namen ablegen, Thumbnail nach
-`static/demo/thumbs/<name>_thumb.jpg`. Nur Bilder verwenden, die öffentlich
-sein dürfen — `/static/` ist ohne Login abrufbar.
+**Demo-Inhalte ändern:** Texte in [demo_data.py](demo_data.py) anpassen. Die
+Bilder unter `static/demo/` sind KI-generierte Fotos (Higgsfield, Modell
+`nano_banana`), angelegt als unperfekte Handyfotos und ohne erkennbare
+Gesichter — „Lena & Max“ gibt es nicht. Für ein neues Bild den Dateinamen in
+`demo_data.py` eintragen, die Quelldatei (3:2, Motiv mittig, weil Galerie und
+Baum quadratisch beschneiden) unter demselben Stamm in einen Ordner legen und
+einspielen:
+
+```bash
+python scripts/import_demo_photos.py <quellordner>
+```
+
+Das Skript bringt jedes Bild auf 1200×800 JPEG, entfernt Metadaten und legt
+das Thumbnail unter `static/demo/thumbs/<name>_thumb.jpg` an. Danach
+`static/demo/` committen.
+[scripts/make_demo_images.py](scripts/make_demo_images.py) ist nur noch der
+Fallback: es zeichnet eine einfache Szene für Dateinamen, zu denen kein Bild
+existiert (dafür dort eine Szene ergänzen), und lässt vorhandene Dateien in
+Ruhe — `--force` überschreibt alle Fotos mit den gezeichneten Szenen. Nur
+Bilder verwenden, die öffentlich sein dürfen — `/static/` ist ohne Login
+abrufbar.

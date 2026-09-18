@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 """
-Erzeugt die Demo-Fotos für den Gastzugang unter static/demo/.
+Fallback-Generator für die Demo-Fotos des Gastzugangs unter static/demo/.
 
-Die Bilder sind prozedural gezeichnete Szenen (Himmelsverlauf, Sonne,
-Silhouetten) — keine Fremdrechte, deterministisch, klein genug fürs Repo.
-Wer echte Fotos zeigen will, legt sie unter demselben Dateinamen ab; die
-Thumbnails folgen der Konvention aus uploads.thumbnail_ref().
+Im Repo liegen fotorealistische, KI-generierte Bilder (siehe
+scripts/import_demo_photos.py). Dieses Skript zeichnet stattdessen einfache
+prozedurale Szenen (Himmelsverlauf, Sonne, Silhouetten) — keine Fremdrechte,
+deterministisch — und springt nur ein, wenn für einen Dateinamen aus
+demo_data.py noch kein Bild existiert. Vorhandene Dateien bleiben deshalb
+unangetastet; ``--force`` überschreibt ALLE Bilder mit den gezeichneten Szenen.
 
 Nutzung:
-    python3 scripts/make_demo_images.py
+    python3 scripts/make_demo_images.py           # nur fehlende Bilder
+    python3 scripts/make_demo_images.py --force   # alles überschreiben
 
 Das Ergebnis wird committet; das Skript läuft nicht beim Deploy.
 """
 
+import argparse
 import math
 import os
 import random
@@ -281,23 +285,43 @@ SCENES = {
 }
 
 
+def thumb_path_for(name: str) -> Path:
+    stem, ext = os.path.splitext(name)
+    return THUMB_DIR / f"{stem}_thumb{ext}"
+
+
+def save_with_thumb(img: Image.Image, name: str) -> None:
+    """Bild plus Thumbnail ablegen — auch von import_demo_photos.py genutzt."""
+    THUMB_DIR.mkdir(parents=True, exist_ok=True)
+    img.save(OUT_DIR / name, "JPEG", quality=82, optimize=True, progressive=True)
+    thumb = img.copy()
+    thumb.thumbnail((THUMB_SIZE, THUMB_SIZE), Image.Resampling.LANCZOS)
+    thumb.save(thumb_path_for(name), "JPEG", quality=80, optimize=True)
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
+    parser.add_argument(
+        "--force", action="store_true",
+        help="auch vorhandene Bilder überschreiben (ersetzt die echten Fotos!)",
+    )
+    args = parser.parse_args()
+
     missing = set(demo_photo_filenames()) - set(SCENES)
     if missing:
         sys.exit(f"Keine Szene für: {', '.join(sorted(missing))}")
 
-    THUMB_DIR.mkdir(parents=True, exist_ok=True)
+    written = 0
     for name, build in SCENES.items():
-        # Seed aus dem Dateinamen: jeder Lauf erzeugt dieselben Bilder.
-        img = build(random.Random(name))
-        img.save(OUT_DIR / name, "JPEG", quality=82, optimize=True, progressive=True)
+        if (OUT_DIR / name).exists() and thumb_path_for(name).exists() and not args.force:
+            print(f"  {name} (vorhanden, übersprungen)")
+            continue
 
-        thumb = img.copy()
-        thumb.thumbnail((THUMB_SIZE, THUMB_SIZE), Image.Resampling.LANCZOS)
-        stem, ext = os.path.splitext(name)
-        thumb.save(THUMB_DIR / f"{stem}_thumb{ext}", "JPEG", quality=80, optimize=True)
+        # Seed aus dem Dateinamen: jeder Lauf erzeugt dieselben Bilder.
+        save_with_thumb(build(random.Random(name)), name)
+        written += 1
         print(f"  {name}")
-    print(f"{len(SCENES)} Bilder unter {OUT_DIR.relative_to(ROOT)}/")
+    print(f"{written} von {len(SCENES)} Bildern geschrieben unter {OUT_DIR.relative_to(ROOT)}/")
 
 
 if __name__ == "__main__":
