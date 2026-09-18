@@ -1,5 +1,6 @@
 # Memory Tree — FastAPI Hauptanwendung
 
+import hmac
 import json
 import logging
 import sys
@@ -33,6 +34,7 @@ from tenancy import (
     scoped_photos,
     scoped_users,
     visible_memories,
+    sweep_expired_demo_couples,
 )
 
 from routers.auth import router as auth_router
@@ -218,6 +220,45 @@ app.include_router(settings_router)
 def health_check() -> dict[str, str]:
     """Einfacher Health-Check für Docker und Monitoring."""
     return {"status": "ok"}
+
+
+# ── Aufräumlauf für Demo-Paare (Vercel Cron) ────────────────────────────────
+
+# Obergrenze pro Aufruf: 10 Läufe à 20 Paare. Ein Cron-Aufruf soll nicht ins
+# Function-Timeout laufen; was übrig bleibt, nimmt der nächste Lauf mit.
+_SWEEP_MAX_BATCHES = 10
+
+
+@app.get("/internal/demo-sweep", include_in_schema=False)
+def demo_sweep(request: Request, db: Session = Depends(get_db)) -> dict[str, int]:
+    """Abgelaufene Demo-Paare löschen — aufgerufen vom Vercel Cron.
+
+    Der Demo-Einstieg räumt bei jedem neuen Gast selbst auf; dieser Endpunkt
+    deckt nur den Fall ab, dass länger niemand kommt und die letzten Paare
+    sonst liegen blieben.
+
+    Jede Ablehnung ist 404, nicht 401/403: der Endpunkt soll sich von einem
+    nicht existierenden Pfad nicht unterscheiden lassen. (401 würde außerdem
+    vom Exception-Handler unten in einen Login-Redirect verwandelt.)
+    """
+    secret = settings.CRON_SECRET
+    supplied = request.headers.get("authorization", "")
+    if (
+        not settings.DEMO_ENABLED
+        or not secret
+        or not hmac.compare_digest(supplied.encode(), f"Bearer {secret}".encode())
+    ):
+        raise HTTPException(status_code=404)
+
+    deleted = 0
+    for _ in range(_SWEEP_MAX_BATCHES):
+        batch = sweep_expired_demo_couples(db)
+        deleted += batch
+        if batch == 0:
+            break
+    if deleted:
+        logger.info("Demo-Sweep: %d Paare gelöscht", deleted)
+    return {"deleted": deleted}
 
 
 # ── Exception-Handler: 401 → Login-Redirect ─────────────────────────────────

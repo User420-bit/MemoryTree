@@ -8,6 +8,7 @@ from pathlib import Path, PurePosixPath
 
 from fastapi.templating import Jinja2Templates
 
+from config import settings
 from i18n import category_label, t
 from middleware import get_csrf_token
 
@@ -65,6 +66,9 @@ templates.env.globals["get_csrf_token"] = get_csrf_token
 templates.env.globals["t"] = t
 templates.env.globals["category_label"] = category_label
 templates.env.globals["static_url"] = static_url
+# Steuert den "Als Gast ansehen"-Button auf der Login-Seite. Global statt
+# Kontextvariable, weil login.html von mehreren Stellen gerendert wird.
+templates.env.globals["demo_enabled"] = lambda: settings.DEMO_ENABLED
 
 
 # ── Sicherer interner Redirect ───────────────────────────────────────────────

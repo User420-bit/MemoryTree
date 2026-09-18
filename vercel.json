@@ -15,6 +15,9 @@
       ]
     }
   ],
+  "crons": [
+    { "path": "/internal/demo-sweep", "schedule": "0 3 * * *" }
+  ],
   "functions": {
     "api/index.py": {
       "memory": 1024,

@@ -186,6 +186,14 @@
       </div>
       {% endif %}
 
+      {# Gastzugang: kein Dateifeld — der Server verwirft Uploads von Gästen. #}
+      {% if user.couple.is_demo %}
+      <div>
+        <p class="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          👀 {{ t(request, 'common.demo_upload_disabled') }}
+        </p>
+      </div>
+      {% else %}
       <div>
         <input type="file" id="photos" name="photos" multiple
                accept="image/jpeg,image/png,image/webp"
@@ -196,6 +204,7 @@
                       hover:file:bg-emerald-100 file:cursor-pointer file:transition">
         <p class="text-xs text-stone-400 mt-1">{{ t(request, 'memory_form.photos_hint') }}</p>
       </div>
+      {% endif %}
 
       {# Vorschau #}
       <div id="photo-preview" class="grid grid-cols-3 sm:grid-cols-4 gap-3 mt-4"></div>
@@ -329,7 +338,9 @@ document.addEventListener("DOMContentLoaded", function () {
   // ── Foto-Vorschau ─────────────────────────────────────────────────────
   var photosInput = document.getElementById("photos");
   var preview = document.getElementById("photo-preview");
-  photosInput.addEventListener("change", function () {
+  // Im Demo-Modus gibt es kein Dateifeld. Ohne die Prüfung bräche das Skript
+  // hier ab und das Orts-Autocomplete darunter liefe nie an.
+  if (photosInput) photosInput.addEventListener("change", function () {
     preview.innerHTML = "";
     Array.from(photosInput.files).forEach(function (file) {
       if (!file.type.startsWith("image/")) return;

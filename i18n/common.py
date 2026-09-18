@@ -11,6 +11,20 @@ STRINGS: dict[str, dict[str, str]] = {
     "logout": {"de": "Abmelden", "en": "Log out"},
     "menu_open_label": {"de": "Menü öffnen", "en": "Open menu"},
     "logged_in_as": {"de": "Angemeldet als", "en": "Logged in as"},
+    "demo_banner_title": {"de": "Demo-Modus", "en": "Demo mode"},
+    "demo_banner_text": {
+        "de": "Änderungen sieht nur du. Sie werden nach der Sitzung gelöscht.",
+        "en": "Only you see your changes. They are deleted after the session.",
+    },
+    "demo_upload_disabled": {
+        "de": "Im Demo-Modus ist das Hochladen von Bildern abgeschaltet.",
+        "en": "Image uploads are turned off in demo mode.",
+    },
+    "demo_account_disabled": {
+        "de": "Gast-Konten haben keine Login-Daten. Mit einem eigenen Konto änderst du hier Benutzername und Passwort.",
+        "en": "Guest accounts have no login details. With your own account you change username and password here.",
+    },
+    "demo_banner_reset": {"de": "Zurücksetzen", "en": "Reset"},
     "footer_tagline": {"de": "Euer gemeinsames Erinnerungsbuch", "en": "Your shared memory book"},
 
     # Für static/js/pin-animation.js (statische Datei, kann kein Jinja rendern —

@@ -5,7 +5,7 @@ import re
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, Request, Response
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -17,13 +17,16 @@ from auth import (
     get_user_from_refresh_token,
     hash_password,
     set_auth_cookies,
+    username_from_access_token,
     verify_password,
 )
 from config import settings
 from database import get_db
 from i18n import t
+from middleware import LANG_COOKIE
 from models import CoupleSettings, Invite, User
 from template_engine import templates
+from tenancy import create_demo_couple, delete_demo_couple
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +133,9 @@ def refresh_token(
     next_url = raw_next if raw_next in _SAFE_NEXT_PATHS else _DEFAULT_NEXT_URL
 
     response = RedirectResponse(url=next_url, status_code=303)
-    set_auth_cookies(response, user.username)
+    # Gäste behalten Session-Cookies, sonst würde der erste stille Refresh
+    # ihre Sitzung in eine 7-Tage-Sitzung verwandeln.
+    set_auth_cookies(response, user.username, session_only=user.couple.is_demo)
     return response
 
 
@@ -285,9 +290,65 @@ def register(
     return response
 
 
+# ── Gastzugang ──────────────────────────────────────────────────────────────
+
+def _drop_guest_couple(request: Request, db: Session) -> None:
+    """Demo-Paar der aktuellen Sitzung löschen, falls sie einem Gast gehört.
+
+    Für Reset und Logout: wer geht oder neu anfängt, soll sein Wegwerf-Paar
+    nicht bis zum Ablaufdatum in der Datenbank liegen lassen. Bei echten
+    Konten und anonymen Requests passiert nichts — ``delete_demo_couple``
+    weigert sich ohnehin bei allem, was kein Demo-Paar ist.
+    """
+    username = username_from_access_token(request)
+    if username is None:
+        return
+    user: User | None = db.query(User).filter(User.username == username).first()
+    if user is not None and delete_demo_couple(db, user.couple_id):
+        db.commit()
+
+
+@router.post("/demo")
+def demo_login(
+    request: Request,
+    db: Annotated[Session, Depends(get_db)],
+) -> Response:
+    """Als Gast einsteigen: frisches Demo-Paar anlegen und anmelden.
+
+    Derselbe Endpunkt ist auch das "Zurücksetzen" im Demo-Banner — ein Gast,
+    der ihn erneut aufruft, bekommt ein neues Paar und das alte wird gelöscht.
+
+    Bewusst POST und CSRF-geschützt: ein GET-Link würde von Crawlern und
+    Link-Vorschauen ausgelöst und jedes Mal ein Paar in die Datenbank legen.
+    """
+    if not settings.DEMO_ENABLED:
+        raise HTTPException(status_code=404)
+
+    # Eigener Zähler, damit Demo-Klicks niemandem den Login sperren. Anders
+    # als beim Login zählt hier jeder Aufruf, nicht nur der fehlgeschlagene —
+    # jeder einzelne kostet Zeilen in der Datenbank.
+    rate_key = f"demo:{_get_client_ip(request)}"
+    _check_rate_limit(rate_key)
+    _record_login_attempt(rate_key)
+
+    _drop_guest_couple(request, db)
+    guest = create_demo_couple(db)
+    logger.info("Gastzugang: Demo-Paar #%s angelegt", guest.couple_id)
+
+    response = RedirectResponse(url="/", status_code=303)
+    # Sprach-Cache des Vorgängers am selben Browser nicht erben.
+    response.delete_cookie(key=LANG_COOKIE, path="/")
+    set_auth_cookies(response, guest.username, session_only=True)
+    return response
+
+
 @router.get("/logout")
-def logout() -> Response:
+def logout(
+    request: Request,
+    db: Annotated[Session, Depends(get_db)],
+) -> Response:
     """Beide Cookies löschen und zur Login-Seite weiterleiten."""
+    _drop_guest_couple(request, db)
     response = RedirectResponse(url="/auth/login", status_code=303)
     clear_auth_cookies(response)
     return response

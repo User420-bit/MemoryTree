@@ -10,7 +10,7 @@ from auth import get_current_user
 from database import get_db
 from models import Photo, User
 from schemas import PhotoRead
-from tenancy import CoupleId, get_owned_memory, get_owned_photo
+from tenancy import CoupleId, get_owned_memory, get_owned_photo, require_non_demo
 from uploads import process_upload, safe_remove
 
 logger = logging.getLogger(__name__)
@@ -22,6 +22,8 @@ router = APIRouter(prefix="", tags=["Fotos"])
     "/memories/{memory_id}/photos",
     response_model=PhotoRead,
     status_code=status.HTTP_201_CREATED,
+    # Gäste dürfen nichts hochladen (siehe tenancy.require_non_demo).
+    dependencies=[Depends(require_non_demo)],
 )
 def upload_photo(
     memory_id: int,

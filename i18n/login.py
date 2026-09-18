@@ -9,5 +9,11 @@ STRINGS: dict[str, dict[str, str]] = {
     "password_placeholder": {"de": "Passwort eingeben", "en": "Enter password"},
     "submit_button": {"de": "Anmelden", "en": "Sign in"},
     "footer_tagline": {"de": "Euer gemeinsames Erinnerungsbuch", "en": "Your shared memory book"},
+    "demo_divider": {"de": "oder", "en": "or"},
+    "demo_button": {"de": "Als Gast ansehen", "en": "Explore as guest"},
+    "demo_hint": {
+        "de": "Beispieldaten zum Ausprobieren — ohne Konto, nichts wird gespeichert.",
+        "en": "Sample data to play with — no account, nothing is kept.",
+    },
     "invalid_credentials": {"de": "Ungültige Anmeldedaten", "en": "Invalid credentials"},
 }
