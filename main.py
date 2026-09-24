@@ -399,16 +399,21 @@ def tree_page(
         .all()
     )
 
-    # Feste Ankerpunkte für bis zu 8 Favoriten am Baum
+    # Feste Ankerpunkte für bis zu 8 Favoriten am Baum, in drei Reihen über
+    # die Krone verteilt (1 · 4 · 3), sodass sich weder Fotos noch
+    # Beschriftungen gegenseitig verdecken. Gilt nur für Erinnerungen ohne
+    # gespeicherte Position (tree_pos_*). ``left`` ist die linke Kante des
+    # Elements (die Pendel-Animation ersetzt das translateX(-50%)), daher
+    # liegen die Werte eine halbe Fotobreite (~7 %) links der Mitte.
     anchor_positions: list[dict[str, str]] = [
-        {"top": "18%", "left": "28%"},
-        {"top": "14%", "left": "48%"},
-        {"top": "20%", "left": "68%"},
-        {"top": "28%", "left": "22%"},
-        {"top": "24%", "left": "42%"},
-        {"top": "30%", "left": "62%"},
-        {"top": "35%", "left": "32%"},
-        {"top": "32%", "left": "55%"},
+        {"top": "8%", "left": "43%"},
+        {"top": "25%", "left": "9%"},
+        {"top": "25%", "left": "32%"},
+        {"top": "25%", "left": "54%"},
+        {"top": "25%", "left": "77%"},
+        {"top": "44%", "left": "20%"},
+        {"top": "44%", "left": "43%"},
+        {"top": "44%", "left": "66%"},
     ]
     pinned: list[tuple[Memory, dict[str, str]]] = []
     for i, mem in enumerate(favorites[:MAX_PINNED_MEMORIES]):
