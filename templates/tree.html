@@ -104,6 +104,16 @@
     pointer-events: none; z-index: 10;
   }
 
+  /* Handy: kleine Fotos ohne Titel, ohne ✕ (ohne Hover wäre er unsichtbar,
+     aber antippbar) und ohne Ziehen, damit die Seite normal scrollt.
+     Entpinnen geht über die Erinnerung selbst. */
+  @media (max-width: 767px) {
+    .tree-foto { width: clamp(40px, 13cqw, 52px); height: clamp(40px, 13cqw, 52px); border-radius: .75rem; border: 2px solid rgba(255,255,255,.85); }
+    .tree-foto-titel, .hanging-memory .unpin-btn { display: none; }
+    .hanging-memory { touch-action: manipulation; cursor: pointer; }
+    .haenge-faden { top: -12px; height: 14px; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .hanging-memory, .tree-wolke, .tree-voegel, .tree-schmetterling { animation: none !important; }
   }
@@ -152,7 +162,8 @@
            width="580" height="500" class="block w-full h-auto select-none pointer-events-none" draggable="false">
 
       {# ── Desktop: Hängende Favoriten (frei positionierbar + draggable) ── #}
-      <div id="pinned-memories-desktop" class="hidden md:block absolute inset-0 pointer-events-none">
+      {# Handy und Desktop: dieselben Fotos in der Krone, auf dem Handy nur kleiner (CSS). #}
+      <div id="pinned-memories-desktop" class="absolute inset-0 pointer-events-none">
         {% if pinned_memories %}
           {% for memory, pos in pinned_memories %}
           <div class="hanging-memory group pointer-events-auto absolute flex flex-col items-center cursor-grab"
@@ -197,62 +208,16 @@
           </div>
           {% endfor %}
         {% else %}
-          <div id="empty-tree-hint" class="absolute top-1/3 left-1/2 -translate-x-1/2 pointer-events-none text-center">
+          <div id="empty-tree-hint" class="absolute top-1/3 left-1/2 -translate-x-1/2 w-max max-w-[80%] pointer-events-none text-center">
             <div class="bg-white/90 backdrop-blur-sm rounded-xl px-6 py-4 shadow-md border border-green-200">
-              <p class="text-base text-[#2d6a4f] font-medium">
+              <p class="hidden md:block text-base text-[#2d6a4f] font-medium">
                 {{ t(request, 'tree.empty_hint_desktop') }}
+              </p>
+              <p class="md:hidden text-sm text-[#2d6a4f] font-medium">
+                {{ t(request, 'tree.empty_hint_mobile') }}
               </p>
             </div>
           </div>
-        {% endif %}
-      </div>
-
-      {# ── Mobile: 4×2 Grid über der Baumkrone ── #}
-      <div id="pinned-memories-mobile" class="md:hidden absolute inset-x-0 z-20"
-           style="top: 1%; padding: 0 8%;">
-        {% if pinned_memories %}
-        <div class="grid grid-cols-4 gap-2 max-w-sm mx-auto">
-          {% for memory, pos in pinned_memories %}
-          <a href="/memories/{{ memory.id }}?from=%2Ftree" class="group relative block">
-            <div class="aspect-square rounded-lg overflow-hidden shadow-md
-                        border-2 border-white/50 bg-white/80
-                        active:scale-95 transition-transform">
-              {% if memory.photos and memory.photos|length > 0 %}
-              <img src="{{ memory.photos[0].filepath|upload_url }}" alt="{{ memory.title }}"
-                   class="w-full h-full object-cover" draggable="false">
-              {% else %}
-              {% set cat = memory.category or 'Alltag' %}
-              {% set conf = category_config.get(cat, category_config['Alltag']) %}
-              <div class="w-full h-full flex items-center justify-center text-lg"
-                   data-bg-color="{{ conf.color }}">
-                {{ conf.emoji }}
-              </div>
-              {% endif %}
-            </div>
-            <p class="text-[10px] text-center text-green-800/70 mt-0.5 leading-tight line-clamp-1">
-              {{ memory.title }}
-            </p>
-            <button type="button"
-                    onclick="event.preventDefault(); event.stopPropagation(); unpinFromTree({{ memory.id }}, this)"
-                    class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500/80 text-white
-                           text-[8px] flex items-center justify-center z-10 shadow-sm">
-              ✕
-            </button>
-          </a>
-          {% endfor %}
-          {# Leere Slots bis 8 auffüllen #}
-          {% for i in range(pinned_memories|length, 8) %}
-          <div class="aspect-square rounded-lg border-2 border-dashed border-green-600/20"></div>
-          {% endfor %}
-        </div>
-        {% else %}
-        <div class="text-center py-4">
-          <div class="inline-block bg-white/90 backdrop-blur-sm rounded-lg px-4 py-2 shadow-sm border border-green-200">
-            <p class="text-sm text-[#2d6a4f] font-medium">
-              {{ t(request, 'tree.empty_hint_mobile') }}
-            </p>
-          </div>
-        </div>
         {% endif %}
       </div>
 
@@ -538,8 +503,8 @@
       el.dataset.dragInit = "true";
 
       el.setAttribute("draggable", "false");
-      el.style.cursor = "grab";
-      el.style.touchAction = "none";
+      // cursor und touch-action kommen aus dem CSS (.hanging-memory), damit
+      // die Handy-Regel sie überschreiben kann und die Seite dort scrollt.
       el.style.userSelect = "none";
       el.style.webkitUserSelect = "none";
 
@@ -551,6 +516,8 @@
       el.addEventListener("pointerdown", function (e) {
         // Ignore clicks on ✕ button
         if (e.target.closest("button")) return;
+        // Auf dem Handy wird nicht gezogen: Antippen öffnet die Erinnerung.
+        if (window.matchMedia("(max-width: 767px)").matches) return;
 
         // If already dragging something → force end first
         if (dragState) endDrag();
@@ -596,9 +563,8 @@
   // ── Start ──
   function init() {
     applyDataStyles();
-    // Always init draggable — safe on mobile because .hanging-memory elements
-    // are inside display:none container (#pinned-memories-desktop hidden md:block)
-    // so they can never receive pointer events on small screens.
+    // Always init draggable — on small screens the pointerdown handler returns
+    // early, so tapping a photo simply follows its link.
     initDraggable();
   }
 
