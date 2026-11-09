@@ -29,3 +29,8 @@ preload_app = False
 
 # Tmp-Verzeichnis (wichtig für ARM/Docker)
 tmp_upload_dir = "/tmp"
+
+# Kontroll-Socket (gunicornc, seit Gunicorn 25) aus: wird nicht genutzt und
+# wollte nach $HOME/.gunicorn schreiben. $HOME ist /app und gehört root, der
+# Container läuft als appuser -> "Permission denied: '/app/.gunicorn'".
+control_socket_disable = True
