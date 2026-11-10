@@ -35,7 +35,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Anwendungscode kopieren
-COPY main.py config.py database.py auth.py models.py schemas.py middleware.py uploads.py template_engine.py gunicorn.conf.py ./
+# Alle Top-Level-Module per Glob statt einzeln: die Einzelliste hatte
+# geo_utils.py, tenancy.py, demo_data.py und i18n/ verpasst, das Image
+# startete dann nicht (ModuleNotFoundError).
+COPY *.py ./
+COPY i18n/ ./i18n/
 COPY routers/ ./routers/
 COPY templates/ ./templates/
 COPY static/ ./static/
